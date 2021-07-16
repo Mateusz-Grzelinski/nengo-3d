@@ -1,24 +1,3 @@
-# GPLv3 License
-#
-# Copyright (C) 2020 Ubisoft
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-"""
-This module define Blender Panels and UI types for the addon.
-"""
-
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
@@ -27,7 +6,7 @@ import bpy
 import os
 
 import logging
-from bl_nengo_3d import bl_operators
+from bl_nengo_3d import bl_operators, debug
 from bl_nengo_3d.share_data import share_data
 
 logger = logging.getLogger(__name__)
@@ -103,13 +82,31 @@ class NengoSettingsPanel(bpy.types.Panel):
 
             row = layout.row()
             row.scale_y = 1.5
-            row.operator(bl_operators.DisconnectOperator.bl_idname, text='Disconnect', depress=True)
+            row.operator(bl_operators.DisconnectOperator.bl_idname, text='Disconnect')
             layout.separator(factor=2.0)
 
             layout.separator(factor=1.5)
 
 
-classes = (NengoSettingsPanel,)
+class NengoDebugPanel(bpy.types.Panel):
+    bl_label = 'Nengo 3d Debug'
+    bl_idname = 'NENGO_PT_debug'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Nengo 3d'
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def draw(self, context):
+        layout = self.layout.column()
+        layout.operator(debug.addon_update.UpdateAddonOperator.bl_idname)
+        layout.operator(bl_operators.DebugConnectionOperator.bl_idname)
+        # layout.prop(props.message)
+
+
+classes = (NengoSettingsPanel, NengoDebugPanel)
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)
 
 

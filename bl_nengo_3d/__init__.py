@@ -15,6 +15,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 from bl_nengo_3d import bl_operators
 from bl_nengo_3d import bl_panels
+from bl_nengo_3d import debug
 
 
 def register():

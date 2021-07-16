@@ -24,7 +24,8 @@ class ConnectOperator(bpy.types.Operator):
         except Exception as e:
             self.report({'ERROR'}, f'Nengo 3d connection failed: {e}')
             return {'CANCELLED'}
-        client.sendall('hello world'.encode('utf-8')) # todo
+        client.setblocking(False)
+        client.settimeout(0.01)
         share_data.client = client
         bpy.app.timers.register(function=handle_data, first_interval=0)
         self.report({'INFO'}, 'Connected to localhost:6001')
@@ -43,16 +44,52 @@ class DisconnectOperator(bpy.types.Operator):
         return share_data.client is not None
 
     def execute(self, context):
-        # share_data.client.shutdown()
         share_data.client.close()
         share_data.client = None
         self.report({'INFO'}, 'Disconnected')
         return {'FINISHED'}
 
 
+class DebugConnectionOperator(bpy.types.Operator):
+    """Send custom message via socket
+    Response will be processed via `connection_handler.handle_data`"""
+
+    bl_idname = 'nengo_3d.connect_debug'
+    bl_label = 'Send debug message'
+    bl_options = {'REGISTER'}
+
+    message: bpy.props.StringProperty(
+        name="Debug Message",
+        description="Send any message via socket",
+        default="{\"model\":1}"
+    )
+
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "message")
+
+        # if self.val1:
+        #     box = layout.box()
+        #     box.prop(self, "val2")
+        #     box.prop(self, "val3")
+
+    @classmethod
+    def poll(cls, context):
+        return share_data.client is not None
+
+    def execute(self, context):
+        share_data.client.send(self.message.encode('utf-8'))
+        return {'FINISHED'}
+
+
 classes = (
     ConnectOperator,
     DisconnectOperator,
+    DebugConnectionOperator
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)

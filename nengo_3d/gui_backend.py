@@ -8,21 +8,15 @@ import select
 import threading
 import time
 import socket
-import queue
 from dataclasses import dataclass
-
-try:
-    import bpy
-except ImportError:
-    print('This script must be run from blender')
-
-# blender_path = r'C:\Users\mat-lp\Documents\magisterka\blender-2.92.0-windows64\blender.exe'
+from typing import *
 
 # os.system(f'{blender_path} --log "bke.appdir.*" --log-level -1 --app-template ./nengo_startup.py')
 # os.system(f'{blender_path} ./blender_template/startup.blend')
+import nengo
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger()
+logger = logging.getLogger(__file__)
 
 
 @dataclass
@@ -32,61 +26,85 @@ class GuiServerSettings:
 
 
 class Connection(threading.Thread):
-    def __init__(self, socket: socket.socket, addr):
+    def __init__(self, client_socket: socket.socket, addr, server_socket: 'Nengo3dServer'):
         super().__init__()
-        self.socket = socket
+        self.server_socket = server_socket
+        self.socket = client_socket
         self.addr = addr
         self.running = True
+
+        self.to_send: Optional[str] = None
 
     def run(self) -> None:
         self.socket.setblocking(True)
         try:
             while self.running:
                 msg = self.socket.recv(1024)
-                if not msg:
-                    time.sleep(0.1)
+                if msg:
+                    self.handle_message(msg)
                     continue
-                logger.debug(f'{self.addr} incoming: {msg.decode("utf-8")}')
+                # if self.to_send:
+                #     self.socket.sendall(data=self.to_send.encode('utf-8'))
+                #     self.to_send = None
+                #     continue
                 time.sleep(0.1)
-        except ConnectionAbortedError as e:
-            logger.exception(e)
+        except (ConnectionAbortedError, ConnectionResetError) as e:
+            logger.warning(e)
         self.socket.close()
+        self.server_socket.remove(self)
+
+    def handle_message(self, msg: bytes) -> None:
+        logger.debug(f'{self.addr} incoming: {msg.decode("utf-8")}')
+
+    # def send(self, message: str):
+    #     if self.to_send:
+    #         logger.error('errorrr!!')
+    #     self.to_send = message
 
     def stop(self):
         self.running = False
 
 
-class Server:
+class Nengo3dServer:
     _running = True
+    connection = Connection
 
-    def __init__(self):
+    def __init__(self, host: str, port: int):
+        self.port = port
+        self.host = host
         self.connections = []
 
     @classmethod
-    def exit_gracefully(cls, sig, frame):
+    def exit_gracefully(cls, sig, frame) -> None:
         logger.info(f'Terminating server after signal: {sig}')
-        Server._running = False
+        Nengo3dServer._running = False
 
-    def run(self, port):
+    def remove(self, connection) -> None:
+        # todo probably requires a lock
+        self.connections.remove(connection)
+
+    def run(self) -> None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        binding_host = "localhost"
-        sock.bind((binding_host, port))
+        sock.bind((self.host, self.port))
         sock.setblocking(0)
         sock.listen(1000)
 
         # for faster TIME_WAIT
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        logger.info("Listening on port % s", port)
+        logger.info("Listening on port % s", self.port)
 
-        while Server._running:
+        while Nengo3dServer._running:
             try:
                 timeout = 0.1  # Check for a new client every 10th of a second
                 readable, _, _ = select.select([sock], [], [], timeout)
                 if len(readable) > 0:
+                    for connection in self.connections:
+                        if not connection.is_alive():
+                            logger.warning(f'dead thread: {connection}')
                     client_socket, client_address = sock.accept()
-                    non_blocking_connection = Connection(client_socket, addr=client_address)
-                    non_blocking_connection.run()
+                    non_blocking_connection = self.connection(client_socket, addr=client_address, server_socket=self)
+                    non_blocking_connection.start()
                     self.connections.append(non_blocking_connection)
                     logger.info(f"New connection from {client_address}, all connections: {len(self.connections)}")
             except KeyboardInterrupt:
@@ -100,9 +118,9 @@ class Server:
         sock.close()
 
 
-signal.signal(signal.SIGINT, Server.exit_gracefully)
-signal.signal(signal.SIGTERM, Server.exit_gracefully)
-signal.signal(signal.SIGBREAK, Server.exit_gracefully)
+signal.signal(signal.SIGINT, Nengo3dServer.exit_gracefully)
+signal.signal(signal.SIGTERM, Nengo3dServer.exit_gracefully)
+signal.signal(signal.SIGBREAK, Nengo3dServer.exit_gracefully)
 
 
 def parse_cli_args():
@@ -115,5 +133,5 @@ def parse_cli_args():
 
 if __name__ == "__main__":
     args, args_parser = parse_cli_args()
-    server = Server()
-    server.run(args.port)
+    server = Nengo3dServer(host='localhost', port=args.port)
+    server.run()
