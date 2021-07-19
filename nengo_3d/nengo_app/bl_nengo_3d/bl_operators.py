@@ -1,4 +1,5 @@
 import socket
+from functools import partial
 
 import bpy
 
@@ -27,7 +28,7 @@ class ConnectOperator(bpy.types.Operator):
         client.setblocking(False)
         client.settimeout(0.01)
         share_data.client = client
-        bpy.app.timers.register(function=handle_data, first_interval=0)
+        bpy.app.timers.register(function=partial(handle_data, nengo_3d=context.window_manager.nengo_3d), first_interval=0)
         self.report({'INFO'}, 'Connected to localhost:6001')
         return {'FINISHED'}
 

@@ -17,11 +17,9 @@ from nengo_3d.gui_backend import Nengo3dServer, Connection
 from nengo_3d.name_finder import NameFinder
 from nengo_3d.schemas import NetworkSchema
 
-blender_path = r'E:\PycharmProjects\nengo_3d_thesis\blender-2.93.1-windows-x64\blender.exe'
 script_path = os.path.dirname(os.path.realpath(__file__))
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class GuiConnection(Connection):
@@ -59,17 +57,25 @@ class GUI(Nengo3dServer):
 
     def start(self, skip_blender=False) -> None:
         # os.makedirs('log', exist_ok=True)
-        blender_template = os.path.join(script_path, 'blender_template', 'startup.blend')
+        blender_template = os.path.join(script_path, 'nengo_app', 'startup.blend')
         if not skip_blender:
             # self.blender_log = open('log/blender.log', 'w')
-            from nengo_3d import BLENDER_PIP_MODULES_PATH
-            self._blender_subprocess = subprocess.Popen([blender_path,
-                                                         '--engine', 'BLENDER_WORKBENCH',
-                                                         '--python-expr',
-                                                         f'import sys; sys.path.append({repr(BLENDER_PIP_MODULES_PATH)})',
-                                                         '--addons', 'bl_nengo_3d', blender_template],
-                                                        # stdout=self.blender_log, stderr=self.blender_log,
-                                                        # env=os.environ
+            from nengo_3d import BLENDER_EXE_PATH
+            import pygetwindow
+            command = [BLENDER_EXE_PATH,
+                       '--engine', 'BLENDER_WORKBENCH',
+                       '--app-template', 'nengo_app',
+                       '--window-geometry', '-1920', '0', '1920', '900',
+                       # '--no-window-focus',
+                       # '--python-expr',
+                       # f'import sys; sys.path.append({repr(BLENDER_PIP_MODULES_PATH)})',
+                       # '--addons', 'bl_nengo_3d',
+                       blender_template,
+                       ]
+            # stdout=self.blender_log, stderr=self.blender_log,
+            logging.info(f'Launching: {" ".join(command)}')
+            self._blender_subprocess = subprocess.Popen(command,
+                                                        env=os.environ,
                                                         )
         self.run()
         if not skip_blender:

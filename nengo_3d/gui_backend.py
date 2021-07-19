@@ -11,11 +11,6 @@ import socket
 from dataclasses import dataclass
 from typing import *
 
-# os.system(f'{blender_path} --log "bke.appdir.*" --log-level -1 --app-template ./nengo_startup.py')
-# os.system(f'{blender_path} ./blender_template/startup.blend')
-import nengo
-
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__file__)
 
 

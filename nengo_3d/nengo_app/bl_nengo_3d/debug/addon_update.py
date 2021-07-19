@@ -17,7 +17,8 @@ class UpdateAddonOperator(bpy.types.Operator):
 
     def execute(self, context):
         if share_data.client:
-            bpy.app.timers.unregister(handle_data)
+            if bpy.app.timers.is_registered(handle_data):
+                bpy.app.timers.unregister(handle_data)
             share_data.client.close()
         try:
             bpy.ops.preferences.addon_disable(module=self.module_name)

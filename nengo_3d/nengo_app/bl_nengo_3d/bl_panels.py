@@ -11,28 +11,6 @@ from bl_nengo_3d.share_data import share_data
 
 logger = logging.getLogger(__name__)
 
-user_modes = {
-    'EDIT_MESH': ('Edit', 'EDITMODE_HLT'),
-    'EDIT_CURVE': ('Curve', 'EDITMODE_HLT'),
-    'EDIT_SURFACE': ('Surface', 'EDITMODE_HLT'),
-    'EDIT_TEXT': ('Text', 'EDITMODE_HLT'),
-    'EDIT_ARMATURE': ('Armature', 'EDITMODE_HLT'),
-    'EDIT_METABALL': ('Metaball', 'EDITMODE_HLT'),
-    'EDIT_LATTICE': ('Lattice', 'EDITMODE_HLT'),
-    'POSE': ('Pose', 'POSE_HLT'),
-    'SCULPT': ('Sculpt', 'SCULPTMODE_HLT'),
-    'PAINT_WEIGHT': ('Weight', 'WPAINT_HLT'),
-    'PAINT_VERTEX': ('Vertex', 'VPAINT_HLT'),
-    'PAINT_TEXTURE': ('Texture', 'TPAINT_HLT'),
-    'PARTICLE': ('Particle', 'PARTICLEMODE'),
-    'OBJECT': ('Object', 'OBJECT_DATAMODE'),
-    'PAINT_GPENCIL': ('GP Paint', 'GREASEPENCIL'),
-    'EDIT_GPENCIL': ('GP Edit', 'EDITMODE_HLT'),
-    'SCULPT_GPENCIL': ('GP Sculpt', 'SCULPTMODE_HLT'),
-    'WEIGHT_GPENCIL': ('GP Weight', 'WPAINT_HLT'),
-    'VERTEX_GPENCIL': ('GP Vertex', 'VPAINT_HLT'),
-}
-
 
 class NengoSettingsPanel(bpy.types.Panel):
     bl_label = 'Nengo 3d'
@@ -88,6 +66,29 @@ class NengoSettingsPanel(bpy.types.Panel):
             layout.separator(factor=1.5)
 
 
+class NengoAlgorithmPanel(bpy.types.Panel):
+    bl_label = 'Nengo 3d'
+    bl_idname = 'NENGO_PT_algorithms'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Nengo 3d'
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def draw(self, context):
+        layout = self.layout.column()
+        win_man = context.window_manager
+        layout.use_property_split = False
+        row = layout.row()
+        row.prop(win_man.nengo_3d, 'algorithm_dim', expand=True)
+        if win_man.nengo_3d.algorithm_dim == '2D':
+            layout.prop(win_man.nengo_3d, 'layout_algorithm_2d')
+        else:
+            layout.prop(win_man.nengo_3d, 'layout_algorithm_3d')
+
+
 class NengoDebugPanel(bpy.types.Panel):
     bl_label = 'Nengo 3d Debug'
     bl_idname = 'NENGO_PT_debug'
@@ -106,7 +107,11 @@ class NengoDebugPanel(bpy.types.Panel):
         # layout.prop(props.message)
 
 
-classes = (NengoSettingsPanel, NengoDebugPanel)
+classes = (
+    NengoSettingsPanel,
+    NengoDebugPanel,
+    NengoAlgorithmPanel
+)
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)
 
 

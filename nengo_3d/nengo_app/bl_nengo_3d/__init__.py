@@ -1,3 +1,5 @@
+import sys
+
 bl_info = {
     "name": "Nengo 3d",
     "author": "Mateusz Grzeliński",
@@ -11,18 +13,24 @@ bl_info = {
 
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format=f'%(levelname)s:{__name__}:"%(pathname)s:%(lineno)d":%(message)s'
+)
 
 from bl_nengo_3d import bl_operators
 from bl_nengo_3d import bl_panels
 from bl_nengo_3d import debug
+from bl_nengo_3d import bl_properties
 
 
 def register():
     bl_operators.register()
     bl_panels.register()
+    bl_properties.register()
 
 
 def unregister():
     bl_operators.unregister()
     bl_panels.unregister()
+    bl_properties.unregister()
