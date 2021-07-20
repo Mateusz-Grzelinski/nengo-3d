@@ -20,7 +20,7 @@ This module defines global state of the addon. It is encapsulated in a ShareData
 """
 import socket
 from datetime import datetime
-from typing import Dict, List, Mapping, Optional, Set
+from typing import *
 from uuid import uuid4
 
 import logging
@@ -38,6 +38,8 @@ class _ShareData:
         self.run_id = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         self.session_id = 0  # For logging and debug
         self.client: Optional[socket.socket] = None
+        self.handle_data: Callable = None
+        """This is handle for unregistering function. This function is created using functools.partial"""
 
         # self.local_server_process = None
         # self.selected_objects_names = []

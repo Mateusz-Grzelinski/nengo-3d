@@ -28,9 +28,11 @@ def register():
     bl_operators.register()
     bl_panels.register()
     bl_properties.register()
+    debug.register()
 
 
 def unregister():
     bl_operators.unregister()
     bl_panels.unregister()
     bl_properties.unregister()
+    debug.unregister()

@@ -19,7 +19,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
             ("SPRING_LAYOUT", "Spring", "Position nodes using Fruchterman-Reingold force-directed algorithm"),
             ("SPECTRAL_LAYOUT", "Spectral", "Position nodes using the eigenvectors of the graph Laplacian"),
             ("SPIRAL_LAYOUT", "Spiral", "Position nodes in a spiral layout"),
-        ], name='Layout', description='')
+        ], name='Layout', description='', default='CIRCULAR_LAYOUT')
     layout_algorithm_3d: bpy.props.EnumProperty(
         items=[
             ("CIRCULAR_LAYOUT", "Circular", "Position nodes on a circle"),
@@ -30,7 +30,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
             ("SPRING_LAYOUT", "Spring", "Position nodes using Fruchterman-Reingold force-directed algorithm"),
             ("SPECTRAL_LAYOUT", "Spectral", "Position nodes using the eigenvectors of the graph Laplacian"),
             ("SPIRAL_LAYOUT", "Spiral", "Position nodes in a spiral layout"),
-        ], name='Layout', description='')
+        ], name='Layout', description='', default='CIRCULAR_LAYOUT')
 
 
 # ("RESCALE_LAYOUT", "Rescale", "Returns scaled position array to (-scale  scale) in all axes"),
@@ -46,6 +46,7 @@ register_factory, unregister_factory = bpy.utils.register_classes_factory(classe
 def register():
     register_factory()
     bpy.types.WindowManager.nengo_3d = bpy.props.PointerProperty(type=Nengo3dProperties)
+    bpy.types.Object
 
 
 

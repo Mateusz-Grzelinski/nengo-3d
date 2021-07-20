@@ -15,7 +15,7 @@ import nengo.utils.progress
 
 from nengo_3d.gui_backend import Nengo3dServer, Connection
 from nengo_3d.name_finder import NameFinder
-from nengo_3d.schemas import NetworkSchema
+from nengo_3d.schemas import NetworkSchema, Answer, Request
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -27,15 +27,19 @@ class GuiConnection(Connection):
         super().handle_message(msg)
         self.server_socket: GUI
         msg = msg.decode('utf-8')
+        r = Request()
         try:
-            d: dict = json.loads(msg)
+            d: dict = r.loads(msg)
         except json.JSONDecodeError:
             logger.warning(f'Invalid json message: {msg}')
             pass
         else:
-            if d.get('model'):
+            uri = d['uri']
+            answer_schema = Answer()
+            if uri.startswith('model'):
                 net = self.server_socket.get_model()
-                self.socket.sendall(net.encode('utf-8'))
+                answer = answer_schema.dumps({'schema': NetworkSchema.__name__, 'data': net})
+                self.socket.sendall(answer.encode('utf-8'))
                 # self.socket.sendall(json.dumps(net, cls=EnhancedJSONEncoder).encode('utf-8'))
 
 
@@ -83,9 +87,9 @@ class GUI(Nengo3dServer):
             logger.info(f'blender finished with code: {e}')
             # self.blender_log.close()
 
-    def get_model(self) -> str:
+    def get_model(self) -> dict:
         m = NetworkSchema(name_finder=self.model_names)
-        return m.dumps(self.model)
+        return m.dump(self.model)
 
     def start_sim(self):
         nengo.utils.progress.ProgressBar

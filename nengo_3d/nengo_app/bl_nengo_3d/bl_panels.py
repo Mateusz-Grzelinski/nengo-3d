@@ -43,31 +43,19 @@ class NengoSettingsPanel(bpy.types.Panel):
         layout = self.layout.column()
         # mixer_prefs = get_mixer_prefs()
 
+        layout.label(text='localhost:6001')
         if not self.connected():
-            layout.separator(factor=0.2)
-            split = layout.split(factor=0.258, align=False)
-            split.label(text='Host:')
-            # split.prop(mixer_prefs, 'host', text="")
-
-            layout.separator(factor=0.5)
             row = layout.row()
             row.scale_y = 1.5
             row.operator(bl_operators.ConnectOperator.bl_idname, text='Connect')
-            layout.separator(factor=1.0)
         else:
-            layout.separator(factor=0.5)
-            # layout.label(text=f'Connected to  {mixer_prefs.host}:{mixer_prefs.port}')
-
             row = layout.row()
             row.scale_y = 1.5
             row.operator(bl_operators.DisconnectOperator.bl_idname, text='Disconnect')
-            layout.separator(factor=2.0)
-
-            layout.separator(factor=1.5)
 
 
 class NengoAlgorithmPanel(bpy.types.Panel):
-    bl_label = 'Nengo 3d'
+    bl_label = 'Nengo Algorithms'
     bl_idname = 'NENGO_PT_algorithms'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -80,6 +68,7 @@ class NengoAlgorithmPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout.column()
         win_man = context.window_manager
+        layout.operator(bl_operators.NengoCalculateOperator.bl_idname)
         layout.use_property_split = False
         row = layout.row()
         row.prop(win_man.nengo_3d, 'algorithm_dim', expand=True)
@@ -102,15 +91,14 @@ class NengoDebugPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout.column()
-        layout.operator(debug.addon_update.UpdateAddonOperator.bl_idname)
-        layout.operator(bl_operators.DebugConnectionOperator.bl_idname)
-        # layout.prop(props.message)
+        layout.operator(debug.ReloadAddonOperator.bl_idname)
+        layout.operator(debug.DebugConnectionOperator.bl_idname)
 
 
 classes = (
     NengoSettingsPanel,
+    NengoAlgorithmPanel,
     NengoDebugPanel,
-    NengoAlgorithmPanel
 )
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)
 

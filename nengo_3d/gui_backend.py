@@ -38,65 +38,61 @@ class Connection(threading.Thread):
                 if msg:
                     self.handle_message(msg)
                     continue
-                # if self.to_send:
-                #     self.socket.sendall(data=self.to_send.encode('utf-8'))
-                #     self.to_send = None
-                #     continue
-                time.sleep(0.1)
+                else:
+                    break
+                # time.sleep(0.05)
         except (ConnectionAbortedError, ConnectionResetError) as e:
             logger.warning(e)
-        self.socket.close()
-        self.server_socket.remove(self)
+        else:
+            self.socket.close()
+        finally:
+            self.server_socket.remove(self)
 
     def handle_message(self, msg: bytes) -> None:
         logger.debug(f'{self.addr} incoming: {msg.decode("utf-8")}')
-
-    # def send(self, message: str):
-    #     if self.to_send:
-    #         logger.error('errorrr!!')
-    #     self.to_send = message
 
     def stop(self):
         self.running = False
 
 
 class Nengo3dServer:
-    _running = True
+    stop_now = False
     connection = Connection
 
     def __init__(self, host: str, port: int):
         self.port = port
         self.host = host
         self.connections = []
+        self._running = True
 
     @classmethod
     def exit_gracefully(cls, sig, frame) -> None:
         logger.info(f'Terminating server after signal: {sig}')
-        Nengo3dServer._running = False
+        cls.stop_now = False
 
     def remove(self, connection) -> None:
         # todo probably requires a lock
         self.connections.remove(connection)
+        if not self.connections:
+            logger.info('No connections remaining')
+            self._running = False
 
     def run(self) -> None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind((self.host, self.port))
-        sock.setblocking(0)
-        sock.listen(1000)
+        sock.setblocking(False)
+        sock.listen(10)
 
         # for faster TIME_WAIT
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         logger.info("Listening on port % s", self.port)
 
-        while Nengo3dServer._running:
+        while self._running and not self.stop_now:
             try:
                 timeout = 0.1  # Check for a new client every 10th of a second
                 readable, _, _ = select.select([sock], [], [], timeout)
                 if len(readable) > 0:
-                    for connection in self.connections:
-                        if not connection.is_alive():
-                            logger.warning(f'dead thread: {connection}')
                     client_socket, client_address = sock.accept()
                     non_blocking_connection = self.connection(client_socket, addr=client_address, server_socket=self)
                     non_blocking_connection.start()
@@ -120,8 +116,7 @@ signal.signal(signal.SIGBREAK, Nengo3dServer.exit_gracefully)
 
 def parse_cli_args():
     DEFAULT_PORT = 6001
-    parser = argparse.ArgumentParser(description="Start broadcasting server for Mixer")
-    # add_logging_cli_args(parser)
+    parser = argparse.ArgumentParser(description="Start broadcasting server for Nengo 3d")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     return parser.parse_args(), parser
 

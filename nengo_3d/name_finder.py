@@ -57,4 +57,7 @@ class NameFinder:
             self.find_names(n)
 
     def name(self, obj: nengo.base.NengoObject) -> str:
-        return self.known_name[obj]
+        if isinstance(obj, nengo.base.ObjView):
+            return self.known_name[obj.obj]
+        else:
+            return self.known_name[obj]

@@ -6,6 +6,9 @@ import bpy
 from bl_nengo_3d.connection_handler import handle_data
 from bl_nengo_3d.share_data import share_data
 
+import nengo_3d_schemas
+import bl_nengo_3d.schemas as schemas
+
 
 class ConnectOperator(bpy.types.Operator):
     """Connect to the Nengo 3d server"""
@@ -28,7 +31,14 @@ class ConnectOperator(bpy.types.Operator):
         client.setblocking(False)
         client.settimeout(0.01)
         share_data.client = client
-        bpy.app.timers.register(function=partial(handle_data, nengo_3d=context.window_manager.nengo_3d), first_interval=0)
+        req = schemas.Request()
+        message = req.dumps({'uri': 'model'})
+
+        client.sendall(message.encode('utf-8'))
+
+        handle_data_function = partial(handle_data, nengo_3d=context.window_manager.nengo_3d)
+        share_data.handle_data = handle_data_function
+        bpy.app.timers.register(function=handle_data_function, first_interval=0.01)
         self.report({'INFO'}, 'Connected to localhost:6001')
         return {'FINISHED'}
 
@@ -45,52 +55,37 @@ class DisconnectOperator(bpy.types.Operator):
         return share_data.client is not None
 
     def execute(self, context):
+        share_data.client.shutdown(socket.SHUT_RDWR)
         share_data.client.close()
         share_data.client = None
         self.report({'INFO'}, 'Disconnected')
         return {'FINISHED'}
 
 
-class DebugConnectionOperator(bpy.types.Operator):
-    """Send custom message via socket
-    Response will be processed via `connection_handler.handle_data`"""
-
-    bl_idname = 'nengo_3d.connect_debug'
-    bl_label = 'Send debug message'
+class NengoCalculateOperator(bpy.types.Operator):
+    """Calculate graph drawing"""
+    bl_idname = 'nengo_3d.calculate'
+    bl_label = 'Recalculate'
     bl_options = {'REGISTER'}
 
-    message: bpy.props.StringProperty(
-        name="Debug Message",
-        description="Send any message via socket",
-        default="{\"model\":1}"
-    )
-
-    def invoke(self, context, event):
-        wm = context.window_manager
-        return wm.invoke_props_dialog(self)
-
-    def draw(self, context):
-        layout = self.layout
-        layout.prop(self, "message")
-
-        # if self.val1:
-        #     box = layout.box()
-        #     box.prop(self, "val2")
-        #     box.prop(self, "val3")
+    # def draw(self, context):
+    #     layout = self.layout
+    #     layout.prop(self, "message")
 
     @classmethod
     def poll(cls, context):
+        return True
         return share_data.client is not None
 
     def execute(self, context):
-        share_data.client.send(self.message.encode('utf-8'))
+        # share_data.client.send(self.message.encode('utf-8'))
         return {'FINISHED'}
 
 
 classes = (
     ConnectOperator,
     DisconnectOperator,
-    DebugConnectionOperator
+    NengoCalculateOperator
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)
@@ -101,5 +96,11 @@ def register():
 
 
 def unregister():
-    # disconnect()
+    if share_data.handle_data and bpy.app.timers.is_registered(share_data.handle_data):
+        bpy.app.timers.unregister(share_data.handle_data)
+        share_data.handle_data = None
+    if share_data.client:
+        share_data.client.shutdown(socket.SHUT_RDWR)
+        share_data.client.close()
+        share_data.client = None
     unregister_factory()

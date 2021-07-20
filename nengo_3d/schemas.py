@@ -8,10 +8,13 @@ from nengo_3d.name_finder import NameFinder
 import sys
 
 sys.path.append("..")  # Adds higher directory to python modules path.
-import nengo_3d_schemas as schemas
+import nengo_3d_schemas
+
+Answer = nengo_3d_schemas.Answer
+Request = nengo_3d_schemas.Request
 
 
-class ConnectionSchema(schemas.ConnectionSchema):
+class ConnectionSchema(nengo_3d_schemas.ConnectionSchema):
     def __init__(self, *, only: typing.Optional[types.StrSequenceOrSet] = None, exclude: types.StrSequenceOrSet = (),
                  many: bool = False, context: typing.Optional[typing.Dict] = None,
                  load_only: types.StrSequenceOrSet = (), dump_only: types.StrSequenceOrSet = (),
@@ -31,7 +34,7 @@ class ConnectionSchema(schemas.ConnectionSchema):
         return result
 
 
-class NodeSchema(schemas.NodeSchema):
+class NodeSchema(nengo_3d_schemas.NodeSchema):
     def __init__(self, *, only: typing.Optional[types.StrSequenceOrSet] = None, exclude: types.StrSequenceOrSet = (),
                  many: bool = False, context: typing.Optional[typing.Dict] = None,
                  load_only: types.StrSequenceOrSet = (), dump_only: types.StrSequenceOrSet = (),
@@ -49,7 +52,7 @@ class NodeSchema(schemas.NodeSchema):
         return result
 
 
-class NetworkSchema(schemas.NetworkSchema):
+class NetworkSchema(nengo_3d_schemas.NetworkSchema):
     def __init__(self, *, only: typing.Optional[types.StrSequenceOrSet] = None, exclude: types.StrSequenceOrSet = (),
                  many: bool = False, context: typing.Optional[typing.Dict] = None,
                  load_only: types.StrSequenceOrSet = (), dump_only: types.StrSequenceOrSet = (),

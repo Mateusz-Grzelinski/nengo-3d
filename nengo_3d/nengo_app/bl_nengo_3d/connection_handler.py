@@ -1,4 +1,3 @@
-import json
 import logging
 import socket
 from functools import partial
@@ -6,8 +5,9 @@ from functools import partial
 import bmesh
 import bpy
 import networkx as nx
+from mathutils import Vector
 
-import nengo_3d_schemas
+import bl_nengo_3d.schemas as schemas
 from bl_nengo_3d.bl_properties import Nengo3dProperties
 from bl_nengo_3d.share_data import share_data
 
@@ -26,6 +26,8 @@ def redraw_all():
 def handle_data(nengo_3d: Nengo3dProperties):
     # In non-blocking mode blocking operations error out with OS specific errors.
     # https://docs.python.org/3/library/socket.html#notes-on-socket-timeouts
+    if not share_data.client:
+        return None
     try:
         data = share_data.client.recv(1024)
     except socket.timeout:
@@ -41,75 +43,97 @@ def handle_data(nengo_3d: Nengo3dProperties):
     else:
         message = data.decode("utf-8")
         logger.debug(f'Incoming: {message}')
-        incoming_json: dict = json.loads(message)
-        s = nengo_3d_schemas.NetworkSchema()
-        network = s.load(data=incoming_json)
-
-        g = nx.DiGraph()
-        for node_name, attributes in network['nodes'].items():
-            g.add_node(node_name)
-        for conn_name, attributes in network['connections'].items():
-            g.add_edge(attributes['pre'], attributes['post'])
-        pos = calculate_layout(nengo_3d, g)
-
-        collection = bpy.data.collections.get(collection_name)
-        if not collection:
-            collection = bpy.data.collections.new(collection_name)
-            bpy.context.scene.collection.children.link(collection)
-            # collection.hide_viewport = False
-
-        node_primitive_mesh = bpy.data.meshes.get('node_primitive')
-        if not node_primitive_mesh:
-            bm = bmesh.new()
-            bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=16, diameter=0.5)
-            node_primitive_mesh = bpy.data.meshes.new(name='node_primitive')
-            bm.to_mesh(node_primitive_mesh)
-            bm.free()
-
-        for node_name, position in pos.items():
-            node_obj = bpy.data.objects.get(node_name)
-            if not node_obj:
-                # bpy.ops.mesh.primitive_ico_sphere_add(radius=0.2, calc_uvs=False, location=(position[0], position[1], 0.0))
-                node_obj = bpy.data.objects.new(name=node_name, object_data=node_primitive_mesh)
-                collection.objects.link(node_obj)
-            node_obj.location = (position[0], position[1], 0.0 if nengo_3d.algorithm_dim == '2D' else position[2])
-
-        # if objects := incoming.get('objects'):
-        #     objects: dict
-        #     for uuid, object in objects.items():
-        #         object: dict
-        # if object['type'] == 'Connection':  # nengo.Connection
-        #     pass
-        # object.pre
-        # object.post
-        # elif object['type'] in {'Node', 'Ensemble'}:
-        #     import random
-        #     mesh_data = bpy.data.meshes.new(name=uuid)
-        #     obj = bpy.data.objects.new('cube', mesh_data)
-        #     obj.location = (random.random(), random.random(), random.random())
-        #     collection.objects.link(obj)
-
-        # if 'cube' in data.decode('utf-8'):
-        #     mesh_data = bpy.data.meshes.new(name='m_cube')
-        #     obj = bpy.data.objects.new('cube', mesh_data)
-        #     collection.objects.link(obj)
-        #
-        # if 'empty' in data.decode('utf-8'):
-        #     empty = bpy.data.objects.new('empty', None)
-        #     empty.empty_display_size = 2
-        #     empty.empty_display_type = 'PLAIN_AXES'
-        #     collection.objects.link(empty)
-
-        if 'quit' in data.decode('utf-8'):
-            share_data.client.close()
-            share_data.client = None
-            return None  # unregisters handler
+        answer_schema = schemas.Answer()
+        incoming_answer: dict = answer_schema.loads(message)  # json.loads(message)
+        if incoming_answer['schema'] == schemas.NetworkSchema.__name__:
+            schema = schemas.NetworkSchema()
+            g = schema.load(data=incoming_answer['data'])
+            handle_network_model(g, nengo_3d)
+        else:
+            logger.error(f'Unknown schema: {incoming_answer["schema"]}')
 
     return update_interval
 
 
-def calculate_layout(nengo_3d: Nengo3dProperties, g: 'nx.Graph'):
+verts = [(0, -0.125, 0), (0.5, -0.25, 0),
+         (0, 0.125, 0), (0.5, 0.25, 0),
+         (0.5, -0.125, 0), (0.5, 0.125, 0),
+         (1, 0, 0), ]
+edges = [(2, 0), (3, 5), (5, 2), (0, 4), (4, 1), (4, 5), (6, 3), (1, 6), ]
+faces = [(0, 4, 5, 2), (1, 6, 3, 5, 4), ]
+
+
+def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
+    pos = calculate_layout(nengo_3d, g)
+    collection = bpy.data.collections.get(collection_name)
+    if not collection:
+        collection = bpy.data.collections.new(collection_name)
+        bpy.context.scene.collection.children.link(collection)
+        # collection.hide_viewport = False
+    node_primitive_mesh = bpy.data.meshes.get('node_primitive')
+    if not node_primitive_mesh:
+        bm = bmesh.new()
+        bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=16, diameter=0.5)
+        node_primitive_mesh = bpy.data.meshes.new(name='node_primitive')
+        for f in bm.faces:
+            f.smooth = True
+        bm.to_mesh(node_primitive_mesh)
+        bm.free()
+    for node_name, position in pos.items():
+        node_obj = bpy.data.objects.get(node_name)
+        if not node_obj:
+            # bpy.ops.mesh.primitive_ico_sphere_add(radius=0.2, calc_uvs=False, location=(position[0], position[1], 0.0))
+            node_obj = bpy.data.objects.new(name=node_name, object_data=node_primitive_mesh)
+            collection.objects.link(node_obj)
+        node_obj.location = (position[0], position[1], 0.0 if nengo_3d.algorithm_dim == '2D' else position[2])
+
+    for connection in g.edges:
+        source_pos = pos[connection[0]]
+        target_pos = pos[connection[1]]
+        if nengo_3d.algorithm_dim == '2D':
+            source_pos = [source_pos[0], source_pos[1], 0.0]
+            target_pos = [target_pos[0], target_pos[1], 0.0]
+        target_pos_vector = Vector(target_pos)
+        source_pos_vector = Vector(source_pos)
+        vector_difference: Vector = target_pos_vector - source_pos_vector
+
+        connection_name = f'{connection[0]}-{connection[1]}'
+        connection_obj = bpy.data.objects.get(connection_name)
+        connection_primitive = bpy.data.meshes.get(connection_name)
+        if connection_obj and connection_primitive:
+            for i, v in enumerate(connection_obj.data.vertices):
+                if i in {0, 2}: continue
+                x = verts[i][0] + vector_difference.length - 0.5 - 1
+                v.co.x = x
+        elif connection_obj and not connection_primitive:
+            assert False
+        elif not connection_obj and not connection_primitive:
+            connection_primitive = bpy.data.meshes.new(connection_name)
+            # make arrow longer
+            for i in range(len(verts)):
+                # skip vert 0 and 2 - they are the base of arrow
+                if i in {0, 2}: continue
+                x = verts[i][0] + vector_difference.length - 0.5 - 1
+                """x = original x position - node size - initial arrow length"""
+                verts[i] = (x, verts[i][1], verts[i][2])
+            connection_primitive.from_pydata(verts, edges, faces)
+            connection_obj = bpy.data.objects.new(name=connection_name, object_data=connection_primitive)
+            connection_obj.rotation_mode = 'QUATERNION'
+            collection.objects.link(connection_obj)
+        elif not connection_obj and connection_primitive:
+            assert False, 'Object was deleted by hand, and mesh is still not deleted'
+        else:
+            assert False, 'Should never happen'
+        connection_obj.location = source_pos
+        connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
+
+
+Positions = dict[str, tuple]  # node: (float, float[, float]), depending on dimension
+
+
+def calculate_layout(nengo_3d: Nengo3dProperties, g: nx.Graph) -> Positions:
     dim = 2 if nengo_3d.algorithm_dim == '2D' else 3
+    # not the most efficient...
     maping = {  # both 3d and 2d algorithms
         "BIPARTITE_LAYOUT": partial(nx.bipartite_layout, nodes=[]),
         "CIRCULAR_LAYOUT": partial(nx.circular_layout, dim=dim),
