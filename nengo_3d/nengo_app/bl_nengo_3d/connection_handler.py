@@ -13,14 +13,31 @@ from bl_nengo_3d.share_data import share_data
 
 logger = logging.getLogger(__file__)
 
-collection_name = 'Sockets'
-update_interval = 1
+update_interval = 0.1
 
 
 def redraw_all():
     for window in bpy.context.window_manager.windows:
         for area in window.screen.areas:
             area.tag_redraw()
+
+
+def handle_step_update(simulation_steps: list[dict]):
+    # simulation_steps: schemas.SimulationSteps
+    # logger.debug(share_data.charts)
+    for simulation_step in simulation_steps:
+        step = simulation_step['step']
+        node_name = simulation_step['node_name']
+        axes_list = share_data.charts[node_name]
+        for param, value in simulation_step['parameters'].items():
+            used = False
+            for ax in axes_list:
+                # logger.debug(f'{ax.parameter}')
+                if ax.parameter == param:
+                    ax.append_data(X=[step, ], Y=[value[0], ], truncate=10, auto_range=True)
+                    used = True
+            if not used:
+                logger.warning(f'{node_name}: {param} was not used for any chart')
 
 
 def handle_data(nengo_3d: Nengo3dProperties):
@@ -39,16 +56,20 @@ def handle_data(nengo_3d: Nengo3dProperties):
         return None  # unregisters handler
 
     if not data:
-        pass
+        pass  # ???
     else:
         message = data.decode("utf-8")
         logger.debug(f'Incoming: {message}')
-        answer_schema = schemas.Answer()
+        answer_schema = schemas.Message()
         incoming_answer: dict = answer_schema.loads(message)  # json.loads(message)
         if incoming_answer['schema'] == schemas.NetworkSchema.__name__:
-            schema = schemas.NetworkSchema()
-            g = schema.load(data=incoming_answer['data'])
-            handle_network_model(g, nengo_3d)
+            data_scheme = schemas.NetworkSchema()
+            data = data_scheme.load(data=incoming_answer['data'])
+            handle_network_model(g=data, nengo_3d=nengo_3d)
+        elif incoming_answer['schema'] == schemas.SimulationSteps.__name__:
+            data_scheme = schemas.SimulationSteps(many=True)
+            data = data_scheme.load(data=incoming_answer['data'])
+            handle_step_update(simulation_steps=data)
         else:
             logger.error(f'Unknown schema: {incoming_answer["schema"]}')
 
@@ -65,9 +86,10 @@ faces = [(0, 4, 5, 2), (1, 6, 3, 5, 4), ]
 
 def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
     pos = calculate_layout(nengo_3d, g)
-    collection = bpy.data.collections.get(collection_name)
+    pos = nx.rescale_layout_dict(pos=pos, scale=nengo_3d.spacing)
+    collection = bpy.data.collections.get(nengo_3d.use_collection)
     if not collection:
-        collection = bpy.data.collections.new(collection_name)
+        collection = bpy.data.collections.new(nengo_3d.use_collection)
         bpy.context.scene.collection.children.link(collection)
         # collection.hide_viewport = False
     node_primitive_mesh = bpy.data.meshes.get('node_primitive')
@@ -103,6 +125,7 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
         if connection_obj and connection_primitive:
             for i, v in enumerate(connection_obj.data.vertices):
                 if i in {0, 2}: continue
+                # logger.debug(f'{connection_name}: {verts[i][0]} + {vector_difference.length}')
                 x = verts[i][0] + vector_difference.length - 0.5 - 1
                 v.co.x = x
         elif connection_obj and not connection_primitive:
@@ -110,13 +133,15 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
         elif not connection_obj and not connection_primitive:
             connection_primitive = bpy.data.meshes.new(connection_name)
             # make arrow longer
+            _verts = verts.copy()
             for i in range(len(verts)):
                 # skip vert 0 and 2 - they are the base of arrow
                 if i in {0, 2}: continue
+                # logger.debug(f'{connection_name}: {verts[i][0]} + {vector_difference.length}')
                 x = verts[i][0] + vector_difference.length - 0.5 - 1
                 """x = original x position - node size - initial arrow length"""
-                verts[i] = (x, verts[i][1], verts[i][2])
-            connection_primitive.from_pydata(verts, edges, faces)
+                _verts[i] = (x, verts[i][1], verts[i][2])
+            connection_primitive.from_pydata(_verts, edges, faces)
             connection_obj = bpy.data.objects.new(name=connection_name, object_data=connection_primitive)
             connection_obj.rotation_mode = 'QUATERNION'
             collection.objects.link(connection_obj)

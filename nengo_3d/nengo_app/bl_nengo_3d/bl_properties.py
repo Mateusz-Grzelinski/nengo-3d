@@ -1,7 +1,13 @@
+import logging
+
 import bpy
 
 
+class Nengo3dChartProperties(bpy.types.PropertyGroup):
+    parent: bpy.props.StringProperty(name='')
+
 class Nengo3dProperties(bpy.types.PropertyGroup):
+    use_collection: bpy.props.StringProperty(name='Collection', default='Nengo Model')
     algorithm_dim: bpy.props.EnumProperty(
         items=[
             ('2D', '2d', 'Use 2d graph drawing algorithm'),
@@ -31,6 +37,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
             ("SPECTRAL_LAYOUT", "Spectral", "Position nodes using the eigenvectors of the graph Laplacian"),
             ("SPIRAL_LAYOUT", "Spiral", "Position nodes in a spiral layout"),
         ], name='Layout', description='', default='CIRCULAR_LAYOUT')
+    spacing: bpy.props.FloatProperty(name='spacing', description='', default=1.0)
 
 
 # ("RESCALE_LAYOUT", "Rescale", "Returns scaled position array to (-scale  scale) in all axes"),
@@ -47,7 +54,6 @@ def register():
     register_factory()
     bpy.types.WindowManager.nengo_3d = bpy.props.PointerProperty(type=Nengo3dProperties)
     bpy.types.Object
-
 
 
 def unregister():

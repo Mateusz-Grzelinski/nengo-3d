@@ -6,7 +6,7 @@ import bpy
 import os
 
 import logging
-from bl_nengo_3d import bl_operators, debug
+from bl_nengo_3d import bl_operators, debug, bl_context_menu
 from bl_nengo_3d.share_data import share_data
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,6 @@ class NengoSettingsPanel(bpy.types.Panel):
         return True
 
     def connected(self):
-        # return False
         return share_data.client is not None  # and share_data.client.is_connected()
 
     # def draw_header(self, context):
@@ -41,7 +40,6 @@ class NengoSettingsPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout.column()
-        # mixer_prefs = get_mixer_prefs()
 
         layout.label(text='localhost:6001')
         if not self.connected():
@@ -52,6 +50,14 @@ class NengoSettingsPanel(bpy.types.Panel):
             row = layout.row()
             row.scale_y = 1.5
             row.operator(bl_operators.DisconnectOperator.bl_idname, text='Disconnect')
+
+        win_man = context.window_manager
+
+        nengo_3d = win_man.nengo_3d
+        row = layout.row()
+        row.active = not self.connected()
+        row.prop(nengo_3d, 'use_collection')
+        layout.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Simulate Step')
 
 
 class NengoAlgorithmPanel(bpy.types.Panel):
@@ -69,18 +75,21 @@ class NengoAlgorithmPanel(bpy.types.Panel):
         layout = self.layout.column()
         win_man = context.window_manager
         layout.operator(bl_operators.NengoCalculateOperator.bl_idname)
+
+        nengo_3d = win_man.nengo_3d
+        layout.prop(nengo_3d, 'spacing')
         layout.use_property_split = False
         row = layout.row()
-        row.prop(win_man.nengo_3d, 'algorithm_dim', expand=True)
-        if win_man.nengo_3d.algorithm_dim == '2D':
-            layout.prop(win_man.nengo_3d, 'layout_algorithm_2d')
+        row.prop(nengo_3d, 'algorithm_dim', expand=True)
+        if nengo_3d.algorithm_dim == '2D':
+            layout.prop(nengo_3d, 'layout_algorithm_2d')
         else:
-            layout.prop(win_man.nengo_3d, 'layout_algorithm_3d')
+            layout.prop(nengo_3d, 'layout_algorithm_3d')
 
 
-class NengoDebugPanel(bpy.types.Panel):
-    bl_label = 'Nengo 3d Debug'
-    bl_idname = 'NENGO_PT_debug'
+class NengoContextPanel(bpy.types.Panel):
+    bl_label = 'Context Actions'
+    bl_idname = 'NENGO_PT_context'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Nengo 3d'
@@ -91,14 +100,13 @@ class NengoDebugPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout.column()
-        layout.operator(debug.ReloadAddonOperator.bl_idname)
-        layout.operator(debug.DebugConnectionOperator.bl_idname)
+        layout.operator(bl_context_menu.DrawVoltagesOperator.bl_idname)
 
 
 classes = (
     NengoSettingsPanel,
+    NengoContextPanel,
     NengoAlgorithmPanel,
-    NengoDebugPanel,
 )
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)
 

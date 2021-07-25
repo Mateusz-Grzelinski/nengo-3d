@@ -21,9 +21,9 @@ class GuiServerSettings:
 
 
 class Connection(threading.Thread):
-    def __init__(self, client_socket: socket.socket, addr, server_socket: 'Nengo3dServer'):
+    def __init__(self, client_socket: socket.socket, addr, server: 'Nengo3dServer', **kwargs):
         super().__init__()
-        self.server_socket = server_socket
+        self.server = server
         self.socket = client_socket
         self.addr = addr
         self.running = True
@@ -46,7 +46,7 @@ class Connection(threading.Thread):
         else:
             self.socket.close()
         finally:
-            self.server_socket.remove(self)
+            self.server.remove(self)
 
     def handle_message(self, msg: bytes) -> None:
         logger.debug(f'{self.addr} incoming: {msg.decode("utf-8")}')
@@ -75,9 +75,9 @@ class Nengo3dServer:
         self.connections.remove(connection)
         if not self.connections:
             logger.info('No connections remaining')
-            self._running = False
+            # self._running = False
 
-    def run(self) -> None:
+    def run(self, connection_init_args=None) -> None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind((self.host, self.port))
         sock.setblocking(False)
@@ -94,7 +94,8 @@ class Nengo3dServer:
                 readable, _, _ = select.select([sock], [], [], timeout)
                 if len(readable) > 0:
                     client_socket, client_address = sock.accept()
-                    non_blocking_connection = self.connection(client_socket, addr=client_address, server_socket=self)
+                    non_blocking_connection = self.connection(client_socket, addr=client_address, server=self,
+                                                              **connection_init_args)
                     non_blocking_connection.start()
                     self.connections.append(non_blocking_connection)
                     logger.info(f"New connection from {client_address}, all connections: {len(self.connections)}")

@@ -31,8 +31,8 @@ class ConnectOperator(bpy.types.Operator):
         client.setblocking(False)
         client.settimeout(0.01)
         share_data.client = client
-        req = schemas.Request()
-        message = req.dumps({'uri': 'model'})
+        req = schemas.Message()
+        message = req.dumps({'schema': schemas.NetworkSchema.__name__})
 
         client.sendall(message.encode('utf-8'))
 
@@ -82,10 +82,36 @@ class NengoCalculateOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class NengoSimulateOperator(bpy.types.Operator):
+    """Calculate graph drawing"""
+    bl_idname = 'nengo_3d.simulate'
+    bl_label = 'Recalculate'
+    bl_options = {'REGISTER'}
+
+    # def draw(self, context):
+    #     layout = self.layout
+    #     layout.prop(self, "message")
+
+    @classmethod
+    def poll(cls, context):
+        return share_data.client is not None
+
+    def execute(self, context):
+        schema = schemas.Message()
+        data_scheme = schemas.Simulation()
+        message = schema.dumps(
+            {'schema': schemas.Simulation.__name__,
+             'data': data_scheme.dump({'action': 'step'})
+             })
+        share_data.client.sendall(message.encode('utf-8'))
+        return {'FINISHED'}
+
+
 classes = (
     ConnectOperator,
     DisconnectOperator,
-    NengoCalculateOperator
+    NengoCalculateOperator,
+    NengoSimulateOperator,
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)

@@ -61,3 +61,10 @@ class NameFinder:
             return self.known_name[obj.obj]
         else:
             return self.known_name[obj]
+
+    def object(self, name: str) -> nengo.base.NengoObject:
+        # todo bad...
+        for obj, _name in self.known_name.items():
+            if name == _name:
+                return obj
+        raise Exception()

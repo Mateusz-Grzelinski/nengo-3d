@@ -1,18 +1,39 @@
 import typing
-from typing import *
+# from typing import *
 from itertools import chain
 import nengo
+import numpy as np
 from marshmallow import pre_dump, types
 
 from nengo_3d.name_finder import NameFinder
 import sys
 
-sys.path.append("..")  # Adds higher directory to python modules path.
+sys.path.append("..")  # Adds higher directory to python modules path to import nengo_3d_schemas
 import nengo_3d_schemas
+from nengo_3d_schemas import Message, Observe, Simulation
 
-Answer = nengo_3d_schemas.Answer
-Request = nengo_3d_schemas.Request
 
+class SimulationSteps(nengo_3d_schemas.SimulationSteps):
+    @pre_dump(pass_many=True)
+    def get_parameters(self, sim_data: nengo.simulator.SimulationData, many: bool):
+        name_finder: NameFinder = self.context['name_finder']
+        model: nengo.Network = self.context['model']
+        steps: list[int] = self.context['steps']
+        requested_probes = self.context['requested_probes']
+        result = []
+        for step in steps:
+            for obj, probes in requested_probes.items():
+                _result = {'node_name': name_finder.name(obj), 'step': step, 'parameters': {}}
+                for probe, parameter in probes:
+                    _result['parameters'][parameter] = list(sim_data[probe][step])
+                result.append(_result)
+        return result
+
+
+# val = '{\'parameters\': {1: {(\'ens\', \'decoded_output\'): [0.19893262191626648, -0.11674964730659484]}}}'
+# val = {'parameters': {1: {('ens', 'decoded_output'): [0.19893262191626648, -0.11674964730659484]}}}
+# s = SimulationSteps()
+# print(s.dumps(val))
 
 class ConnectionSchema(nengo_3d_schemas.ConnectionSchema):
     def __init__(self, *, only: typing.Optional[types.StrSequenceOrSet] = None, exclude: types.StrSequenceOrSet = (),
