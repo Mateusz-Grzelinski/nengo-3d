@@ -1,12 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
+import logging
 
 import bpy
 
-import os
-
-import logging
-from bl_nengo_3d import bl_operators, debug, bl_context_menu
+from bl_nengo_3d import bl_operators, bl_context_menu
 from bl_nengo_3d.share_data import share_data
 
 logger = logging.getLogger(__name__)

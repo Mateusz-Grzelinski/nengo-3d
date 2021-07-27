@@ -1,6 +1,7 @@
 """
 This module is borrowed from nengo_gui
 """
+import logging
 from typing import Any
 import nengo
 
@@ -67,4 +68,4 @@ class NameFinder:
         for obj, _name in self.known_name.items():
             if name == _name:
                 return obj
-        raise Exception()
+        logging.error(f'No object is named "{name}"')

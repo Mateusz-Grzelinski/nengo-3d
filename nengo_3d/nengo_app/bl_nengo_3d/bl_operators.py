@@ -3,11 +3,9 @@ from functools import partial
 
 import bpy
 
-from bl_nengo_3d.connection_handler import handle_data
-from bl_nengo_3d.share_data import share_data
-
-import nengo_3d_schemas
 import bl_nengo_3d.schemas as schemas
+from bl_nengo_3d.connection_handler import handle_data, handle_network_model
+from bl_nengo_3d.share_data import share_data
 
 
 class ConnectOperator(bpy.types.Operator):
@@ -68,17 +66,14 @@ class NengoCalculateOperator(bpy.types.Operator):
     bl_label = 'Recalculate'
     bl_options = {'REGISTER'}
 
-    # def draw(self, context):
-    #     layout = self.layout
-    #     layout.prop(self, "message")
-
     @classmethod
     def poll(cls, context):
-        return True
-        return share_data.client is not None
+        return share_data.model_graph
 
     def execute(self, context):
-        # share_data.client.send(self.message.encode('utf-8'))
+        nengo_3d = context.window_manager.nengo_3d
+        handle_network_model(g=share_data.model_graph, nengo_3d=nengo_3d)
+        context.area.tag_redraw()
         return {'FINISHED'}
 
 
@@ -87,10 +82,6 @@ class NengoSimulateOperator(bpy.types.Operator):
     bl_idname = 'nengo_3d.simulate'
     bl_label = 'Recalculate'
     bl_options = {'REGISTER'}
-
-    # def draw(self, context):
-    #     layout = self.layout
-    #     layout.prop(self, "message")
 
     @classmethod
     def poll(cls, context):
@@ -104,6 +95,7 @@ class NengoSimulateOperator(bpy.types.Operator):
              'data': data_scheme.dump({'action': 'step'})
              })
         share_data.client.sendall(message.encode('utf-8'))
+        context.area.tag_redraw()
         return {'FINISHED'}
 
 

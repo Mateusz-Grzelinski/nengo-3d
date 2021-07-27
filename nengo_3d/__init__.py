@@ -12,7 +12,7 @@ logging.basicConfig(
 )
 
 BLENDER_EXE_PATH = r'E:\PycharmProjects\nengo_3d_thesis\blender-2.93.1-windows-x64\blender.exe'
-BLENDER_PIP_MODULES = ['marshmallow', 'graphviz', 'ogdf-python', 'networkx']
+BLENDER_PIP_MODULES = ['marshmallow', 'graphviz', 'ogdf-python', 'networkx', 'pydot', 'scipy']
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
 command = [BLENDER_EXE_PATH, '--background', '--python-exit-code', '111',

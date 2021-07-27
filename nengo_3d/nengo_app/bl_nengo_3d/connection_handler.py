@@ -1,4 +1,5 @@
 import logging
+import os
 import socket
 from functools import partial
 
@@ -8,6 +9,7 @@ import networkx as nx
 from mathutils import Vector
 
 import bl_nengo_3d.schemas as schemas
+from bl_nengo_3d import nx_layouts
 from bl_nengo_3d.bl_properties import Nengo3dProperties
 from bl_nengo_3d.share_data import share_data
 
@@ -63,9 +65,26 @@ def handle_data(nengo_3d: Nengo3dProperties):
         answer_schema = schemas.Message()
         incoming_answer: dict = answer_schema.loads(message)  # json.loads(message)
         if incoming_answer['schema'] == schemas.NetworkSchema.__name__:
+            # todo handle reconnect
             data_scheme = schemas.NetworkSchema()
-            data = data_scheme.load(data=incoming_answer['data'])
-            handle_network_model(g=data, nengo_3d=nengo_3d)
+            g, data = data_scheme.load(data=incoming_answer['data'])
+            logger.debug(data)
+            logger.debug(g)
+            handle_network_model(g=g, nengo_3d=nengo_3d)
+
+            file_path = data['file']
+
+            t = bpy.data.texts.get(os.path.basename(file_path))
+            if t:
+                t.clear()
+            else:
+                t = bpy.data.texts.new(os.path.basename(file_path))
+            for area in bpy.context.screen.areas:
+                if area.type == 'TEXT_EDITOR':
+                    area.spaces[0].text = t  # make loaded text file visible
+            with open(file_path, 'r') as f:
+                while line := f.read():
+                    t.write(line)
         elif incoming_answer['schema'] == schemas.SimulationSteps.__name__:
             data_scheme = schemas.SimulationSteps(many=True)
             data = data_scheme.load(data=incoming_answer['data'])
@@ -102,12 +121,13 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
         bm.to_mesh(node_primitive_mesh)
         bm.free()
     for node_name, position in pos.items():
+        # todo different primitives for g[node_name]['type']
         node_obj = bpy.data.objects.get(node_name)
         if not node_obj:
-            # bpy.ops.mesh.primitive_ico_sphere_add(radius=0.2, calc_uvs=False, location=(position[0], position[1], 0.0))
             node_obj = bpy.data.objects.new(name=node_name, object_data=node_primitive_mesh)
             collection.objects.link(node_obj)
         node_obj.location = (position[0], position[1], 0.0 if nengo_3d.algorithm_dim == '2D' else position[2])
+        g.nodes[node_name]['blender_object'] = node_obj
 
     for connection in g.edges:
         source_pos = pos[connection[0]]
@@ -151,6 +171,9 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
             assert False, 'Should never happen'
         connection_obj.location = source_pos
         connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
+        g.edges[connection]['blender_object'] = connection_obj
+
+    share_data.model_graph = g
 
 
 Positions = dict[str, tuple]  # node: (float, float[, float]), depending on dimension
@@ -160,6 +183,7 @@ def calculate_layout(nengo_3d: Nengo3dProperties, g: nx.Graph) -> Positions:
     dim = 2 if nengo_3d.algorithm_dim == '2D' else 3
     # not the most efficient...
     maping = {  # both 3d and 2d algorithms
+        "HIERARCHICAL": nx_layouts.hierarchy_pos,
         "BIPARTITE_LAYOUT": partial(nx.bipartite_layout, nodes=[]),
         "CIRCULAR_LAYOUT": partial(nx.circular_layout, dim=dim),
         "KAMADA_KAWAI_LAYOUT": partial(nx.kamada_kawai_layout, dim=dim),

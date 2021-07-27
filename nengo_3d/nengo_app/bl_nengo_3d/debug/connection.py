@@ -13,7 +13,7 @@ class DebugConnectionOperator(bpy.types.Operator):
     message: bpy.props.StringProperty(
         name="Debug Message",
         description="Send any message via socket",
-        default="{\"uri\":\"model\"}"
+        default="{\"schema\": \"NetworkSchema\"}"
     )
 
     def invoke(self, context, event):

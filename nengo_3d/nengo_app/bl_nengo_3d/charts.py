@@ -8,18 +8,11 @@ import bmesh
 import bpy.utils
 
 # import matplotlib.pyplot as plt
-# import matplotlib.animation
-
-# matplotlib.animation.FuncAnimation
-# ln, = plt.plot([], [], 'ro')
-# ln:plt.Line2D
-
-# matplotlib.get_backend()
-# matplotlib.rcsetup
-# plt.Axes.__init__
-# plt.axis
-# plt.hist
-# plt.plot
+# import matplotlib.ticker
+#
+# plt.xticks()
+# matplotlib.ticker.MaxNLocator
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +40,46 @@ def denormalize(x: list[float], min_x: float, max_x: float):
     return x
 
 
+class LinearLocator:
+    """
+    Determine the tick locations
+
+    The first time this function is called it will try to set the
+    number of ticks to make a nice tick partitioning.  Thereafter the
+    number of ticks will be fixed so that interactive navigation will
+    be nice
+
+    """
+
+    def __init__(self, numticks=None):
+        self.numticks = numticks
+
+    def tick_values(self, vmin, vmax):
+        if vmax < vmin:
+            vmin, vmax = vmax, vmin
+
+        if self.numticks == 0:
+            return []
+        ticklocs = np.linspace(vmin, vmax, self.numticks)
+        return ticklocs
+
+
+class IntegerLocator:
+    def __init__(self, numticks=None):
+        self.numticks = numticks
+
+    def tick_values(self, vmin, vmax):
+        if vmax < vmin:
+            vmin, vmax = vmax, vmin
+
+        if self.numticks == 0:
+            return []
+        ticklocs = np.arange(vmin, vmax + 1, step=int((vmax - vmin) / self.numticks) or 1)
+        return ticklocs
+
+
 class Axes:
+    # todo handle graph removal
     """Contains most of chart
     2 or 3 Axis
     title, x label, y label,
@@ -60,20 +92,30 @@ class Axes:
         self.parameter = parameter
         self.xlabel_text = None
         self.ylabel_text = None
-        # self.title_text = None
+        self.title_text = None
+        # self.xticks = []
+        self.xformat = '{:.2f}'
+        self.xlocator = LinearLocator(numticks=8)
+        # self.xticks_labels = []
+        # self.yticks = []
+        self.yformat = '{:.2f}'
+        self.ylocator = LinearLocator(numticks=8)
+        # self.yticks_labels = []
         self.context = context
-        collection = bpy.data.collections.new('Chart')
-        context.collection.children.link(collection)
+        collection = bpy.data.collections.get('Charts')
+        if not collection:
+            collection = bpy.data.collections.new('Charts')
+            context.collection.children.link(collection)
         self.collection = collection
         self._location = context.active_object.location if context.active_object else (0, 0, 0)
 
         self._data = {}
         self.original_data_x = []
         self.original_data_y = []
-        self.min_x = 0
-        self.max_x = 1
-        self.min_y = 0
-        self.max_y = 1
+        self.xlim_min = 0
+        self.xlim_max = 1
+        self.ylim_min = 0
+        self.ylim_max = 1
 
         # blender objects that create this chart:
         self._chart = None
@@ -84,6 +126,7 @@ class Axes:
         self._ticks_y = None
         self._xlabel = None
         self._ylabel = None
+        self._title = None
 
     @property
     def location(self):
@@ -101,11 +144,8 @@ class Axes:
     def ylabel(self, text: str):
         self.ylabel_text = text
 
-    # def title(self, text: str):
-    #     self.title_text = text
-
-    # def grid(self):
-    #     pass
+    def title(self, text: str):
+        self.title_text = text
 
     def make_line(self, X: list, Y: list, width: float = 0.01, depth: float = 0.04):
         vers_pos = []
@@ -129,8 +169,8 @@ class Axes:
         return vers_pos, [(0, 1)], faces
 
     # def set_data(self, X, Y):
-    #     y, self.min_y, self.max_y = normalize(Y)
-    #     x, self.min_x, self.max_x = normalize(X)
+    #     y, self.min_y, self.max_y = normalize(Y.copy())
+    #     x, self.min_x, self.max_x = normalize(X.copy())
     #     self._draw_line(X=x, Y=y)
     #
     # def set_y_data(self, Y):
@@ -144,22 +184,22 @@ class Axes:
     #     self._draw_line(mesh=self._line.data, X=x, Y=list(XY.values()))
 
     def append_data(self, X, Y, truncate: int = None, auto_range=False):
-        # todo this is not auto range. assumed that max(X) < self.max_x
         self.original_data_x.extend(X)
         self.original_data_y.extend(Y)
         if truncate:
             self.original_data_x = self.original_data_x[-truncate:]
             self.original_data_y = self.original_data_y[-truncate:]
-        # logger.debug(self.original_data_x)
-        # logger.debug(self.original_data_y)
         if auto_range:
-            x, self.min_x, self.max_x = normalize(self.original_data_x)
-            y, self.min_y, self.max_y = normalize(self.original_data_y)
-            self._draw_ticks_x(ticks=10, ticks_x_mesh=self._ticks_x.data)
+            x, self.xlim_min, self.xlim_max = normalize(self.original_data_x.copy())
+            y, self.ylim_min, self.ylim_max = normalize(self.original_data_y.copy())
+            self._draw_ticks_x(ticks=self.xlocator.tick_values(self.xlim_min, self.xlim_max),
+                               ticks_x_mesh=self._ticks_x.data)
+            self._draw_ticks_y(ticks=self.ylocator.tick_values(self.ylim_min, self.ylim_max),
+                               ticks_y_mesh=self._ticks_y.data)
             self._draw_line(mesh=self._line.data, X=x, Y=y)
         else:
-            x = normalize_precalculated(self.original_data_x, self.min_x, self.max_x)
-            y = normalize_precalculated(self.original_data_y, self.min_y, self.max_y)
+            x = normalize_precalculated(self.original_data_x.copy(), self.xlim_min, self.xlim_max)
+            y = normalize_precalculated(self.original_data_y.copy(), self.ylim_min, self.ylim_max)
             self._draw_line(mesh=self._line.data, X=x, Y=y)
 
     def _draw_line(self, mesh: bpy.types.Mesh, X: list, Y: list):
@@ -182,38 +222,40 @@ class Axes:
         bm.free()
 
     def _create_text(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False, ):
-        obj = bpy.data.objects.get(name)
-        mesh = bpy.data.curves.get(name)
-        if not obj:
-            if not mesh:
-                mesh = bpy.data.curves.new(name, type='FONT')
-            obj = bpy.data.objects.new(name=name, object_data=mesh)
-            self.collection.objects.link(obj)
-            if solidify:
-                bpy.context.view_layer.objects.active = obj
-                bpy.ops.object.modifier_add(type='SOLIDIFY')
-                obj.modifiers["Solidify"].thickness = solidify  # 0.04
+        # obj = bpy.data.objects.get(name)
+        # mesh = bpy.data.curves.get(name)
+        # if not obj:
+        #     if not mesh:
+        #     mesh = bpy.data.curves.new(name, type='FONT')
+        mesh = bpy.data.curves.new(name, type='FONT')
+        obj = bpy.data.objects.new(name=name, object_data=mesh)
+        self.collection.objects.link(obj)
+        if solidify:
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.modifier_add(type='SOLIDIFY')
+            obj.modifiers["Solidify"].thickness = solidify  # 0.04
         obj.hide_select = not selectable
         obj.parent = parent
-        return mesh, obj
+        return obj
 
     def _create_object(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False, ):
-        obj = bpy.data.objects.get(name)
-        mesh = bpy.data.meshes.get(name)
-        if not obj:
-            if not mesh:
-                mesh = bpy.data.meshes.new(name)
-            else:
-                mesh.clear_geometry()
-            obj = bpy.data.objects.new(name=name, object_data=mesh)
-            self.collection.objects.link(obj)
-            if solidify:
-                bpy.context.view_layer.objects.active = obj
-                bpy.ops.object.modifier_add(type='SOLIDIFY')
-                obj.modifiers["Solidify"].thickness = solidify  # 0.04
+        # obj = bpy.data.objects.get(name)
+        # mesh = bpy.data.meshes.get(name)
+        # if not obj:
+        #     if not mesh:
+        #         mesh = bpy.data.meshes.new(name)
+        #     else:
+        #         mesh.clear_geometry()
+        mesh = bpy.data.meshes.new(name)
+        obj = bpy.data.objects.new(name=name, object_data=mesh)
+        self.collection.objects.link(obj)
+        if solidify:
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.modifier_add(type='SOLIDIFY')
+            obj.modifiers["Solidify"].thickness = solidify  # 0.04
         obj.hide_select = not selectable
         obj.parent = parent
-        return mesh, obj
+        return obj
 
     def plot(self, *args):
         x = args[0]
@@ -221,63 +263,128 @@ class Axes:
         assert len(x) == len(y)
         self.original_data_x = x
         self.original_data_y = y
-        x, self.min_x, self.max_x = normalize(self.original_data_x)
-        y, self.min_y, self.max_y = normalize(self.original_data_y)
+        x, self.xlim_min, self.xlim_max = normalize(self.original_data_x.copy())
+        y, self.ylim_min, self.ylim_max = normalize(self.original_data_y.copy())
         self.draw()
 
         self._draw_line(mesh=self._line.data, X=x, Y=y)
 
     def draw(self):
-        chart_mesh, self._chart = self._create_object('Chart', selectable=True)
-        chart_mesh.clear_geometry()
-        chart_mesh.from_pydata(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)], edges=[], faces=[(0, 1, 3, 2)])
-        self._chart.location = self._location
+        if not self._chart:
+            self._chart = self._create_object('Chart', selectable=True)
+            chart_mesh = self._chart.data
+            chart_mesh.from_pydata(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)], edges=[],
+                                   faces=[(0, 1, 3, 2)])
+            self._chart.location = self._location
 
-        line_mesh, self._line = self._create_object('Line', solidify=0.04, parent=self._chart)
+        if not self._line:
+            self._line = self._create_object('Line', solidify=0.04, parent=self._chart)
 
-        ticks_x_mesh, self._ticks_x = self._create_object('Arrow X', solidify=0.02, parent=self._chart)
-        ticks_x_mesh.clear_geometry()
-        self._draw_ticks_x(ticks=10, ticks_x_mesh=ticks_x_mesh)
+        if not self._ticks_x:
+            self._ticks_x = self._create_object('Ticks X', solidify=0.02, parent=self._chart)
+        self._draw_ticks_x(ticks=self.xlocator.tick_values(self.xlim_min, self.xlim_max),
+                           ticks_x_mesh=self._ticks_x.data)
+
+        if not self._ticks_y:
+            self._ticks_y = self._create_object('Ticks Y', solidify=0.02, parent=self._chart)
+        self._draw_ticks_y(ticks=self.ylocator.tick_values(self.ylim_min, self.ylim_max),
+                           ticks_y_mesh=self._ticks_y.data)
 
         if self.xlabel_text:
-            xlabel, self._xlabel = self._create_text('xlabel', solidify=0.01, parent=self._chart)
+            if not self._xlabel:
+                self._xlabel = self._create_text('xlabel', solidify=0.01, parent=self._chart)
+            xlabel = self._xlabel.data
             xlabel.body = self.xlabel_text
-            xlabel.size = 0.15
+            xlabel.size = 0.1
             xlabel.align_x = 'CENTER'
             xlabel.align_y = 'TOP'
-            self._xlabel.location = (0.5, -0.07, 0)
+            marigin = self._tick_text_x[0].dimensions.y if self._tick_text_x else 0
+            logger.debug(self._tick_text_x[0].dimensions.y)
+            self._xlabel.location = (0.5, -0.10 - marigin, 0)
 
         if self.ylabel_text:
-            ylabel, self._ylabel = self._create_text('ylabel', solidify=0.01, parent=self._chart)
+            if not self._ylabel:
+                self._ylabel = self._create_text('ylabel', solidify=0.01, parent=self._chart)
+            ylabel = self._ylabel.data
             ylabel.body = self.ylabel_text
-            ylabel.size = 0.15
+            ylabel.size = 0.1
             ylabel.align_x = 'CENTER'
             ylabel.align_y = 'TOP'
-            self._ylabel.location = (-0.07, 0.5, 0)
+            marigin = self._tick_text_y[0].dimensions.x if self._tick_text_y else 0
+            self._ylabel.location = (-0.07 - marigin, 0.5, 0)
             self._ylabel.rotation_euler = (0, 0, -math.pi / 2)
 
-    def _draw_ticks_x(self, ticks, ticks_x_mesh):
+        if self.title_text:
+            if not self._title:
+                self._title = self._create_text('Title', solidify=0.01, parent=self._chart)
+            title = self._title.data
+            title.body = self.title_text
+            title.size = 0.15
+            title.align_x = 'CENTER'
+            title.align_y = 'BOTTOM'
+            self._title.location = (0.5, 1.1, 0)
+            # self._title.rotation_euler = (0, 0, -math.pi / 2)
+
+    def _draw_ticks_x(self, ticks: list, ticks_x_mesh):
         bm = bmesh.new()
+        ticks = [i for i in ticks if self.xlim_max >= i >= self.xlim_min]
         tick_width = 0.01
         tick_height = 0.04
-        x_loc_diff = 1 / ticks
-        x_range_diff = (self.max_x - self.min_x) / ticks
-        for i in range(ticks):
-            x_loc = x_loc_diff * i
+        ticks_loc = normalize_precalculated(ticks.copy(), self.xlim_min, self.xlim_max)
+        for t in ticks_loc:
+            x_loc = t
             v1 = bm.verts.new((x_loc, 0, 0))
             v2 = bm.verts.new((x_loc + tick_width, 0, 0))
             v3 = bm.verts.new((x_loc, -tick_height, 0))
             v4 = bm.verts.new((x_loc + tick_width, -tick_height, 0))
             bm.faces.new((v1, v2, v4, v3))
-
-            tick_text, tick_text_obj = self._create_text(f'Tick text {i}', solidify=0.01, parent=self._chart)
-            tick_text.body = str(round(self.min_x + x_range_diff * i, 1))
-            tick_text.size = 0.05
-            tick_text.align_x = 'CENTER'
-            tick_text.align_y = 'TOP'
-            tick_text_obj.location = (x_loc + tick_width / 2, -tick_height, 0)
-            self._tick_text_x.append(tick_text_obj)
         bm.to_mesh(ticks_x_mesh)
         bm.free()
 
-# register, unregister = bpy.utils.register_classes_factory(classes)
+        while len(self._tick_text_x) < len(ticks):
+            self._tick_text_x.append(self._create_text(f'Tick x {len(self._tick_text_x)}',
+                                                       solidify=0.01, parent=self._chart))
+        while len(self._tick_text_x) > len(ticks):
+            obj = self._tick_text_x.pop()
+            bpy.ops.object.delete({'selected_objects': [obj]})
+
+        for i, (t, t_loc) in enumerate(zip(ticks, ticks_loc)):
+            tick_text_obj = self._tick_text_x[i]
+            tick_text = tick_text_obj.data
+            tick_text.body = self.xformat.format(t)
+            tick_text.size = 0.05
+            tick_text.align_x = 'CENTER'
+            tick_text.align_y = 'TOP'
+            tick_text_obj.location = (t_loc + tick_width / 2, -tick_height, 0)
+
+    def _draw_ticks_y(self, ticks: list, ticks_y_mesh):
+        bm = bmesh.new()
+        ticks = [i for i in ticks if self.ylim_max >= i >= self.ylim_min]
+        tick_width = 0.01
+        tick_height = 0.04
+        ticks_loc = normalize_precalculated(ticks.copy(), self.ylim_min, self.ylim_max)
+        for t in ticks_loc:
+            y_loc = t
+            v1 = bm.verts.new((0, y_loc, 0))
+            v2 = bm.verts.new((0, y_loc + tick_width, 0))
+            v3 = bm.verts.new((-tick_height, y_loc, 0))
+            v4 = bm.verts.new((-tick_height, y_loc + tick_width, 0))
+            bm.faces.new((v1, v2, v4, v3))
+        bm.to_mesh(ticks_y_mesh)
+        bm.free()
+
+        while len(self._tick_text_y) < len(ticks):
+            self._tick_text_y.append(self._create_text(f'Tick y {len(self._tick_text_y)}',
+                                                       solidify=0.01, parent=self._chart))
+        while len(self._tick_text_y) > len(ticks):
+            obj = self._tick_text_y.pop()
+            bpy.ops.object.delete({'selected_objects': [obj]})
+
+        for i, (t, t_loc) in enumerate(zip(ticks, ticks_loc)):
+            tick_text_obj = self._tick_text_y[i]
+            tick_text = tick_text_obj.data
+            tick_text.body = self.yformat.format(t)
+            tick_text.size = 0.05
+            tick_text.align_x = 'RIGHT'
+            tick_text.align_y = 'CENTER'
+            tick_text_obj.location = (-tick_height, t_loc + tick_width / 2, 0)

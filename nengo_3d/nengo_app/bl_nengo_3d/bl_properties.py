@@ -3,8 +3,9 @@ import logging
 import bpy
 
 
-class Nengo3dChartProperties(bpy.types.PropertyGroup):
-    parent: bpy.props.StringProperty(name='')
+# class Nengo3dChartProperties(bpy.types.PropertyGroup):
+#     parent: bpy.props.StringProperty(name='')
+
 
 class Nengo3dProperties(bpy.types.PropertyGroup):
     use_collection: bpy.props.StringProperty(name='Collection', default='Nengo Model')
@@ -15,6 +16,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
         ], name='Algorithm 2d/3d', description='')
     layout_algorithm_2d: bpy.props.EnumProperty(
         items=[
+            ("HIERARCHICAL", "Hierarchical", ""),
             ("BIPARTITE_LAYOUT", "Bipartite", "Position nodes in two straight lines"),
             ("MULTIPARTITE_LAYOUT", "Multipartite", "Position nodes in layers of straight lines"),
             ("CIRCULAR_LAYOUT", "Circular", "Position nodes on a circle"),
@@ -25,7 +27,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
             ("SPRING_LAYOUT", "Spring", "Position nodes using Fruchterman-Reingold force-directed algorithm"),
             ("SPECTRAL_LAYOUT", "Spectral", "Position nodes using the eigenvectors of the graph Laplacian"),
             ("SPIRAL_LAYOUT", "Spiral", "Position nodes in a spiral layout"),
-        ], name='Layout', description='', default='CIRCULAR_LAYOUT')
+        ], name='Layout', description='', default='SPRING_LAYOUT')
     layout_algorithm_3d: bpy.props.EnumProperty(
         items=[
             ("CIRCULAR_LAYOUT", "Circular", "Position nodes on a circle"),
@@ -36,8 +38,8 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
             ("SPRING_LAYOUT", "Spring", "Position nodes using Fruchterman-Reingold force-directed algorithm"),
             ("SPECTRAL_LAYOUT", "Spectral", "Position nodes using the eigenvectors of the graph Laplacian"),
             ("SPIRAL_LAYOUT", "Spiral", "Position nodes in a spiral layout"),
-        ], name='Layout', description='', default='CIRCULAR_LAYOUT')
-    spacing: bpy.props.FloatProperty(name='spacing', description='', default=1.0)
+        ], name='Layout', description='', default='SPRING_LAYOUT')
+    spacing: bpy.props.FloatProperty(name='spacing', description='', default=1.5)
 
 
 # ("RESCALE_LAYOUT", "Rescale", "Returns scaled position array to (-scale  scale) in all axes"),

@@ -57,11 +57,13 @@ class ConnectionSchema(Schema):
 
 class NodeSchema(Schema):
     # name = fields.Str()
+    type = fields.Str(required=True)
+    probeable = fields.List(fields.Str())
     label = fields.Str(allow_none=True)
 
 
 class NetworkSchema(Schema):
-    # name = fields.Str()
+    file = fields.Str()
     nodes = fields.Dict(keys=fields.Str(), values=fields.Nested(NodeSchema()))
     # ensembles = fields.Dict(keys=fields.Str(), values=fields.Nested(NodeSchema()))
     connections = fields.Dict(keys=fields.Str(), values=fields.Nested(ConnectionSchema()))

@@ -34,11 +34,6 @@ class GuiConnection(Connection):
         self.sim: nengo.Simulator = None
         """Generate uuid for each model element"""
 
-    def get_model(self) -> dict:
-        """Returns `schemas.NetworkSchema`"""
-        m = schemas.NetworkSchema(name_finder=self.name_finder)
-        return m.dump(self.model)
-
     def start_sim(self):
         """Returns `schemas.SimulationSteps`"""
         # nengo.utils.progress.ProgressBar
@@ -55,8 +50,9 @@ class GuiConnection(Connection):
         try:
             incoming_message: dict = message.loads(msg)
             if incoming_message['schema'] == schemas.NetworkSchema.__name__:
-                net = self.get_model()
-                answer = message.dumps({'schema': schemas.NetworkSchema.__name__, 'data': net})
+                data_scheme = schemas.NetworkSchema(
+                    context={'name_finder': self.name_finder, 'file': self.server.filename})
+                answer = message.dumps({'schema': schemas.NetworkSchema.__name__, 'data': data_scheme.dump(self.model)})
                 self.socket.sendall(answer.encode('utf-8'))
             elif incoming_message['schema'] == schemas.Observe.__name__:
                 schema = schemas.Observe()
@@ -77,15 +73,13 @@ class GuiConnection(Connection):
                     if not self.sim:
                         self.start_sim()
                     self.sim.step()  # this can be done async
-                    data_scheme = schemas.SimulationSteps(many=True)
-                    data_scheme.context['model'] = self.model
-                    data_scheme.context['name_finder'] = self.name_finder
-                    data_scheme.context['steps'] = (self.sim.n_steps - 1, )
-                    data_scheme.context['requested_probes'] = self.requested_probes
+                    data_scheme = schemas.SimulationSteps(many=True,
+                                                          context={'model': self.model,
+                                                                   'name_finder': self.name_finder,
+                                                                   'steps': (self.sim.n_steps - 1,),
+                                                                   'requested_probes': self.requested_probes})
                     data = data_scheme.dump(self.sim.data)
-                    # logger.debug(data_scheme.validate(self.sim.data))
-                    answer = message.dumps({'schema': schemas.SimulationSteps.__name__,
-                                            'data': data})
+                    answer = message.dumps({'schema': schemas.SimulationSteps.__name__, 'data': data})
                     logger.debug(f'Sending step {self.sim.n_steps - 1}: {answer}')
                     self.socket.sendall(answer.encode('utf-8'))
                 else:
@@ -106,7 +100,7 @@ class GUI(Nengo3dServer):
         super().__init__(host, port)
         self.locals = local_vars or {}
         self.model = model
-        self.filename = filename or __file__
+        self.filename = os.path.realpath(filename) or __file__
         # self.blender_log = None
         self._blender_subprocess = None
 

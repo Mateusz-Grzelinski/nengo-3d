@@ -26,6 +26,7 @@ from uuid import uuid4
 
 import logging
 import bpy
+import networkx as nx
 
 from bl_nengo_3d.charts import Axes
 
@@ -54,7 +55,8 @@ class _ShareData:
         """
 
         # caching and small dependency graph
-        self.model: dict[str, bpy.types.Object] = {}
+        # self.model: dict[str, bpy.types.Object] = {}
+        self.model_graph: nx.DiGraph = None
         """Cached model, key=unique name, object=blender object representation"""
         self.charts: dict[str, list[Axes]] = defaultdict(list)
         """

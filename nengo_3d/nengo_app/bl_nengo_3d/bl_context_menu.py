@@ -1,39 +1,52 @@
 import logging
-import urllib.parse
 
 import bpy
 
 from bl_nengo_3d import schemas
-from bl_nengo_3d.charts import Axes
+from bl_nengo_3d.charts import Axes, IntegerLocator
 from bl_nengo_3d.share_data import share_data
+
+
+def probeable(self, context):
+    for param in share_data.model_graph.nodes[context.active_object.name]['probeable']:
+        yield param, param, ''
 
 
 class DrawVoltagesOperator(bpy.types.Operator):
     bl_idname = 'nengo_3d.draw_voltages'
     bl_label = 'Voltages'
 
-    # node: bpy.props.StringProperty(name='Node', description='Node to probe', default='')
+    probe: bpy.props.EnumProperty(items=probeable, name='Parameter')
+
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, 'probe')
 
     @classmethod
     def poll(cls, context):
-        return True
-        return share_data.model.get(context.active_object.name)  # is used in model
+        return share_data.model_graph and context.active_object and share_data.model_graph.nodes.get(
+            context.active_object.name)
 
     def execute(self, context):
         # register chart as input source: send info to probe model
-        ax = Axes(context, parameter='decoded_output')
+        logging.debug(self.probe)
+        ax = Axes(context, parameter=self.probe)
         ax.xlabel('Step')
         ax.ylabel('Voltage')
         node: bpy.types.Object = context.active_object  # or selected_objects
-        ax.location = node.location
+        ax.title(f'{node.name}:{self.probe}')
+        ax.location = node.location + node.dimensions / 2
+        ax.xlocator = IntegerLocator(numticks=8)
+        ax.xformat = '{:.0f}'
+
         share_data.register_chart(obj=node, ax=ax)
 
         s = schemas.Message()
         data_scheme = schemas.Observe()
-        # logging.debug(data_scheme.fields)
-        # v = {'source': node.name, 'parameter': 'decoded_output'}
-        # logging.debug(data_scheme.validate(v ))
-        # logging.debug(v)
         data = data_scheme.dump(
             obj={'source': node.name, 'parameter': ax.parameter})  # todo what params are allowed?
         message = s.dumps({'schema': schemas.Observe.__name__, 'data': data})
@@ -49,6 +62,7 @@ class NENGO_MT_context_menu(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
+        layout.active = context.active_object
         layout.operator(DrawVoltagesOperator.bl_idname)
 
 
