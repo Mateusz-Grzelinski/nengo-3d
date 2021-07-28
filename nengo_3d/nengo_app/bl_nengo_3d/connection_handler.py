@@ -181,9 +181,9 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
         node_obj.location = (position[0], position[1], 0.0 if nengo_3d.algorithm_dim == '2D' else position[2])
         g.nodes[node_name]['blender_object'] = node_obj
 
-    for connection in g.edges:
-        source_pos = pos[connection[0]]
-        target_pos = pos[connection[1]]
+    for node_source, node_target, edge_data in g.edges.data():
+        source_pos = pos[node_source]
+        target_pos = pos[node_target]
         if nengo_3d.algorithm_dim == '2D':
             source_pos = [source_pos[0], source_pos[1], 0.0]
             target_pos = [target_pos[0], target_pos[1], 0.0]
@@ -191,7 +191,7 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
         source_pos_vector = Vector(source_pos)
         vector_difference: Vector = target_pos_vector - source_pos_vector
 
-        connection_name = f'{connection[0]}-{connection[1]}'
+        connection_name = edge_data['name']
         connection_obj = bpy.data.objects.get(connection_name)
         connection_primitive = bpy.data.meshes.get(connection_name)
         if connection_obj and connection_primitive:
@@ -223,7 +223,7 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
             assert False, 'Should never happen'
         connection_obj.location = source_pos
         connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
-        g.edges[connection]['blender_object'] = connection_obj
+        g.edges[node_source, node_target]['blender_object'] = connection_obj
     share_data.model_graph = g
 
 

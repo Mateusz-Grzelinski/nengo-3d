@@ -11,12 +11,14 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
         g = nx.DiGraph()
         nodes = data.pop('nodes')
         for node_name, attributes in nodes.items():
-            g.add_node(node_name,
-                       probeable=attributes['probeable'],
-                       type=attributes['type'],
-                       label=attributes['label'])
+            g.add_node(node_name)
+            for attr_name, attr in attributes.items():
+                g.nodes[node_name][attr_name] = attr
         connections = data.pop('connections')
         for conn_name, attributes in connections.items():
+            # todo conn_name is ignored...
             g.add_edge(attributes['pre'], attributes['post'])
-            g[attributes['pre']][attributes['post']]['label'] = attributes['label']
+            # g[attributes['pre']][attributes['post']]['label'] = attributes['label']
+            for attr_name, attr in attributes.items():
+                g.edges[attributes['pre'], attributes['post']][attr_name] = attr
         return g, data

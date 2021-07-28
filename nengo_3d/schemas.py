@@ -44,19 +44,20 @@ class ConnectionSchema(nengo_3d_schemas.ConnectionSchema):
     @pre_dump
     def process_connection(self, data: nengo.Connection, **kwargs):
         name_finder = self.context['name_finder']
-        result = {}
+        result = {'probeable': data.probeable, 'name': name_finder.name(data)}
         for param in data.params:
             result[param] = getattr(data, param)
         result['pre'] = name_finder.name(data.pre)
         result['post'] = name_finder.name(data.post)
-        result['label'] = data.label
         return result
 
 
 class NodeSchema(nengo_3d_schemas.NodeSchema):
     @pre_dump
     def process_node(self, data: nengo.Node, **kwargs):
-        result = {'probeable': data.probeable, 'label': data.label}
+        result = {'probeable': data.probeable}
+        for param in data.params:
+            result[param] = getattr(data, param)
         if isinstance(data, nengo.Node):
             result['type'] = 'Node'
         elif isinstance(data, nengo.Ensemble):
@@ -77,7 +78,7 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
     def process_network(self, data: nengo.Network, **kwargs):
         """Give name to network"""
         file = self.context['file']
-        result = {'nodes': {}, 'connections': {}, 'file': file}
+        result = {'nodes': {}, 'connections': {}, 'file': file, 'n_neurons': data.n_neurons}
         name_finder = self.context['name_finder']
         s = NodeSchema()
         for obj in chain(data.ensembles, data.nodes):

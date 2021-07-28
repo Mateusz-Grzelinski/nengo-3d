@@ -121,9 +121,20 @@ class NengoContextPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout.column()
         if bl_context_menu.DrawVoltagesOperator.poll(context):
-            for param in share_data.model_graph.nodes[context.active_object.name]['probeable']:
-                layout.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot: {param}',
-                                icon='OUTLINER_DATA_EMPTY').probe = param
+            node = share_data.model_graph.nodes.get(context.active_object.name)
+            e_source, e_target, edge = share_data.model_get_edge_by_name(context.active_object.name)
+
+            if node:
+                for param in sorted(node['probeable']):
+                    op = layout.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot: {param}',
+                                         icon='OUTLINER_DATA_EMPTY')
+                    op.probe = param
+
+            if edge:
+                for param in sorted(edge['probeable']):
+                    op = layout.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot: {param}',
+                                         icon='OUTLINER_DATA_EMPTY')
+                    op.probe = param
         else:
             layout.label(text='No actions available')
 
@@ -150,6 +161,12 @@ class NengoInfoPanel(bpy.types.Panel):
             node = share_data.model_graph.nodes.get(obj.name)
             if node:
                 layout.label(text=f'Node: {obj.name}')
+            else:
+                nodes = context.active_object.name.split('---')
+                if len(nodes) == 2:
+                    edge = share_data.model_graph.edges.get((nodes[0], nodes[1]))
+                    if edge:
+                        layout.label(text=f'Edge: {obj.name}')
         else:
             for source, charts in share_data.charts.items():
                 for chart in charts.values():
@@ -163,8 +180,11 @@ class NengoInfoPanel(bpy.types.Panel):
             layout.label(text='No active object')
             return
 
+        node = None
+        edge = None
         if share_data.model_graph:
             node = share_data.model_graph.nodes.get(obj.name)
+            e_source, e_target, edge = share_data.model_get_edge_by_name(obj.name)
         else:
             layout.label(text='No active model')
             return
@@ -185,7 +205,14 @@ class NengoInfoPanel(bpy.types.Panel):
         if node:
             layout.label(text=f'Node: {obj.name}')
             col = layout.box().column(align=True)
-            for param, value in node.items():
+            for param, value in sorted(node.items()):
+                row = col.row()
+                row.label(text=param)
+                row.label(text=str(value))
+        elif edge:
+            layout.label(text=f'Edge: {obj.name}, {e_source} -> {e_target}')
+            col = layout.box().column(align=True)
+            for param, value in sorted(edge.items()):
                 row = col.row()
                 row.label(text=param)
                 row.label(text=str(value))

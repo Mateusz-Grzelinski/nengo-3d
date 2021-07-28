@@ -39,10 +39,15 @@ class Simulation(Schema):
 
 
 class ConnectionSchema(Schema):
-    # name = fields.Str()
-    label = fields.Str(allow_none=True)
+    name = fields.Str()
     pre = fields.Str()
     post = fields.Str()
+    label = fields.Str(allow_none=True)
+    probeable = fields.List(fields.Str())
+    size_in = fields.Int()
+    size_mid = fields.Int()
+    size_out = fields.Int()
+    seed = fields.Int(allow_none=True)
 
 
 class NodeSchema(Schema):
@@ -50,6 +55,9 @@ class NodeSchema(Schema):
     type = fields.Str(required=True)
     probeable = fields.List(fields.Str())
     label = fields.Str(allow_none=True)
+    size_in = fields.Int()
+    size_out = fields.Int()
+    seed = fields.Int(allow_none=True)
 
 
 class NetworkSchema(Schema):
@@ -57,4 +65,5 @@ class NetworkSchema(Schema):
     nodes = fields.Dict(keys=fields.Str(), values=fields.Nested(NodeSchema()))
     # ensembles = fields.Dict(keys=fields.Str(), values=fields.Nested(NodeSchema()))
     connections = fields.Dict(keys=fields.Str(), values=fields.Nested(ConnectionSchema()))
+    n_neurons = fields.Int()
     # networks = fields.Dict(keys=fields.Str(), values=fields.Nested(ConnectionSchema()))

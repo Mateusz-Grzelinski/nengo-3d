@@ -75,6 +75,12 @@ class _ShareData:
             return 0
         return None
 
+    def model_get_edge_by_name(self, name):
+        for _source, _end, e_attr in self.model_graph.edges.data():
+            if e_attr['name'] == name:
+                return _source, _end, e_attr
+        return None, None, None
+
     def register_chart(self, obj: bpy.types.Object, ax: Axes):
         self.charts[obj.name][ax.parameter] = ax
 

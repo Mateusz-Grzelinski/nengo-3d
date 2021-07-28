@@ -8,7 +8,15 @@ from bl_nengo_3d.share_data import share_data
 
 
 def probeable(self, context):
-    for param in share_data.model_graph.nodes[context.active_object.name]['probeable']:
+    item = None
+    obj = context.active_object
+    if share_data.model_graph and obj:
+        if node := share_data.model_graph.nodes.get(obj.name):
+            item = node
+        _, _, edge = share_data.model_get_edge_by_name(obj.name)
+        if edge:
+            item = edge
+    for param in item['probeable']:
         yield param, param, ''
 
 
@@ -18,9 +26,9 @@ class DrawVoltagesOperator(bpy.types.Operator):
 
     probe: bpy.props.EnumProperty(items=probeable, name='Parameter')
 
-    def invoke(self, context, event):
-        wm = context.window_manager
-        return wm.invoke_props_dialog(self)
+    # def invoke(self, context, event):
+    #     wm = context.window_manager
+    #     return wm.invoke_props_dialog(self)
 
     def draw(self, context):
         layout = self.layout
@@ -28,8 +36,14 @@ class DrawVoltagesOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return share_data.model_graph and context.active_object and share_data.model_graph.nodes.get(
-            context.active_object.name)
+        obj = context.active_object
+        if share_data.model_graph and obj:
+            if share_data.model_graph.nodes.get(obj.name):
+                return True
+            _, _, edge = share_data.model_get_edge_by_name(obj.name)
+            if edge:
+                return True
+        return False
 
     def execute(self, context):
         # register chart as input source: send info to probe model
