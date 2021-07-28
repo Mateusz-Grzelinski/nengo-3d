@@ -115,9 +115,9 @@ faces = [(0, 4, 5, 2), (1, 6, 3, 5, 4), ]
 def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
     pos = calculate_layout(nengo_3d, g)
     pos = nx.rescale_layout_dict(pos=pos, scale=nengo_3d.spacing)
-    collection = bpy.data.collections.get(nengo_3d.use_collection)
+    collection = bpy.data.collections.get(nengo_3d.collection)
     if not collection:
-        collection = bpy.data.collections.new(nengo_3d.use_collection)
+        collection = bpy.data.collections.new(nengo_3d.collection)
         bpy.context.scene.collection.children.link(collection)
         # collection.hide_viewport = False
     node_primitive_mesh = bpy.data.meshes.get('node_primitive')

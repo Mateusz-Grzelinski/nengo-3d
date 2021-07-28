@@ -5,6 +5,7 @@ import logging
 import bpy
 
 from bl_nengo_3d import bl_operators, bl_context_menu
+from bl_nengo_3d.bl_properties import Nengo3dProperties
 from bl_nengo_3d.share_data import share_data
 
 logger = logging.getLogger(__name__)
@@ -53,19 +54,18 @@ class NengoSettingsPanel(bpy.types.Panel):
         nengo_3d = win_man.nengo_3d
         row = layout.row()
         row.active = not connected()
-        row.prop(nengo_3d, 'use_collection')
+        row.prop(nengo_3d, 'collection')
         screen = context.screen
         col = layout.column(align=True)
         col.active = connected()
-        col.prop(nengo_3d, 'is_realtime', text='Live update')
+        col.prop(nengo_3d, 'is_realtime')
         col.prop(context.scene.render, 'fps')
         col.prop(context.scene, 'frame_end')
-        # if screen.is_animation_playing:
-        #     col.operator('screen.animation_play', text='Stop', icon='PAUSE')
-        # else:
-        #     col.operator('screen.animation_play', text='Simulate', icon='PLAY')
-        col.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step', icon='FRAME_NEXT').action = 'step'
-        col.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step x10',
+
+        col = layout.column(align=True)
+        row = col.row(align=True)
+        row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step', icon='FRAME_NEXT').action = 'step'
+        row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step x10',
                      icon='FRAME_NEXT').action = 'stepx10'
         col.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Reset',
                      icon='CANCEL').action = 'reset'
@@ -111,6 +111,14 @@ class NengoContextPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout.column()
+        nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+        col = layout.column()
+        row = layout.row(align=True)
+        col = row.column()
+        col.prop(nengo_3d, 'show_whole_simulation', text='', invert_checkbox=True)
+        col = row.column()
+        col.active = not nengo_3d.show_whole_simulation
+        col.prop(nengo_3d, 'show_n_last_steps', text=f'Show last {nengo_3d.show_n_last_steps} steps')
         layout.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text='Plot voltage',
                         icon='OUTLINER_DATA_EMPTY')
 

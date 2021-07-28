@@ -8,8 +8,10 @@ import bpy
 
 
 class Nengo3dProperties(bpy.types.PropertyGroup):
-    is_realtime: bpy.props.BoolProperty(name='is_realtime')
-    use_collection: bpy.props.StringProperty(name='Collection', default='Nengo Model')
+    show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
+    show_n_last_steps: bpy.props.IntProperty(name='Show last n steps', default=100, min=0, soft_min=0)
+    is_realtime: bpy.props.BoolProperty(name='Live simulate playback')
+    collection: bpy.props.StringProperty(name='Collection', default='Nengo Model')
     algorithm_dim: bpy.props.EnumProperty(
         items=[
             ('2D', '2d', 'Use 2d graph drawing algorithm'),

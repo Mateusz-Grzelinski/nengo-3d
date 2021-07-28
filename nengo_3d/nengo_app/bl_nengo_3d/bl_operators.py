@@ -6,6 +6,7 @@ import bpy
 
 import bl_nengo_3d.schemas as schemas
 from bl_nengo_3d import bl_properties
+from bl_nengo_3d.bl_properties import Nengo3dProperties
 from bl_nengo_3d.charts import Axes
 from bl_nengo_3d.connection_handler import handle_data, handle_network_model
 from bl_nengo_3d.share_data import share_data
@@ -39,16 +40,26 @@ def frame_change_pre(scene: bpy.types.Scene):
                 share_data.resume_playback_on_steps = True
                 return
 
+    nengo_3d: Nengo3dProperties = bpy.context.window_manager.nengo_3d
     for obj, params in share_data.simulation_cache.items():
         charts = share_data.charts[obj]
         for param, data in params.items():
             ax: Axes = charts[param]
             # logging.debug(f'{ax.title_text}: {scene.frame_current}:{data[0]}')
             # todo handle 2 dim data
-            start_entries = max(frame_current - 10, 0)
-            ydata = [i[0] for i in data[start_entries:frame_current + 1]]
-            xdata = list(range(start_entries, start_entries + len(ydata)))
-            if frame_current <= share_data.simulation_cache_steps():
+            if not nengo_3d.show_whole_simulation:
+                start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
+                ydata = [i[0] for i in data[start_entries:frame_current + 1]]
+                xdata = list(range(start_entries, start_entries + len(ydata)))
+                if frame_current <= share_data.simulation_cache_steps():
+                    ax.xlim_min = start_entries
+                    ax.xlim_max = start_entries + len(ydata)
+                    ax.ylim_max = max(i[0] for i in data)
+                    ax.ylim_min = min(i[0] for i in data)
+                    ax.set_data(X=xdata, Y=ydata)
+            else:
+                ydata = [i[0] for i in data]
+                xdata = list(range(0, len(ydata)))
                 ax.set_data(X=xdata, Y=ydata, auto_range=True)
 
 
@@ -85,8 +96,8 @@ class ConnectOperator(bpy.types.Operator):
                 data = data_scheme.dump(
                     obj={'source': obj, 'parameter': ax.parameter})
                 mess = message.dumps({'schema': schemas.Observe.__name__, 'data': data})
+                client.sendall(mess.encode('utf-8'))
         logging.debug(f'Sending: {mess}')
-        client.sendall(mess.encode('utf-8'))
 
         bpy.app.handlers.frame_change_pre.append(frame_change_pre)
         context.scene.frame_current = 0

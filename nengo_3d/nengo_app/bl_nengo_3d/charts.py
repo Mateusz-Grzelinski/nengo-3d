@@ -175,15 +175,14 @@ class Axes:
         if auto_range:
             x, self.xlim_min, self.xlim_max = normalize(self.original_data_x.copy())
             y, self.ylim_min, self.ylim_max = normalize(self.original_data_y.copy())
-            self._draw_ticks_x(ticks=self.xlocator.tick_values(self.xlim_min, self.xlim_max),
-                               ticks_x_mesh=self._ticks_x.data)
-            self._draw_ticks_y(ticks=self.ylocator.tick_values(self.ylim_min, self.ylim_max),
-                               ticks_y_mesh=self._ticks_y.data)
-            self._draw_line(mesh=self._line.data, X=x, Y=y)
         else:
             x = normalize_precalculated(self.original_data_x.copy(), self.xlim_min, self.xlim_max)
             y = normalize_precalculated(self.original_data_y.copy(), self.ylim_min, self.ylim_max)
-            self._draw_line(mesh=self._line.data, X=x, Y=y)
+        self._draw_ticks_x(ticks=self.xlocator.tick_values(self.xlim_min, self.xlim_max),
+                           ticks_x_mesh=self._ticks_x.data)
+        self._draw_ticks_y(ticks=self.ylocator.tick_values(self.ylim_min, self.ylim_max),
+                           ticks_y_mesh=self._ticks_y.data)
+        self._draw_line(mesh=self._line.data, X=x, Y=y)
 
     # def set_y_data(self, Y):
     #     XY = {i.co.x: i.co.y for i in self._line.data.vertices}
