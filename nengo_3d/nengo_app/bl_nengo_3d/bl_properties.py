@@ -42,7 +42,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
             ("SPECTRAL_LAYOUT", "Spectral", "Position nodes using the eigenvectors of the graph Laplacian"),
             ("SPIRAL_LAYOUT", "Spiral", "Position nodes in a spiral layout"),
         ], name='Layout', description='', default='SPRING_LAYOUT')
-    spacing: bpy.props.FloatProperty(name='spacing', description='', default=1.5)
+    spacing: bpy.props.FloatProperty(name='spacing', description='', default=2, min=0)
 
 
 # ("RESCALE_LAYOUT", "Rescale", "Returns scaled position array to (-scale  scale) in all axes"),

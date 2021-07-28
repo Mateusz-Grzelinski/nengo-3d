@@ -112,6 +112,59 @@ verts = [(0, -0.125, 0), (0.5, -0.25, 0),
 edges = [(2, 0), (3, 5), (5, 2), (0, 4), (4, 1), (4, 5), (6, 3), (1, 6), ]
 faces = [(0, 4, 5, 2), (1, 6, 3, 5, 4), ]
 
+_PRIMITIVES = {}
+
+
+def get_primitive(type_name: str) -> bpy.types.Object:
+    global _PRIMITIVES
+
+    if not _PRIMITIVES:
+        collection_name = 'Nengo primitives'
+        collection = bpy.data.collections.get(collection_name)
+
+        if not collection:
+            collection = bpy.data.collections.new(collection_name)
+            bpy.context.scene.collection.children.link(collection)
+            collection.hide_viewport = True
+
+        name = 'Node primitive'
+        if not _PRIMITIVES.get(name):
+            obj = bpy.data.objects.get(name)
+            if not obj:
+                primitive_mesh = bpy.data.meshes.get(name)
+                if not primitive_mesh:
+                    primitive_mesh = bpy.data.meshes.new(name)
+                    bm = bmesh.new()
+                    bmesh.ops.create_cube(bm, size=0.4)
+                    bm.to_mesh(primitive_mesh)
+                    bm.free()
+                obj = bpy.data.objects.new(name=name, object_data=primitive_mesh)
+            _PRIMITIVES[name] = obj
+            collection.objects.link(obj)
+
+        name = 'Ensemble primitive'
+        if not _PRIMITIVES.get(name):
+            obj = bpy.data.objects.get(name)
+            if not obj:
+                primitive_mesh = bpy.data.meshes.get(name)
+                if not primitive_mesh:
+                    primitive_mesh = bpy.data.meshes.new(name)
+                    bm = bmesh.new()
+                    bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=16, diameter=0.5)
+                    for f in bm.faces:
+                        f.smooth = True
+                    bm.to_mesh(primitive_mesh)
+                    bm.free()
+                obj = bpy.data.objects.new(name=name, object_data=primitive_mesh)
+            _PRIMITIVES[name] = obj
+            collection.objects.link(obj)
+
+    if obj := _PRIMITIVES.get(f'{type_name} primitive'):
+        return obj.copy()
+    else:
+        logger.error(f'Unknown type: {type_name}')
+        return None
+
 
 def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
     pos = calculate_layout(nengo_3d, g)
@@ -120,22 +173,11 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
     if not collection:
         collection = bpy.data.collections.new(nengo_3d.collection)
         bpy.context.scene.collection.children.link(collection)
-        # collection.hide_viewport = False
-    node_primitive_mesh = bpy.data.meshes.get('node_primitive')
-    if not node_primitive_mesh:
-        bm = bmesh.new()
-        bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=16, diameter=0.5)
-        node_primitive_mesh = bpy.data.meshes.new(name='node_primitive')
-        for f in bm.faces:
-            f.smooth = True
-        bm.to_mesh(node_primitive_mesh)
-        bm.free()
+
     for node_name, position in pos.items():
-        # todo different primitives for g[node_name]['type']
-        node_obj = bpy.data.objects.get(node_name)
-        if not node_obj:
-            node_obj = bpy.data.objects.new(name=node_name, object_data=node_primitive_mesh)
-            collection.objects.link(node_obj)
+        node_obj = get_primitive(g.nodes[node_name]['type']).copy()
+        node_obj.name = node_name
+        collection.objects.link(node_obj)
         node_obj.location = (position[0], position[1], 0.0 if nengo_3d.algorithm_dim == '2D' else position[2])
         g.nodes[node_name]['blender_object'] = node_obj
 

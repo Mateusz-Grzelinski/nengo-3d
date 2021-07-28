@@ -70,6 +70,15 @@ class NengoSettingsPanel(bpy.types.Panel):
         col.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Reset',
                      icon='CANCEL').action = 'reset'
 
+        nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+        col = layout.column()
+        row = layout.row(align=True)
+        col = row.column()
+        col.prop(nengo_3d, 'show_whole_simulation', text='', invert_checkbox=True)
+        col = row.column()
+        col.active = not nengo_3d.show_whole_simulation
+        col.prop(nengo_3d, 'show_n_last_steps', text=f'Show last {nengo_3d.show_n_last_steps} steps')
+
 
 class NengoAlgorithmPanel(bpy.types.Panel):
     bl_label = 'Nengo Algorithms'
@@ -111,16 +120,12 @@ class NengoContextPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout.column()
-        nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
-        col = layout.column()
-        row = layout.row(align=True)
-        col = row.column()
-        col.prop(nengo_3d, 'show_whole_simulation', text='', invert_checkbox=True)
-        col = row.column()
-        col.active = not nengo_3d.show_whole_simulation
-        col.prop(nengo_3d, 'show_n_last_steps', text=f'Show last {nengo_3d.show_n_last_steps} steps')
-        layout.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text='Plot voltage',
-                        icon='OUTLINER_DATA_EMPTY')
+        if bl_context_menu.DrawVoltagesOperator.poll(context):
+            for param in share_data.model_graph.nodes[context.active_object.name]['probeable']:
+                layout.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot: {param}',
+                                icon='OUTLINER_DATA_EMPTY').probe = param
+        else:
+            layout.label(text='No actions available')
 
 
 class NengoInfoPanel(bpy.types.Panel):
