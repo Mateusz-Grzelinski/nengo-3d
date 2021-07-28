@@ -49,6 +49,9 @@ class ConnectionSchema(nengo_3d_schemas.ConnectionSchema):
             result[param] = getattr(data, param)
         result['pre'] = name_finder.name(data.pre)
         result['post'] = name_finder.name(data.post)
+        result['size_in'] = data.size_in
+        result['size_mid'] = data.size_mid
+        result['size_out'] = data.size_out
         return result
 
 
@@ -67,8 +70,8 @@ class NodeSchema(nengo_3d_schemas.NodeSchema):
         else:
             result['type'] = 'UNKNOWN'
 
-        # for param in data.params:
-        #     result[param] = getattr(data, param)
+        result['size_in'] = data.size_in
+        result['size_out'] = data.size_out
 
         return result
 

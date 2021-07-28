@@ -126,7 +126,7 @@ class NengoContextPanel(bpy.types.Panel):
             e_source, e_target, edge = share_data.model_get_edge_by_name(obj_name)
 
             if node or edge:
-                item = node if node else  edge
+                item = node if node else edge
                 for param in sorted(item['probeable']):
                     row = layout.row(align=True)
                     col = row.column(align=True)
@@ -140,10 +140,8 @@ class NengoContextPanel(bpy.types.Panel):
                         if not col.active:
                             col = row.column(align=True)
                             col.active = True
-                            col.operator_context = 'EXEC_DEFAULT'
-                            op = col.operator('object.select_pattern', text='', icon='RESTRICT_SELECT_OFF')
-                            op.pattern = ax._chart.name
-                            op.extend = False
+                            op = col.operator('object.simple_select', text='', icon='RESTRICT_SELECT_OFF')
+                            op.object_name = ax._chart.name
         else:
             layout.label(text='No actions available')
 
@@ -171,11 +169,9 @@ class NengoInfoPanel(bpy.types.Panel):
             if node:
                 layout.label(text=f'Node: {obj.name}')
             else:
-                nodes = context.active_object.name.split('---')
-                if len(nodes) == 2:
-                    edge = share_data.model_graph.edges.get((nodes[0], nodes[1]))
-                    if edge:
-                        layout.label(text=f'Edge: {obj.name}')
+                edge = share_data.model_get_edge_by_name(obj.name)
+                if edge:
+                    layout.label(text=f'Edge: {obj.name}')
         else:
             for source, charts in share_data.charts.items():
                 for chart in charts.values():

@@ -63,6 +63,20 @@ def frame_change_pre(scene: bpy.types.Scene):
                 ax.set_data(X=xdata, Y=ydata, auto_range=True)
 
 
+class SimpleSelectOperator(bpy.types.Operator):
+    bl_idname = "object.simple_select"
+    bl_label = "Simple Object Operator"
+
+    object_name: bpy.props.StringProperty(name='Select')
+
+    def execute(self, context):
+        ob = bpy.data.objects.get(self.object_name)
+        if ob is not None:
+            ob.select_set(True)
+            context.view_layer.objects.active = ob
+        return {'FINISHED'}
+
+
 class ConnectOperator(bpy.types.Operator):
     """Connect to the Nengo 3d server"""
 
@@ -206,6 +220,7 @@ classes = (
     DisconnectOperator,
     NengoCalculateOperator,
     NengoSimulateOperator,
+    SimpleSelectOperator
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)

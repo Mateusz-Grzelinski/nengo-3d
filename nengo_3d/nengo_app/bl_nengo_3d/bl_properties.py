@@ -10,7 +10,7 @@ import bpy
 class Nengo3dProperties(bpy.types.PropertyGroup):
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
     show_n_last_steps: bpy.props.IntProperty(name='Show last n steps', default=100, min=0, soft_min=0)
-    is_realtime: bpy.props.BoolProperty(name='Live simulate playback')
+    is_realtime: bpy.props.BoolProperty(name='Live simulate when playback')
     collection: bpy.props.StringProperty(name='Collection', default='Nengo Model')
     algorithm_dim: bpy.props.EnumProperty(
         items=[
