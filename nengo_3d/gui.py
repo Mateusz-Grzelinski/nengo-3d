@@ -34,10 +34,9 @@ class GuiConnection(Connection):
         self.sim: nengo.Simulator = None
         """Generate uuid for each model element"""
 
-    def handle_message(self, msg: bytes):
+    def handle_message(self, msg: str):
         super().handle_message(msg)
         self.server: GUI
-        msg = msg.decode('utf-8')
         message = schemas.Message()
         try:
             incoming_message: dict = message.loads(msg)
@@ -57,8 +56,9 @@ class GuiConnection(Connection):
             elif incoming_message['schema'] == schemas.Simulation.__name__:
                 schema = schemas.Simulation()
                 sim = schema.load(data=incoming_message['data'])
-                if sim['action'] == 'start':
-                    logger.warning('Not implemented')
+                if sim['action'] == 'reset':
+                    del self.sim
+                    self.sim = None
                 elif sim['action'] == 'stop':
                     logger.warning('Not implemented')
                 elif sim['action'] == 'step':

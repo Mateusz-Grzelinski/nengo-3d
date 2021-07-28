@@ -22,7 +22,8 @@ def frame_change_pre(scene: bpy.types.Scene):
     nengo_3d: bl_properties.Nengo3dProperties = bpy.context.window_manager.nengo_3d
     if nengo_3d.is_realtime:
         # make sure you have 1 second of cache
-        if not share_data.simulation_cache or frame_current + int(scene.render.fps) > share_data.simulation_cache_steps():
+        if not share_data.simulation_cache or frame_current + int(
+                scene.render.fps) > share_data.simulation_cache_steps():
             until_step = frame_current + int(scene.render.fps)
             # share_data.requested_until_step = until_step
             mess = message.dumps(
@@ -63,6 +64,7 @@ class ConnectOperator(bpy.types.Operator):
         return share_data.client is None
 
     def execute(self, context):
+        global message
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             client.connect(('localhost', 6001))
@@ -74,6 +76,16 @@ class ConnectOperator(bpy.types.Operator):
         share_data.client = client
         mess = message.dumps({'schema': schemas.NetworkSchema.__name__})
 
+        logging.debug(f'Sending: {mess}')
+        client.sendall(mess.encode('utf-8'))
+
+        data_scheme = schemas.Observe()
+        for obj, params in share_data.charts.items():
+            for param, ax in params.items():
+                data = data_scheme.dump(
+                    obj={'source': obj, 'parameter': ax.parameter})
+                mess = message.dumps({'schema': schemas.Observe.__name__, 'data': data})
+        logging.debug(f'Sending: {mess}')
         client.sendall(mess.encode('utf-8'))
 
         bpy.app.handlers.frame_change_pre.append(frame_change_pre)
@@ -102,6 +114,10 @@ class DisconnectOperator(bpy.types.Operator):
         share_data.client.shutdown(socket.SHUT_RDWR)
         share_data.client.close()
         share_data.client = None
+        context.scene.frame_current = 0
+        share_data.step_when_ready = 0
+        share_data.resume_playback_on_steps = False
+        share_data.simulation_cache.clear()
         self.report({'INFO'}, 'Disconnected')
         return {'FINISHED'}
 
@@ -133,7 +149,7 @@ class NengoSimulateOperator(bpy.types.Operator):
         items=[
             ('step', 'step', ''),
             ('stepx10', 'step x10', ''),
-            ('start', '', ''),
+            ('reset', 'reset', ''),
         ], name='Action', description='')
 
     @classmethod
@@ -141,12 +157,22 @@ class NengoSimulateOperator(bpy.types.Operator):
         return share_data.client is not None
 
     def execute(self, context):
-        step_num = 1
-        if self.action == 'step':
+        if self.action == 'reset':
+            mess = message.dumps(
+                {'schema': schemas.Simulation.__name__,
+                 'data': simulation_scheme.dump({'action': 'reset'})
+                 })
+            context.scene.frame_current = 0
+            share_data.step_when_ready = 0
+            share_data.resume_playback_on_steps = False
+            share_data.simulation_cache.clear()
+        elif self.action == 'step':
+            step_num = 1
             mess = message.dumps(
                 {'schema': schemas.Simulation.__name__,
                  'data': simulation_scheme.dump({'action': 'step', 'until': context.scene.frame_current + 1})
                  })
+            share_data.step_when_ready += step_num
         elif self.action == 'stepx10':
             step_num = 10
 
@@ -156,8 +182,10 @@ class NengoSimulateOperator(bpy.types.Operator):
                 {'schema': schemas.Simulation.__name__,
                  'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
                  })
+            share_data.step_when_ready += step_num
+        else:
+            raise TypeError(self.action)
         share_data.client.sendall(mess.encode('utf-8'))
-        share_data.step_when_ready += step_num
         context.area.tag_redraw()  # todo not needed here?
         return {'FINISHED'}
 

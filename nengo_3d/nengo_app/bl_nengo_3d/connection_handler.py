@@ -81,7 +81,7 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
         data_scheme = schemas.SimulationSteps(many=True)
         data = data_scheme.load(data=incoming_answer['data'])
 
-        logger.debug(sorted(data, key=lambda sim_step: sim_step['step']))
+        # logger.debug(sorted(data, key=lambda sim_step: sim_step['step']))
         for simulation_step in sorted(data, key=lambda sim_step: sim_step['step']):
             step = simulation_step['step']
             node_name = simulation_step['node_name']

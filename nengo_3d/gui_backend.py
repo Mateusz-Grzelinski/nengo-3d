@@ -34,9 +34,16 @@ class Connection(threading.Thread):
         self.socket.setblocking(True)
         try:
             while self.running:
-                msg = self.socket.recv(1024*8)
-                if msg:
-                    self.handle_message(msg)
+                data = self.socket.recv(1024*8)
+                if data:
+                    # todo this is not reliable
+                    message = data.decode("utf-8")
+                    while (index := message.find('}{')) != -1:
+                        logger.debug(f'Incoming: {message}')
+                        self.handle_message(data)
+                        self.handle_message(message[:index + 1])
+                        message = message[index + 1:]
+                    self.handle_message(message)
                     continue
                 else:
                     break
@@ -48,8 +55,8 @@ class Connection(threading.Thread):
         finally:
             self.server.remove(self)
 
-    def handle_message(self, msg: bytes) -> None:
-        logger.debug(f'{self.addr} incoming: {msg.decode("utf-8")}')
+    def handle_message(self, msg: str) -> None:
+        logger.debug(f'{self.addr} incoming: {msg}')
 
     def stop(self):
         self.running = False

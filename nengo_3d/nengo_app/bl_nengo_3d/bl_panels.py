@@ -67,6 +67,8 @@ class NengoSettingsPanel(bpy.types.Panel):
         col.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step', icon='FRAME_NEXT').action = 'step'
         col.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step x10',
                      icon='FRAME_NEXT').action = 'stepx10'
+        col.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Reset',
+                     icon='CANCEL').action = 'reset'
 
 
 class NengoAlgorithmPanel(bpy.types.Panel):
