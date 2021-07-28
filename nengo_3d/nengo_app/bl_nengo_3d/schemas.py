@@ -1,6 +1,3 @@
-from dataclasses import dataclass
-from typing import *
-
 from marshmallow import post_load
 import networkx as nx
 

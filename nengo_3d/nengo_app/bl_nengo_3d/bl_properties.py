@@ -8,6 +8,7 @@ import bpy
 
 
 class Nengo3dProperties(bpy.types.PropertyGroup):
+    is_realtime: bpy.props.BoolProperty(name='is_realtime')
     use_collection: bpy.props.StringProperty(name='Collection', default='Nengo Model')
     algorithm_dim: bpy.props.EnumProperty(
         items=[

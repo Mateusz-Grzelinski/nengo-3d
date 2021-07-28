@@ -168,11 +168,23 @@ class Axes:
         faces.append((i - 2, i - 1, i - 1, i))  # last face
         return vers_pos, [(0, 1)], faces
 
-    # def set_data(self, X, Y):
-    #     y, self.min_y, self.max_y = normalize(Y.copy())
-    #     x, self.min_x, self.max_x = normalize(X.copy())
-    #     self._draw_line(X=x, Y=y)
-    #
+    def set_data(self, X, Y, auto_range=False):
+        assert len(X) == len(Y), (len(X), len(Y), X, Y)
+        self.original_data_x = X
+        self.original_data_y = Y
+        if auto_range:
+            x, self.xlim_min, self.xlim_max = normalize(self.original_data_x.copy())
+            y, self.ylim_min, self.ylim_max = normalize(self.original_data_y.copy())
+            self._draw_ticks_x(ticks=self.xlocator.tick_values(self.xlim_min, self.xlim_max),
+                               ticks_x_mesh=self._ticks_x.data)
+            self._draw_ticks_y(ticks=self.ylocator.tick_values(self.ylim_min, self.ylim_max),
+                               ticks_y_mesh=self._ticks_y.data)
+            self._draw_line(mesh=self._line.data, X=x, Y=y)
+        else:
+            x = normalize_precalculated(self.original_data_x.copy(), self.xlim_min, self.xlim_max)
+            y = normalize_precalculated(self.original_data_y.copy(), self.ylim_min, self.ylim_max)
+            self._draw_line(mesh=self._line.data, X=x, Y=y)
+
     # def set_y_data(self, Y):
     #     XY = {i.co.x: i.co.y for i in self._line.data.vertices}
     #     y, self.min_y, self.max_y = normalize(Y)
@@ -189,18 +201,7 @@ class Axes:
         if truncate:
             self.original_data_x = self.original_data_x[-truncate:]
             self.original_data_y = self.original_data_y[-truncate:]
-        if auto_range:
-            x, self.xlim_min, self.xlim_max = normalize(self.original_data_x.copy())
-            y, self.ylim_min, self.ylim_max = normalize(self.original_data_y.copy())
-            self._draw_ticks_x(ticks=self.xlocator.tick_values(self.xlim_min, self.xlim_max),
-                               ticks_x_mesh=self._ticks_x.data)
-            self._draw_ticks_y(ticks=self.ylocator.tick_values(self.ylim_min, self.ylim_max),
-                               ticks_y_mesh=self._ticks_y.data)
-            self._draw_line(mesh=self._line.data, X=x, Y=y)
-        else:
-            x = normalize_precalculated(self.original_data_x.copy(), self.xlim_min, self.xlim_max)
-            y = normalize_precalculated(self.original_data_y.copy(), self.ylim_min, self.ylim_max)
-            self._draw_line(mesh=self._line.data, X=x, Y=y)
+        self.set_data(self.original_data_x, self.original_data_y, auto_range=auto_range)
 
     def _draw_line(self, mesh: bpy.types.Mesh, X: list, Y: list):
         line_mesh = mesh
@@ -299,7 +300,6 @@ class Axes:
             xlabel.align_x = 'CENTER'
             xlabel.align_y = 'TOP'
             marigin = self._tick_text_x[0].dimensions.y if self._tick_text_x else 0
-            logger.debug(self._tick_text_x[0].dimensions.y)
             self._xlabel.location = (0.5, -0.10 - marigin, 0)
 
         if self.ylabel_text:

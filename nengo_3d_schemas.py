@@ -20,7 +20,7 @@ class Observe(Schema):
 
 
 class SimulationSteps(Schema):
-    step = fields.Int()
+    step = fields.Int(strict=True)
     # dim= fields.Int()
     node_name = fields.Str()
     # parameters= fields.Method(serialize='get_parameters', deserialize='load_parameters')
@@ -31,21 +31,11 @@ class SimulationSteps(Schema):
     def get_multi_dim_array(self, obj):
         return tuple(obj)
 
-    # def get_parameters(self, obj):
-    #     return
-    #
-    # def load_parameters(self, value):
-    #     return
-
 
 class Simulation(Schema):
     action = fields.Str()
+    until = fields.Int()
     # parameter: fields.Dict(keys=fields.Str(), values=fields.List)
-
-
-# s = Answer()
-# l = s.load({'schema': Request.__name__, 'data':{'uris': '1'}})
-# print(s.dumps(l))
 
 
 class ConnectionSchema(Schema):

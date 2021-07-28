@@ -33,7 +33,6 @@ class DrawVoltagesOperator(bpy.types.Operator):
 
     def execute(self, context):
         # register chart as input source: send info to probe model
-        logging.debug(self.probe)
         ax = Axes(context, parameter=self.probe)
         ax.xlabel('Step')
         ax.ylabel('Voltage')

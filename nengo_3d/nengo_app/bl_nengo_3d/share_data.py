@@ -20,22 +20,12 @@ This module defines global state of the addon. It is encapsulated in a ShareData
 """
 import socket
 from collections import defaultdict
-from datetime import datetime
 from typing import *
-from uuid import uuid4
 
-import logging
 import bpy
 import networkx as nx
 
 from bl_nengo_3d.charts import Axes
-
-logger = logging.getLogger(__name__)
-
-
-# def update_chart(obj: bpy.types.Object, X, Y, tag=None):
-#     ax = share_data.charts[obj.name]
-#     ax
 
 
 class _ShareData:
@@ -58,7 +48,7 @@ class _ShareData:
         # self.model: dict[str, bpy.types.Object] = {}
         self.model_graph: nx.DiGraph = None
         """Cached model, key=unique name, object=blender object representation"""
-        self.charts: dict[str, list[Axes]] = defaultdict(list)
+        self.charts: dict[str, dict[str, Axes]] = defaultdict(dict)
         """
         Cached chart 
         
@@ -66,9 +56,27 @@ class _ShareData:
              value=dict[tag (parameter name), plotting object]
         ]
         """
+        self.simulation_cache = {}
+        """
+        dict[object, dict[param, list[data]] ]
+        """
+        self.step_when_ready = 0
+        """
+        Change current frame when received data from server 
+        """
+        self.resume_playback_on_steps = False
+
+    def simulation_cache_steps(self):
+        if self.simulation_cache:
+            any_object = next(iter(self.simulation_cache.values()))
+            if any_object:
+                any_params_data = next(iter(any_object.values()))
+                return len(any_params_data)
+            return 0
+        return None
 
     def register_chart(self, obj: bpy.types.Object, ax: Axes):
-        self.charts[obj.name].append(ax)
+        self.charts[obj.name][ax.parameter] = ax
 
 
 share_data = _ShareData()  # Instance storing addon state, is used by most of the sub-modules.

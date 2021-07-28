@@ -1,6 +1,7 @@
 import logging
 import os
 import socket
+from collections import defaultdict
 from functools import partial
 
 import bmesh
@@ -24,31 +25,14 @@ def redraw_all():
             area.tag_redraw()
 
 
-def handle_step_update(simulation_steps: list[dict]):
-    # simulation_steps: schemas.SimulationSteps
-    # logger.debug(share_data.charts)
-    for simulation_step in simulation_steps:
-        step = simulation_step['step']
-        node_name = simulation_step['node_name']
-        axes_list = share_data.charts[node_name]
-        for param, value in simulation_step['parameters'].items():
-            used = False
-            for ax in axes_list:
-                # logger.debug(f'{ax.parameter}')
-                if ax.parameter == param:
-                    ax.append_data(X=[step, ], Y=[value[0], ], truncate=10, auto_range=True)
-                    used = True
-            if not used:
-                logger.warning(f'{node_name}: {param} was not used for any chart')
-
-
 def handle_data(nengo_3d: Nengo3dProperties):
     # In non-blocking mode blocking operations error out with OS specific errors.
     # https://docs.python.org/3/library/socket.html#notes-on-socket-timeouts
     if not share_data.client:
         return None
     try:
-        data = share_data.client.recv(1024)
+        # todo receive bigger messages
+        data = share_data.client.recv(1024 * 16)
     except socket.timeout:
         return update_interval
     except (ConnectionAbortedError, ConnectionResetError):
@@ -60,39 +44,64 @@ def handle_data(nengo_3d: Nengo3dProperties):
     if not data:
         pass  # ???
     else:
+        # todo this is not reliable
         message = data.decode("utf-8")
-        logger.debug(f'Incoming: {message}')
-        answer_schema = schemas.Message()
-        incoming_answer: dict = answer_schema.loads(message)  # json.loads(message)
-        if incoming_answer['schema'] == schemas.NetworkSchema.__name__:
-            # todo handle reconnect
-            data_scheme = schemas.NetworkSchema()
-            g, data = data_scheme.load(data=incoming_answer['data'])
-            logger.debug(data)
-            logger.debug(g)
-            handle_network_model(g=g, nengo_3d=nengo_3d)
-
-            file_path = data['file']
-
-            t = bpy.data.texts.get(os.path.basename(file_path))
-            if t:
-                t.clear()
-            else:
-                t = bpy.data.texts.new(os.path.basename(file_path))
-            for area in bpy.context.screen.areas:
-                if area.type == 'TEXT_EDITOR':
-                    area.spaces[0].text = t  # make loaded text file visible
-            with open(file_path, 'r') as f:
-                while line := f.read():
-                    t.write(line)
-        elif incoming_answer['schema'] == schemas.SimulationSteps.__name__:
-            data_scheme = schemas.SimulationSteps(many=True)
-            data = data_scheme.load(data=incoming_answer['data'])
-            handle_step_update(simulation_steps=data)
-        else:
-            logger.error(f'Unknown schema: {incoming_answer["schema"]}')
+        while (index := message.find('}{')) != -1:
+            logger.debug(f'Incoming: {message}')
+            handle_single_packet(message[:index + 1], nengo_3d)
+            message = message[index + 1:]
+        handle_single_packet(message, nengo_3d)
 
     return update_interval
+
+
+def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
+    answer_schema = schemas.Message()
+    incoming_answer: dict = answer_schema.loads(message)  # json.loads(message)
+    if incoming_answer['schema'] == schemas.NetworkSchema.__name__:
+        # todo handle reconnect
+        data_scheme = schemas.NetworkSchema()
+        g, data = data_scheme.load(data=incoming_answer['data'])
+        handle_network_model(g=g, nengo_3d=nengo_3d)
+
+        file_path = data['file']
+
+        t = bpy.data.texts.get(os.path.basename(file_path))
+        if t:
+            t.clear()
+        else:
+            t = bpy.data.texts.new(os.path.basename(file_path))
+        for area in bpy.context.screen.areas:
+            if area.type == 'TEXT_EDITOR':
+                area.spaces[0].text = t  # make loaded text file visible
+        with open(file_path, 'r') as f:
+            while line := f.read():
+                t.write(line)
+    elif incoming_answer['schema'] == schemas.SimulationSteps.__name__:
+        data_scheme = schemas.SimulationSteps(many=True)
+        data = data_scheme.load(data=incoming_answer['data'])
+
+        logger.debug(sorted(data, key=lambda sim_step: sim_step['step']))
+        for simulation_step in sorted(data, key=lambda sim_step: sim_step['step']):
+            step = simulation_step['step']
+            node_name = simulation_step['node_name']
+            if not share_data.simulation_cache.get(node_name):
+                share_data.simulation_cache[node_name] = defaultdict(list)
+            for param, value in simulation_step['parameters'].items():
+                assert step == len(share_data.simulation_cache[node_name][param]), \
+                    (step, len(share_data.simulation_cache[node_name][param]))
+                share_data.simulation_cache[node_name][param].append(tuple(float(i) for i in value))
+
+        if share_data.step_when_ready != 0 and not nengo_3d.is_realtime:
+            bpy.context.scene.frame_current += share_data.step_when_ready
+            share_data.step_when_ready = 0
+
+        if share_data.resume_playback_on_steps:
+            if not bpy.context.screen.is_animation_playing:
+                bpy.ops.screen.animation_play()  # start playback
+            share_data.resume_playback_on_steps = False
+    else:
+        logger.error(f'Unknown schema: {incoming_answer["schema"]}')
 
 
 verts = [(0, -0.125, 0), (0.5, -0.25, 0),
@@ -172,7 +181,6 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
         connection_obj.location = source_pos
         connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
         g.edges[connection]['blender_object'] = connection_obj
-
     share_data.model_graph = g
 
 
@@ -192,7 +200,7 @@ def calculate_layout(nengo_3d: Nengo3dProperties, g: nx.Graph) -> Positions:
         # "RESCALE_LAYOUT": nx.rescale_layout,
         # "RESCALE_LAYOUT_DICT": nx.rescale_layout_dict,
         "SHELL_LAYOUT": partial(nx.shell_layout, dim=dim),
-        "SPRING_LAYOUT": partial(nx.spring_layout, dim=dim),
+        "SPRING_LAYOUT": partial(nx.spring_layout, dim=dim, seed=0),
         "SPECTRAL_LAYOUT": partial(nx.spectral_layout, dim=dim),
         "SPIRAL_LAYOUT": partial(nx.spiral_layout, dim=dim),
         "MULTIPARTITE_LAYOUT": nx.multipartite_layout,

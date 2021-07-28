@@ -1,11 +1,54 @@
+import logging
 import socket
 from functools import partial
 
 import bpy
 
 import bl_nengo_3d.schemas as schemas
+from bl_nengo_3d import bl_properties
+from bl_nengo_3d.charts import Axes
 from bl_nengo_3d.connection_handler import handle_data, handle_network_model
 from bl_nengo_3d.share_data import share_data
+
+message = schemas.Message()
+simulation_scheme = schemas.Simulation()
+
+
+def frame_change_pre(scene: bpy.types.Scene):
+    """Updates scene for running nenego simulation"""
+    # dict[frame / step, dict[object, dict[param, list[data]]]]
+
+    frame_current = scene.frame_current
+    nengo_3d: bl_properties.Nengo3dProperties = bpy.context.window_manager.nengo_3d
+    if nengo_3d.is_realtime:
+        # make sure you have 1 second of cache
+        if not share_data.simulation_cache or frame_current + int(scene.render.fps) > share_data.simulation_cache_steps():
+            until_step = frame_current + int(scene.render.fps)
+            # share_data.requested_until_step = until_step
+            mess = message.dumps(
+                {'schema': schemas.Simulation.__name__,
+                 'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
+                 })
+            share_data.client.sendall(mess.encode('utf-8'))
+
+        if not share_data.simulation_cache or frame_current > share_data.simulation_cache_steps():
+            # there is missing data in cache, wait for it to arrive
+            if bpy.context.screen.is_animation_playing:
+                bpy.ops.screen.animation_play()  # stop playback
+                share_data.resume_playback_on_steps = True
+                return
+
+    for obj, params in share_data.simulation_cache.items():
+        charts = share_data.charts[obj]
+        for param, data in params.items():
+            ax: Axes = charts[param]
+            # logging.debug(f'{ax.title_text}: {scene.frame_current}:{data[0]}')
+            # todo handle 2 dim data
+            start_entries = max(frame_current - 10, 0)
+            ydata = [i[0] for i in data[start_entries:frame_current + 1]]
+            xdata = list(range(start_entries, start_entries + len(ydata)))
+            if frame_current <= share_data.simulation_cache_steps():
+                ax.set_data(X=xdata, Y=ydata, auto_range=True)
 
 
 class ConnectOperator(bpy.types.Operator):
@@ -17,7 +60,7 @@ class ConnectOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return share_data.client is None  # todo
+        return share_data.client is None
 
     def execute(self, context):
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -29,10 +72,12 @@ class ConnectOperator(bpy.types.Operator):
         client.setblocking(False)
         client.settimeout(0.01)
         share_data.client = client
-        req = schemas.Message()
-        message = req.dumps({'schema': schemas.NetworkSchema.__name__})
+        mess = message.dumps({'schema': schemas.NetworkSchema.__name__})
 
-        client.sendall(message.encode('utf-8'))
+        client.sendall(mess.encode('utf-8'))
+
+        bpy.app.handlers.frame_change_pre.append(frame_change_pre)
+        context.scene.frame_current = 0
 
         handle_data_function = partial(handle_data, nengo_3d=context.window_manager.nengo_3d)
         share_data.handle_data = handle_data_function
@@ -53,6 +98,7 @@ class DisconnectOperator(bpy.types.Operator):
         return share_data.client is not None
 
     def execute(self, context):
+        bpy.app.handlers.frame_change_pre.remove(frame_change_pre)
         share_data.client.shutdown(socket.SHUT_RDWR)
         share_data.client.close()
         share_data.client = None
@@ -83,19 +129,36 @@ class NengoSimulateOperator(bpy.types.Operator):
     bl_label = 'Recalculate'
     bl_options = {'REGISTER'}
 
+    action: bpy.props.EnumProperty(
+        items=[
+            ('step', 'step', ''),
+            ('stepx10', 'step x10', ''),
+            ('start', '', ''),
+        ], name='Action', description='')
+
     @classmethod
     def poll(cls, context):
         return share_data.client is not None
 
     def execute(self, context):
-        schema = schemas.Message()
-        data_scheme = schemas.Simulation()
-        message = schema.dumps(
-            {'schema': schemas.Simulation.__name__,
-             'data': data_scheme.dump({'action': 'step'})
-             })
-        share_data.client.sendall(message.encode('utf-8'))
-        context.area.tag_redraw()
+        step_num = 1
+        if self.action == 'step':
+            mess = message.dumps(
+                {'schema': schemas.Simulation.__name__,
+                 'data': simulation_scheme.dump({'action': 'step', 'until': context.scene.frame_current + 1})
+                 })
+        elif self.action == 'stepx10':
+            step_num = 10
+
+            until_step = context.scene.frame_current + step_num
+
+            mess = message.dumps(
+                {'schema': schemas.Simulation.__name__,
+                 'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
+                 })
+        share_data.client.sendall(mess.encode('utf-8'))
+        share_data.step_when_ready += step_num
+        context.area.tag_redraw()  # todo not needed here?
         return {'FINISHED'}
 
 

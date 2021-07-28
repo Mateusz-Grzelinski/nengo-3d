@@ -17,6 +17,7 @@ from nengo_3d_schemas import Message, Observe, Simulation
 class SimulationSteps(nengo_3d_schemas.SimulationSteps):
     @pre_dump(pass_many=True)
     def get_parameters(self, sim_data: nengo.simulator.SimulationData, many: bool):
+        assert many is True, 'many=False is not supported'
         name_finder: NameFinder = self.context['name_finder']
         model: nengo.Network = self.context['model']
         steps: list[int] = self.context['steps']

@@ -2,8 +2,7 @@ import logging
 
 import networkx as nx
 import random
-nx.nx_agraph
-nx.nx_pylab
+
 
 def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5):
     """

@@ -34,14 +34,6 @@ class GuiConnection(Connection):
         self.sim: nengo.Simulator = None
         """Generate uuid for each model element"""
 
-    def start_sim(self):
-        """Returns `schemas.SimulationSteps`"""
-        # nengo.utils.progress.ProgressBar
-        self.sim = nengo.Simulator(network=self.model)
-        self.sim.data.keys()
-        self.sim.reset()
-        return self.sim.step()
-
     def handle_message(self, msg: bytes):
         super().handle_message(msg)
         self.server: GUI
@@ -71,16 +63,21 @@ class GuiConnection(Connection):
                     logger.warning('Not implemented')
                 elif sim['action'] == 'step':
                     if not self.sim:
-                        self.start_sim()
-                    self.sim.step()  # this can be done async
+                        self.sim = nengo.Simulator(network=self.model)
+                    steps = list(range(self.sim.n_steps, sim['until'] + 1))
+                    if not len(steps) >= 1:
+                        logger.warning(f'Requested step: {sim["until"]}, but {self.sim.n_steps} is already computed')
+                        return
+                    for _ in steps:
+                        self.sim.step()  # this can be done async
                     data_scheme = schemas.SimulationSteps(many=True,
                                                           context={'model': self.model,
                                                                    'name_finder': self.name_finder,
-                                                                   'steps': (self.sim.n_steps - 1,),
+                                                                   'steps': steps,
                                                                    'requested_probes': self.requested_probes})
-                    data = data_scheme.dump(self.sim.data)
-                    answer = message.dumps({'schema': schemas.SimulationSteps.__name__, 'data': data})
-                    logger.debug(f'Sending step {self.sim.n_steps - 1}: {answer}')
+                    answer = message.dumps({'schema': schemas.SimulationSteps.__name__,
+                                            'data': data_scheme.dump(self.sim.data)})
+                    logger.debug(f'Sending step {steps}: {answer}')
                     self.socket.sendall(answer.encode('utf-8'))
                 else:
                     logger.warning('Unknown field value')

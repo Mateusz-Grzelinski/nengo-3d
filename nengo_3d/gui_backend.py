@@ -34,7 +34,7 @@ class Connection(threading.Thread):
         self.socket.setblocking(True)
         try:
             while self.running:
-                msg = self.socket.recv(1024)
+                msg = self.socket.recv(1024*8)
                 if msg:
                     self.handle_message(msg)
                     continue
