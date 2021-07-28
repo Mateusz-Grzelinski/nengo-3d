@@ -3,6 +3,7 @@ import json
 import logging
 import signal
 import socket
+import struct
 import time
 from collections import defaultdict
 from dataclasses import dataclass
@@ -44,7 +45,7 @@ class GuiConnection(Connection):
                 data_scheme = schemas.NetworkSchema(
                     context={'name_finder': self.name_finder, 'file': self.server.filename})
                 answer = message.dumps({'schema': schemas.NetworkSchema.__name__, 'data': data_scheme.dump(self.model)})
-                self.socket.sendall(answer.encode('utf-8'))
+                self.sendall(answer.encode('utf-8'))
             elif incoming_message['schema'] == schemas.Observe.__name__:
                 schema = schemas.Observe()
                 observe = schema.load(data=incoming_message['data'])
@@ -78,7 +79,7 @@ class GuiConnection(Connection):
                     answer = message.dumps({'schema': schemas.SimulationSteps.__name__,
                                             'data': data_scheme.dump(self.sim.data)})
                     logger.debug(f'Sending step {steps}: {answer}')
-                    self.socket.sendall(answer.encode('utf-8'))
+                    self.sendall(answer.encode('utf-8'))
                 else:
                     logger.warning('Unknown field value')
             else:
@@ -87,6 +88,10 @@ class GuiConnection(Connection):
             logger.error(f'Invalid json message: {msg}')
         # except Exception as e:
         #     logger.exception(f'Failed executing: {incoming_message}', exc_info=e)
+
+    def sendall(self, msg: bytes):
+        self._socket.sendall(struct.pack("i", len(msg)) + msg)
+
 
 
 class GUI(Nengo3dServer):

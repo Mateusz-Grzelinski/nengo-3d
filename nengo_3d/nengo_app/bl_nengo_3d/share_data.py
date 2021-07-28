@@ -18,7 +18,9 @@
 """
 This module defines global state of the addon. It is encapsulated in a ShareData instance.
 """
+import logging
 import socket
+import struct
 from collections import defaultdict
 from typing import *
 
@@ -65,6 +67,14 @@ class _ShareData:
         Change current frame when received data from server 
         """
         self.resume_playback_on_steps = False
+
+    def sendall(self, msg: bytes):
+        try:
+            self.client.sendall(struct.pack("i", len(msg)) + msg)
+            return True
+        except OSError as e:
+            logging.exception(e)
+            return False
 
     def simulation_cache_steps(self):
         if self.simulation_cache:

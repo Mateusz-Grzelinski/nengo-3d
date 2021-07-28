@@ -1,6 +1,7 @@
 import logging
 import os
 import socket
+import struct
 from collections import defaultdict
 from functools import partial
 
@@ -31,11 +32,17 @@ def handle_data(nengo_3d: Nengo3dProperties):
     if not share_data.client:
         return None
     try:
-        # todo receive bigger messages
-        data = share_data.client.recv(1024 * 16)
+        size = struct.unpack("i", share_data.client.recv(struct.calcsize("i")))[0]
+        data = ""
+        while len(data) < size:
+            msg = share_data.client.recv(size - len(data))
+            if not msg:
+                return None
+            data += msg.decode('utf-8')
     except socket.timeout:
         return update_interval
-    except (ConnectionAbortedError, ConnectionResetError):
+    except (ConnectionAbortedError, ConnectionResetError) as e:
+        logger.exception(e)
         return None
     except Exception as e:
         logger.exception(e)
@@ -45,11 +52,11 @@ def handle_data(nengo_3d: Nengo3dProperties):
         pass  # ???
     else:
         # todo this is not reliable
-        message = data.decode("utf-8")
-        while (index := message.find('}{')) != -1:
-            logger.debug(f'Incoming: {message}')
-            handle_single_packet(message[:index + 1], nengo_3d)
-            message = message[index + 1:]
+        message = data
+        # while (index := message.find('}{')) != -1:
+        #     logger.debug(f'Incoming: {message}')
+        #     handle_single_packet(message[:index + 1], nengo_3d)
+        #     message = message[index + 1:]
         logger.debug(f'Incoming: {message}')
         handle_single_packet(message, nengo_3d)
 

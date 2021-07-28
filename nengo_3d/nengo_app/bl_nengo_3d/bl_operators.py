@@ -31,7 +31,7 @@ def frame_change_pre(scene: bpy.types.Scene):
                 {'schema': schemas.Simulation.__name__,
                  'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
                  })
-            share_data.client.sendall(mess.encode('utf-8'))
+            share_data.sendall(mess.encode('utf-8'))
 
         if not share_data.simulation_cache or frame_current > share_data.simulation_cache_steps():
             # there is missing data in cache, wait for it to arrive
@@ -88,7 +88,7 @@ class ConnectOperator(bpy.types.Operator):
         mess = message.dumps({'schema': schemas.NetworkSchema.__name__})
 
         logging.debug(f'Sending: {mess}')
-        client.sendall(mess.encode('utf-8'))
+        share_data.sendall(mess.encode('utf-8'))
 
         data_scheme = schemas.Observe()
         for obj, params in share_data.charts.items():
@@ -96,7 +96,7 @@ class ConnectOperator(bpy.types.Operator):
                 data = data_scheme.dump(
                     obj={'source': obj, 'parameter': ax.parameter})
                 mess = message.dumps({'schema': schemas.Observe.__name__, 'data': data})
-                client.sendall(mess.encode('utf-8'))
+                share_data.sendall(mess.encode('utf-8'))
         logging.debug(f'Sending: {mess}')
 
         bpy.app.handlers.frame_change_pre.append(frame_change_pre)
@@ -196,7 +196,7 @@ class NengoSimulateOperator(bpy.types.Operator):
             share_data.step_when_ready += step_num
         else:
             raise TypeError(self.action)
-        share_data.client.sendall(mess.encode('utf-8'))
+        share_data.sendall(mess.encode('utf-8'))
         context.area.tag_redraw()  # todo not needed here?
         return {'FINISHED'}
 

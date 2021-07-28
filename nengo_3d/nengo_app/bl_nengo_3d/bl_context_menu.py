@@ -26,9 +26,9 @@ class DrawVoltagesOperator(bpy.types.Operator):
 
     probe: bpy.props.EnumProperty(items=probeable, name='Parameter')
 
-    # def invoke(self, context, event):
-    #     wm = context.window_manager
-    #     return wm.invoke_props_dialog(self)
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
 
     def draw(self, context):
         layout = self.layout
@@ -46,6 +46,10 @@ class DrawVoltagesOperator(bpy.types.Operator):
         return False
 
     def execute(self, context):
+        if context.screen.is_animation_playing:
+            bpy.ops.screen.animation_play()
+            share_data.resume_playback_on_steps = False
+            share_data.step_when_ready = 0
         # register chart as input source: send info to probe model
         ax = Axes(context, parameter=self.probe)
         ax.xlabel('Step')
@@ -64,7 +68,7 @@ class DrawVoltagesOperator(bpy.types.Operator):
             obj={'source': node.name, 'parameter': ax.parameter})  # todo what params are allowed?
         message = s.dumps({'schema': schemas.Observe.__name__, 'data': data})
         logging.debug(f'Sending: {message}')
-        share_data.client.sendall(message.encode('utf-8'))
+        share_data.sendall(message.encode('utf-8'))
         ax.draw()
         return {'FINISHED'}
 

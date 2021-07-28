@@ -1,5 +1,6 @@
 import os
 import signal
+import struct
 import subprocess
 import sys
 import logging
@@ -24,34 +25,32 @@ class Connection(threading.Thread):
     def __init__(self, client_socket: socket.socket, addr, server: 'Nengo3dServer', **kwargs):
         super().__init__()
         self.server = server
-        self.socket = client_socket
+        self._socket = client_socket
         self.addr = addr
         self.running = True
 
         self.to_send: Optional[str] = None
 
     def run(self) -> None:
-        self.socket.setblocking(True)
+        self._socket.setblocking(True)
         try:
             while self.running:
-                data = self.socket.recv(1024*8)
-                if data:
-                    # todo this is not reliable
-                    message = data.decode("utf-8")
-                    while (index := message.find('}{')) != -1:
-                        logger.debug(f'Incoming: {message}')
-                        self.handle_message(message[:index + 1])
-                        message = message[index + 1:]
-                    logger.debug(f'Incoming: {message}')
-                    self.handle_message(message)
-                    continue
-                else:
+                size_raw = self._socket.recv(struct.calcsize("i"))
+                if not size_raw:
                     break
-                # time.sleep(0.05)
+                size = struct.unpack("i", size_raw)[0]
+                data = ""
+                while len(data) < size:
+                    msg = self._socket.recv(size - len(data))
+                    if not msg:
+                        return None
+                    data += msg.decode('utf-8')
+                    logger.debug(f'Incoming: {data}')
+                    self.handle_message(data)
         except (ConnectionAbortedError, ConnectionResetError) as e:
             logger.warning(e)
         else:
-            self.socket.close()
+            self._socket.close()
         finally:
             self.server.remove(self)
 

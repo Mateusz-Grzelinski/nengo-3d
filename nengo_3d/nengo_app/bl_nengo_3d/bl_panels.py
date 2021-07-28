@@ -121,20 +121,29 @@ class NengoContextPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout.column()
         if bl_context_menu.DrawVoltagesOperator.poll(context):
-            node = share_data.model_graph.nodes.get(context.active_object.name)
-            e_source, e_target, edge = share_data.model_get_edge_by_name(context.active_object.name)
+            obj_name = context.active_object.name
+            node = share_data.model_graph.nodes.get(obj_name)
+            e_source, e_target, edge = share_data.model_get_edge_by_name(obj_name)
 
-            if node:
-                for param in sorted(node['probeable']):
-                    op = layout.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot: {param}',
-                                         icon='OUTLINER_DATA_EMPTY')
+            if node or edge:
+                item = node if node else  edge
+                for param in sorted(item['probeable']):
+                    row = layout.row(align=True)
+                    col = row.column(align=True)
+                    col.operator_context = 'EXEC_DEFAULT'
+                    op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot: {param}',
+                                      icon='OUTLINER_DATA_EMPTY')
                     op.probe = param
-
-            if edge:
-                for param in sorted(edge['probeable']):
-                    op = layout.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot: {param}',
-                                         icon='OUTLINER_DATA_EMPTY')
-                    op.probe = param
+                    if params := share_data.charts.get(obj_name):
+                        ax = params.get(param)
+                        col.active = not bool(ax)
+                        if not col.active:
+                            col = row.column(align=True)
+                            col.active = True
+                            col.operator_context = 'EXEC_DEFAULT'
+                            op = col.operator('object.select_pattern', text='', icon='RESTRICT_SELECT_OFF')
+                            op.pattern = ax._chart.name
+                            op.extend = False
         else:
             layout.label(text='No actions available')
 
