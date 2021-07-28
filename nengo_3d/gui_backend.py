@@ -40,9 +40,9 @@ class Connection(threading.Thread):
                     message = data.decode("utf-8")
                     while (index := message.find('}{')) != -1:
                         logger.debug(f'Incoming: {message}')
-                        self.handle_message(data)
                         self.handle_message(message[:index + 1])
                         message = message[index + 1:]
+                    logger.debug(f'Incoming: {message}')
                     self.handle_message(message)
                     continue
                 else:

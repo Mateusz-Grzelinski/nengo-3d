@@ -50,6 +50,7 @@ def handle_data(nengo_3d: Nengo3dProperties):
             logger.debug(f'Incoming: {message}')
             handle_single_packet(message[:index + 1], nengo_3d)
             message = message[index + 1:]
+        logger.debug(f'Incoming: {message}')
         handle_single_packet(message, nengo_3d)
 
     return update_interval
