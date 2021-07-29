@@ -10,6 +10,8 @@ class CreateChartOperator(bpy.types.Operator):
     bl_label = 'Create chart'
     bl_options = {'REGISTER'}
 
+    dim: bpy.props.IntProperty(name='Dimenson', min=2, max=3)
+
     @classmethod
     def poll(cls, context):
         return True
@@ -22,9 +24,13 @@ class CreateChartOperator(bpy.types.Operator):
         ax = Axes(context=context)
         ax.xlabel('x')
         ax.ylabel('y')
-        # ax.title = 'Title'
+        ax.title(f'Test chart {self.dim}d')
+        if self.dim == 3:
+            ax.zlabel('z')
+            ax.plot(t, s, s)
+        else:
+            ax.plot(t, s)
         # ax.grid()
-        ax.plot(t, s)
         global debug_axes
         debug_axes.append(ax)
         return {'FINISHED'}
@@ -57,7 +63,10 @@ class UpdateChartOperator(bpy.types.Operator):
         # from bl_nengo_3d.charts import Axes
         # debug_axes: Axes
         for ax in debug_axes:
-            ax.plot(t, s)
+            if ax.dim == 2:
+                ax.plot(t, s)
+            else:
+                ax.plot(t, s, s)
         # debug_axes.draw_x_ticks([str(range(i, 1)) for i in np.linspace(start_x, end_x, num=10)])
 
         context.area.tag_redraw()

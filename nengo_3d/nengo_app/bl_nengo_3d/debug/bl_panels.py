@@ -29,7 +29,8 @@ class NengoDebugPanel(bpy.types.Panel):
         from bl_nengo_3d.share_data import share_data
         if share_data.simulation_cache:
             layout.label(text=f'Cached steps: {share_data.simulation_cache_steps()}')
-        layout.operator(CreateChartOperator.bl_idname)
+        layout.operator(CreateChartOperator.bl_idname, text='Plot 2d').dim=2
+        layout.operator(CreateChartOperator.bl_idname, text='Plot 3d').dim=3
         layout.operator(UpdateChartOperator.bl_idname)
         layout.operator(ReloadAddonOperator.bl_idname)
         layout.operator(DebugConnectionOperator.bl_idname)

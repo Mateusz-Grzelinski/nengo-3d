@@ -125,23 +125,57 @@ class NengoContextPanel(bpy.types.Panel):
             node = share_data.model_graph.nodes.get(obj_name)
             e_source, e_target, edge = share_data.model_get_edge_by_name(obj_name)
 
-            if node or edge:
-                item = node if node else edge
-                for param in sorted(item['probeable']):
-                    row = layout.row(align=True)
-                    col = row.column(align=True)
-                    col.operator_context = 'EXEC_DEFAULT'
-                    op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot: {param}',
-                                      icon='OUTLINER_DATA_EMPTY')
-                    op.probe = param
-                    if params := share_data.charts.get(obj_name):
-                        ax = params.get(param)
-                        col.active = not bool(ax)
-                        if not col.active:
-                            col = row.column(align=True)
-                            col.active = True
-                            op = col.operator('object.simple_select', text='', icon='RESTRICT_SELECT_OFF')
-                            op.object_name = ax._chart.name
+            if node:
+                col = layout.column(align=True)
+                col.operator_context = 'EXEC_DEFAULT'
+                size_out = node['size_out'] + 1
+                if node['type'] == 'Ensemble':
+                    if size_out == 3:
+                        op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname,
+                                          text=f'Plot {size_out}d Voltage',
+                                          icon='ORIENTATION_VIEW')
+                        op.probe = 'decoded_output'
+                        op.dim = size_out
+
+                        op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname,
+                                          text=f'Plot 2d Voltage',
+                                          icon='ORIENTATION_VIEW')
+                        op.probe = 'decoded_output'
+                        op.dim = size_out - 1
+                elif node['type'] == 'Node':
+                    op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot {size_out}d Voltage',
+                                      icon='ORIENTATION_VIEW')
+                    op.probe = 'output'
+                    op.dim = size_out
+            if edge:
+                # todo check format of weights
+                col = layout.column(align=True)
+                col.operator_context = 'EXEC_DEFAULT'
+                size_out = edge['size_out']
+                op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot {size_out}d Weights',
+                                  icon='ORIENTATION_VIEW')
+                op.probe = 'weights'
+                op.dim = size_out
+
+            # if node or edge:
+            #     item = node if node else edge
+            # for param in sorted(item['probeable']):
+            #     row = layout.row(align=True)
+            #     col = row.column(align=True)
+            #     col.operator_context = 'EXEC_DEFAULT'
+            #     # todo how do I know what is the format of probed data? 2d, 3d, ndim? which one is in, out?
+            #     op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot 2d: {param}',
+            #                       icon='ORIENTATION_VIEW')
+            #     # 'EMPTY_ARROWS'
+            #     op.probe = param
+            #     if params := share_data.charts.get(obj_name):
+            #         ax = params.get(param)
+            #         col.active = not bool(ax)
+            #         if not col.active:
+            #             col = row.column(align=True)
+            #             col.active = True
+            #             op = col.operator('object.simple_select', text='', icon='RESTRICT_SELECT_OFF')
+            #             op.object_name = ax._chart.name
         else:
             layout.label(text='No actions available')
 
@@ -168,15 +202,20 @@ class NengoInfoPanel(bpy.types.Panel):
             node = share_data.model_graph.nodes.get(obj.name)
             if node:
                 layout.label(text=f'Node: {obj.name}')
-            else:
-                edge = share_data.model_get_edge_by_name(obj.name)
-                if edge:
-                    layout.label(text=f'Edge: {obj.name}')
-        else:
-            for source, charts in share_data.charts.items():
-                for chart in charts.values():
-                    if chart._chart == obj:
-                        layout.label(text=f'Chart {obj.name}')
+                return
+            e_source, _, _edge = share_data.model_get_edge_by_name(obj.name)
+            if e_source:
+                layout.label(text=f'Edge: {obj.name}')
+                return
+
+            chart = None
+            for source, params in share_data.charts.items():
+                for charts in params.values():
+                    for ax in charts:
+                        if ax.root == obj:
+                            chart = ax
+            if chart:
+                layout.label(text=f'Plot: {obj.name}')
 
     def draw(self, context):
         layout = self.layout.column()
@@ -194,18 +233,38 @@ class NengoInfoPanel(bpy.types.Panel):
             layout.label(text='No active model')
             return
 
-        for source, charts in share_data.charts.items():
-            for chart in charts.values():
-                if chart._chart == obj:
-                    layout.label(text=f'{obj.name}:  {chart.title_text}')
-                    col = layout.box().column(align=True)
-                    row = col.row()
-                    row.label(text='Parameter:')
-                    row.label(text=f'{chart.parameter}')
-                    row = col.row()
-                    row.label(text='Source:')
-                    row.label(text=f'{source}')
-                    return
+        chart = None
+        for source, params in share_data.charts.items():
+            for charts in params.values():
+                for ax in charts:
+                    if ax.root == obj:
+                        chart = ax
+        if chart:
+            indices = share_data.charts_sources[chart]
+            layout.label(text=f'{obj.name}:  {chart.title_text}')
+            col = layout.box().column(align=True)
+            row = col.row()
+            row.label(text='Parameter:')
+            row.label(text=f'{chart.parameter}')
+            row = col.row()
+            row.label(text='Source:')
+            row.label(text=f'{source}')
+            row = col.row()
+            ind_str = 'Indices: '
+            if indices[0] == 0:
+                ind_str += 'x=step, '
+            else:
+                ind_str += f'x={indices[0]}, '
+            if indices[1] == 0:
+                ind_str += 'y=step'
+            else:
+                ind_str += f'y={indices[1]}, '
+            if len(indices) == 3:
+                if indices[2] == 0:
+                    ind_str += ', z=step'
+                else:
+                    ind_str += f', z={indices[1]}'
+            row.label(text=ind_str)
 
         if node:
             layout.label(text=f'Node: {obj.name}')

@@ -50,7 +50,7 @@ class _ShareData:
         # self.model: dict[str, bpy.types.Object] = {}
         self.model_graph: nx.DiGraph = None
         """Cached model, key=unique name, object=blender object representation"""
-        self.charts: dict[str, dict[str, Axes]] = defaultdict(dict)
+        self.charts: dict[str, dict[str, list[Axes]]] = defaultdict(dict)
         """
         Cached chart 
         
@@ -62,11 +62,16 @@ class _ShareData:
         """
         dict[object, dict[param, list[data]] ]
         """
+        self.charts_sources = {}
+        """chart/line -> (x,y,z)]
+        """
         self.step_when_ready = 0
         """
         Change current frame when received data from server 
         """
         self.resume_playback_on_steps = False
+        """buggy... sometimes we need to wait for data during playback. We need to temporarily stop and then resume"""
+        self.requested_steps_until = -1
 
     def sendall(self, msg: bytes):
         try:
@@ -91,8 +96,11 @@ class _ShareData:
                 return _source, _end, e_attr
         return None, None, None
 
-    def register_chart(self, obj: bpy.types.Object, ax: Axes):
-        self.charts[obj.name][ax.parameter] = ax
+    def register_chart(self, source: bpy.types.Object, ax: Axes, data_indices: tuple):
+        if not self.charts[source.name].get(ax.parameter):
+            self.charts[source.name][ax.parameter] = []
+        self.charts[source.name][ax.parameter].append(ax)
+        self.charts_sources[ax] = data_indices
 
 
 share_data = _ShareData()  # Instance storing addon state, is used by most of the sub-modules.

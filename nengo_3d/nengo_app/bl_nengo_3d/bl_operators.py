@@ -26,12 +26,13 @@ def frame_change_pre(scene: bpy.types.Scene):
         if not share_data.simulation_cache or frame_current + int(
                 scene.render.fps) > share_data.simulation_cache_steps():
             until_step = frame_current + int(scene.render.fps)
-            # share_data.requested_until_step = until_step
-            mess = message.dumps(
-                {'schema': schemas.Simulation.__name__,
-                 'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
-                 })
-            share_data.sendall(mess.encode('utf-8'))
+            if until_step > share_data.requested_steps_until:
+                mess = message.dumps(
+                    {'schema': schemas.Simulation.__name__,
+                     'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
+                     })
+                share_data.requested_steps_until = until_step
+                share_data.sendall(mess.encode('utf-8'))
 
         if not share_data.simulation_cache or frame_current > share_data.simulation_cache_steps():
             # there is missing data in cache, wait for it to arrive
@@ -44,23 +45,34 @@ def frame_change_pre(scene: bpy.types.Scene):
     for obj, params in share_data.simulation_cache.items():
         charts = share_data.charts[obj]
         for param, data in params.items():
-            ax: Axes = charts[param]
-            # logging.debug(f'{ax.title_text}: {scene.frame_current}:{data[0]}')
-            # todo handle 2 dim data
-            if not nengo_3d.show_whole_simulation:
-                start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
-                ydata = [i[0] for i in data[start_entries:frame_current + 1]]
-                xdata = list(range(start_entries, start_entries + len(ydata)))
-                if frame_current <= share_data.simulation_cache_steps():
-                    ax.xlim_min = start_entries
-                    ax.xlim_max = start_entries + len(ydata)
-                    ax.ylim_max = max(i[0] for i in data)
-                    ax.ylim_min = min(i[0] for i in data)
-                    ax.set_data(X=xdata, Y=ydata)
-            else:
-                ydata = [i[0] for i in data]
-                xdata = list(range(0, len(ydata)))
-                ax.set_data(X=xdata, Y=ydata, auto_range=True)
+            # logging.debug(f'{ax.title_text}: {scene.frame_current}:{data}')
+            axes: list[Axes] = charts[param]
+            for ax in axes:
+                indices = share_data.charts_sources[ax]
+                if not nengo_3d.show_whole_simulation:
+                    if frame_current <= share_data.simulation_cache_steps():
+                        start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
+                        xdata = [i[indices[0]] for i in data[start_entries:frame_current + 1]]
+                        ax.xlim_min = min(i[indices[0]] for i in data)
+                        ax.xlim_max = max(i[indices[0]] for i in data)
+                        ydata = [i[indices[1]] for i in data[start_entries:frame_current + 1]]
+                        ax.ylim_max = max(i[indices[1]] for i in data)
+                        ax.ylim_min = min(i[indices[1]] for i in data)
+                        if len(indices) == 3:
+                            zdata = [i[indices[2]] for i in data[start_entries:frame_current + 1]]
+                            ax.zlim_max = max(i[indices[2]] for i in data)
+                            ax.zlim_min = min(i[indices[2]] for i in data)
+                            ax.set_data(X=xdata, Y=ydata, Z=zdata)
+                        else:
+                            ax.set_data(X=xdata, Y=ydata)
+                else:
+                    xdata = [i[indices[0]] for i in data]
+                    ydata = [i[indices[1]] for i in data]
+                    if len(indices) == 3:
+                        zdata = [i[indices[2]] for i in data]
+                        ax.set_data(X=xdata, Y=ydata, Z=zdata, auto_range=True)
+                    else:
+                        ax.set_data(X=xdata, Y=ydata, auto_range=True)
 
 
 class SimpleSelectOperator(bpy.types.Operator):
@@ -106,9 +118,9 @@ class ConnectOperator(bpy.types.Operator):
 
         data_scheme = schemas.Observe()
         for obj, params in share_data.charts.items():
-            for param, ax in params.items():
+            for param, _axes in params.items():
                 data = data_scheme.dump(
-                    obj={'source': obj, 'parameter': ax.parameter})
+                    obj={'source': obj, 'parameter': param})
                 mess = message.dumps({'schema': schemas.Observe.__name__, 'data': data})
                 share_data.sendall(mess.encode('utf-8'))
         logging.debug(f'Sending: {mess}')
@@ -141,6 +153,7 @@ class DisconnectOperator(bpy.types.Operator):
         share_data.client = None
         context.scene.frame_current = 0
         share_data.step_when_ready = 0
+        share_data.requested_steps_until = -1
         share_data.resume_playback_on_steps = False
         share_data.simulation_cache.clear()
         self.report({'INFO'}, 'Disconnected')
@@ -189,25 +202,34 @@ class NengoSimulateOperator(bpy.types.Operator):
                  })
             context.scene.frame_current = 0
             share_data.step_when_ready = 0
+            share_data.requested_steps_until = -1
             share_data.resume_playback_on_steps = False
             share_data.simulation_cache.clear()
         elif self.action == 'step':
-            step_num = 1
-            mess = message.dumps(
-                {'schema': schemas.Simulation.__name__,
-                 'data': simulation_scheme.dump({'action': 'step', 'until': context.scene.frame_current + 1})
-                 })
-            share_data.step_when_ready += step_num
+            cached_steps = share_data.simulation_cache_steps()
+            if cached_steps and context.scene.frame_current < cached_steps:
+                context.scene.frame_current += 1
+            else:
+                step_num = 1
+                mess = message.dumps(
+                    {'schema': schemas.Simulation.__name__,
+                     'data': simulation_scheme.dump({'action': 'step', 'until': context.scene.frame_current + 1})
+                     })
+                share_data.step_when_ready += step_num
         elif self.action == 'stepx10':
-            step_num = 10
+            cached_steps = share_data.simulation_cache_steps()
+            if cached_steps and context.scene.frame_current + 10 < cached_steps:
+                context.scene.frame_current += 10
+            else:
+                step_num = 10
 
-            until_step = context.scene.frame_current + step_num
+                until_step = context.scene.frame_current + step_num
 
-            mess = message.dumps(
-                {'schema': schemas.Simulation.__name__,
-                 'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
-                 })
-            share_data.step_when_ready += step_num
+                mess = message.dumps(
+                    {'schema': schemas.Simulation.__name__,
+                     'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
+                     })
+                share_data.step_when_ready += step_num
         else:
             raise TypeError(self.action)
         share_data.sendall(mess.encode('utf-8'))

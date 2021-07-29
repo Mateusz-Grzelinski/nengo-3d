@@ -48,15 +48,8 @@ def handle_data(nengo_3d: Nengo3dProperties):
         logger.exception(e)
         return None  # unregisters handler
 
-    if not data:
-        pass  # ???
-    else:
-        # todo this is not reliable
+    if data:
         message = data
-        # while (index := message.find('}{')) != -1:
-        #     logger.debug(f'Incoming: {message}')
-        #     handle_single_packet(message[:index + 1], nengo_3d)
-        #     message = message[index + 1:]
         logger.debug(f'Incoming: {message}')
         handle_single_packet(message, nengo_3d)
 
@@ -67,7 +60,6 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
     answer_schema = schemas.Message()
     incoming_answer: dict = answer_schema.loads(message)  # json.loads(message)
     if incoming_answer['schema'] == schemas.NetworkSchema.__name__:
-        # todo handle reconnect
         data_scheme = schemas.NetworkSchema()
         g, data = data_scheme.load(data=incoming_answer['data'])
         handle_network_model(g=g, nengo_3d=nengo_3d)
@@ -98,7 +90,7 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
             for param, value in simulation_step['parameters'].items():
                 assert step == len(share_data.simulation_cache[node_name][param]), \
                     (step, len(share_data.simulation_cache[node_name][param]))
-                share_data.simulation_cache[node_name][param].append(tuple(float(i) for i in value))
+                share_data.simulation_cache[node_name][param].append((step, *[float(i) for i in value]))
 
         if share_data.step_when_ready != 0 and not nengo_3d.is_realtime:
             bpy.context.scene.frame_current += share_data.step_when_ready

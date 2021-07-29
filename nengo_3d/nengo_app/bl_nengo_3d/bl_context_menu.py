@@ -25,6 +25,7 @@ class DrawVoltagesOperator(bpy.types.Operator):
     bl_label = 'Voltages'
 
     probe: bpy.props.EnumProperty(items=probeable, name='Parameter')
+    dim: bpy.props.IntProperty(name='Dimentions', min=2, max=3)
 
     def invoke(self, context, event):
         wm = context.window_manager
@@ -52,15 +53,29 @@ class DrawVoltagesOperator(bpy.types.Operator):
             share_data.step_when_ready = 0
         # register chart as input source: send info to probe model
         ax = Axes(context, parameter=self.probe)
-        ax.xlabel('Step')
-        ax.ylabel('Voltage')
+        if self.dim == 2:
+            if self.probe in {'decoded_output'}:
+                ax.xlabel('X')
+                ax.ylabel('Y')
+                data_indices = 1, 2
+            else:
+                ax.xlabel('Step')
+                ax.ylabel('Voltage')
+                ax.xlocator = IntegerLocator(numticks=8)
+                ax.xformat = '{:.0f}'
+                data_indices = 0, 1
+        else:
+            ax.xlabel('X')
+            ax.ylabel('Y')
+            ax.zlabel('Step')
+            ax.zlocator = IntegerLocator(numticks=8)
+            ax.zformat = '{:.0f}'
+            data_indices = 1, 2, 0
         node: bpy.types.Object = context.active_object  # or selected_objects
         ax.title(f'{node.name}:{self.probe}')
         ax.location = node.location + node.dimensions / 2
-        ax.xlocator = IntegerLocator(numticks=8)
-        ax.xformat = '{:.0f}'
 
-        share_data.register_chart(obj=node, ax=ax)
+        share_data.register_chart(source=node, ax=ax, data_indices=data_indices)
 
         s = schemas.Message()
         data_scheme = schemas.Observe()
@@ -73,19 +88,19 @@ class DrawVoltagesOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class NENGO_MT_context_menu(bpy.types.Menu):
-    bl_label = "Node Context Menu"
-    bl_idname = 'NENGO_MT_context_menu'
-
-    def draw(self, context):
-        layout = self.layout
-        layout.active = context.active_object
-        layout.operator(DrawVoltagesOperator.bl_idname)
+# class NENGO_MT_context_menu(bpy.types.Menu):
+#     bl_label = "Node Context Menu"
+#     bl_idname = 'NENGO_MT_context_menu'
+#
+#     def draw(self, context):
+#         layout = self.layout
+#         layout.active = context.active_object
+#         layout.operator(DrawVoltagesOperator.bl_idname)
 
 
 classes = (
     DrawVoltagesOperator,
-    NENGO_MT_context_menu,
+    # NENGO_MT_context_menu,
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)
@@ -95,21 +110,21 @@ addon_keymaps = []
 
 def register():
     register_factory()
-    wm = bpy.context.window_manager
-
-    wm = bpy.context.window_manager
-    kc = wm.keyconfigs.addon
-    km = kc.keymaps.new(name="Nengo 3d", space_type='VIEW_3D', region_type='WINDOW')
-    kmi = km.keymap_items.new(NENGO_MT_context_menu.bl_idname, 'RIGHTMOUSE', 'PRESS')
+    # wm = bpy.context.window_manager
+    #
+    # wm = bpy.context.window_manager
+    # kc = wm.keyconfigs.addon
+    # km = kc.keymaps.new(name="Nengo 3d", space_type='VIEW_3D', region_type='WINDOW')
+    # kmi = km.keymap_items.new(NENGO_MT_context_menu.bl_idname, 'RIGHTMOUSE', 'PRESS')
     # km = wm.keyconfigs.active.keymaps['3D View']  # .new(name='3D View', space_type='VIEW_3D')
     # kmi = km.keymap_items.new(DrawVoltagesOperator.bl_idname, 'RIGHTMOUSE', 'PRESS')
-    addon_keymaps.append((km, kmi))
+    # addon_keymaps.append((km, kmi))
 
 
 def unregister():
     unregister_factory()
-    wm = bpy.context.window_manager
-    for km, kmi in addon_keymaps:
-        km.keymap_items.remove(kmi)
-    wm.keyconfigs.addon.keymaps.remove(km)
-    addon_keymaps.clear()
+    # wm = bpy.context.window_manager
+    # for km, kmi in addon_keymaps:
+    #     km.keymap_items.remove(kmi)
+    # wm.keyconfigs.addon.keymaps.remove(km)
+    # addon_keymaps.clear()
