@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 def normalize_precalculated(x: list[float], min_x: float, max_x: float):
+    if min_x == max_x:
+        min_x -= 1
+        max_x += 1
     for i, _x in enumerate(x):
         x[i] = (_x - min_x) / (max_x - min_x)
     return x
