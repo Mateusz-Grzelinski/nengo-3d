@@ -174,9 +174,11 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
         bpy.context.scene.collection.children.link(collection)
 
     for node_name, position in pos.items():
-        node_obj = get_primitive(g.nodes[node_name]['type']).copy()
-        node_obj.name = node_name
-        collection.objects.link(node_obj)
+        node_obj = bpy.data.objects.get(node_name)
+        if not node_obj:
+            node_obj = get_primitive(g.nodes[node_name]['type']).copy()
+            node_obj.name = node_name
+            collection.objects.link(node_obj)
         node_obj.location = (position[0], position[1], 0.0 if nengo_3d.algorithm_dim == '2D' else position[2])
         g.nodes[node_name]['blender_object'] = node_obj
 
