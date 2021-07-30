@@ -17,6 +17,7 @@ class Message(Schema):
 class Observe(Schema):
     source = fields.Str(required=True, allow_none=False)
     parameter = fields.Str(required=True)
+    neurons = fields.Int(required=True)
 
 
 class SimulationSteps(Schema):
@@ -25,8 +26,10 @@ class SimulationSteps(Schema):
     node_name = fields.Str()
     # parameters= fields.Method(serialize='get_parameters', deserialize='load_parameters')
     parameters = fields.Dict(keys=fields.Str(),
-                             values=fields.List(fields.Float))
+                             values=fields.List(fields.Float), default=None)
     """dict[step, dict[parameter name, values]]"""
+    neurons_parameters = fields.Dict(keys=fields.Str(),
+                                     values=fields.List(fields.Float), default=None)
 
     def get_multi_dim_array(self, obj):
         return tuple(obj)
@@ -50,6 +53,20 @@ class ConnectionSchema(Schema):
     seed = fields.Int(allow_none=True)
 
 
+class NeuronType(Schema):
+    name = fields.Str()
+    probeable = fields.List(fields.Str())
+    negative = fields.Bool()
+    spiking = fields.Bool()
+    # state
+
+
+class Neurons(Schema):
+    probeable = fields.List(fields.Str())
+    size_in = fields.Int()
+    size_out = fields.Int()
+
+
 class NodeSchema(Schema):
     # name = fields.Str()
     type = fields.Str(required=True)
@@ -58,6 +75,9 @@ class NodeSchema(Schema):
     size_in = fields.Int()
     size_out = fields.Int()
     seed = fields.Int(allow_none=True)
+    n_neurons = fields.Int(allow_none=True)
+    neuron_type = fields.Nested(NeuronType, allow_none=True, default=None)
+    neurons = fields.Nested(Neurons, allow_none=True, default=None)
 
 
 class NetworkSchema(Schema):

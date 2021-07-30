@@ -50,17 +50,13 @@ class _ShareData:
         # self.model: dict[str, bpy.types.Object] = {}
         self.model_graph: nx.DiGraph = None
         """Cached model, key=unique name, object=blender object representation"""
-        self.charts: dict[str, dict[str, list[Axes]]] = defaultdict(dict)
+        self.charts = defaultdict(list)
         """
         Cached chart 
-        
-        dict[key=name element of model (source of data), 
-             value=dict[tag (parameter name), plotting object]
-        ]
         """
-        self.simulation_cache = {}
+        self.simulation_cache = defaultdict(list)
         """
-        dict[object, dict[param, list[data]] ]
+        dict[(object, is_neurons, param), list[data]] ]
         """
         self.charts_sources = {}
         """chart/line -> (x,y,z)]
@@ -83,11 +79,8 @@ class _ShareData:
 
     def simulation_cache_steps(self):
         if self.simulation_cache:
-            any_object = next(iter(self.simulation_cache.values()))
-            if any_object:
-                any_params_data = next(iter(any_object.values()))
-                return len(any_params_data)
-            return 0
+            cached_steps = max(len(i) for i in self.simulation_cache.values())
+            return cached_steps
         return None
 
     def model_get_edge_by_name(self, name):
@@ -96,11 +89,19 @@ class _ShareData:
                 return _source, _end, e_attr
         return None, None, None
 
-    def register_chart(self, source: bpy.types.Object, ax: Axes, data_indices: tuple):
-        if not self.charts[source.name].get(ax.parameter):
-            self.charts[source.name][ax.parameter] = []
-        self.charts[source.name][ax.parameter].append(ax)
-        self.charts_sources[ax] = data_indices
+    # def get_simulation_cache(self, object, is_neurons, param):
+    #     return self.simulation_cache[object, param, is_neurons]
+
+    def get_chart(self, source: str, is_neurons: bool) -> list[Axes]:
+        return self.charts[source, is_neurons]
+
+    def register_chart(self, source: str, is_neurons: bool, ax: Axes, data_indices: tuple):
+        # if not self.charts[source.name].get(ax.parameter):
+        #     self.charts[source.name][ax.parameter] = []
+        charts = self.charts[source, is_neurons]
+        if ax not in charts:
+            charts.append(ax)
+            self.charts_sources[ax] = data_indices
 
 
 share_data = _ShareData()  # Instance storing addon state, is used by most of the sub-modules.

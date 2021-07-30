@@ -29,7 +29,7 @@ class GuiConnection(Connection):
     def __init__(self, client_socket: socket.socket, addr, server: 'GUI', model: nengo.Network):
         super().__init__(client_socket, addr, server)
         self.server: GUI
-        self.requested_probes: dict[nengo.base.NengoObject, list[tuple[nengo.Probe, str]]] = defaultdict(list)
+        self.requested_probes: dict[nengo.base.NengoObject, list[tuple[nengo.Probe, bool, str]]] = defaultdict(list)
         self.model = model
         self.name_finder = NameFinder(terms=self.server.locals, net=model)
         self.sim: nengo.Simulator = None
@@ -49,11 +49,15 @@ class GuiConnection(Connection):
             elif incoming_message['schema'] == schemas.Observe.__name__:
                 schema = schemas.Observe()
                 observe = schema.load(data=incoming_message['data'])
-                parameter = observe['parameter']  # todo
+                parameter = observe['parameter']
+                is_neuron = observe['neurons']
+
                 obj = self.name_finder.object(name=observe['source'])
+                to_probe = obj.neurons if is_neuron else obj
+
                 with self.model:
-                    probe = nengo.Probe(obj, attr=parameter)
-                self.requested_probes[obj].append((probe, parameter))  # ??
+                    probe = nengo.Probe(to_probe, attr=parameter)
+                self.requested_probes[obj].append((probe, is_neuron, parameter))  # ??
             elif incoming_message['schema'] == schemas.Simulation.__name__:
                 schema = schemas.Simulation()
                 sim = schema.load(data=incoming_message['data'])
@@ -78,7 +82,7 @@ class GuiConnection(Connection):
                                                                    'requested_probes': self.requested_probes})
                     answer = message.dumps({'schema': schemas.SimulationSteps.__name__,
                                             'data': data_scheme.dump(self.sim.data)})
-                    logger.debug(f'Sending step {steps}: {answer}')
+                    logger.debug(f'Sending step {steps}: {str(answer)[:1000]}')
                     self.sendall(answer.encode('utf-8'))
                 else:
                     logger.warning('Unknown field value')
@@ -91,7 +95,6 @@ class GuiConnection(Connection):
 
     def sendall(self, msg: bytes):
         self._socket.sendall(struct.pack("i", len(msg)) + msg)
-
 
 
 class GUI(Nengo3dServer):

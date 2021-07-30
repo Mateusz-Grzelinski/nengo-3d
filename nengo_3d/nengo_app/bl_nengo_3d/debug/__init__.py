@@ -2,7 +2,7 @@ import bpy
 
 from . import addon_reload
 from .addon_reload import ReloadAddonOperator
-from .bl_panels import NengoDebugPanel
+from .bl_panels import NengoDebugPanel, NengoSimulationCachePanel
 from .charts import UpdateChartOperator, CreateChartOperator
 from .connection import DebugConnectionOperator
 
@@ -12,6 +12,7 @@ addon_reload.register()
 classes = (
     DebugConnectionOperator,
     NengoDebugPanel,
+    NengoSimulationCachePanel,
     CreateChartOperator,
     UpdateChartOperator
 )

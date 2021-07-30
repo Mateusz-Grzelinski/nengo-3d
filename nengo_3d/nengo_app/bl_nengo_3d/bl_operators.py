@@ -42,30 +42,15 @@ def frame_change_pre(scene: bpy.types.Scene):
                 return
 
     nengo_3d: Nengo3dProperties = bpy.context.window_manager.nengo_3d
-    for obj, params in share_data.simulation_cache.items():
-        charts = share_data.charts[obj]
-        for param, data in params.items():
+    for (obj_name, param, is_neuron), data in share_data.simulation_cache.items():
+        charts = share_data.get_chart(obj_name, is_neurons=is_neuron)
+        for ax in charts:
+            if ax.parameter != param:
+                continue
             # logging.debug(f'{ax.title_text}: {scene.frame_current}:{data}')
-            axes: list[Axes] = charts[param]
-            for ax in axes:
-                indices = share_data.charts_sources[ax]
-                if not nengo_3d.show_whole_simulation:
-                    if frame_current <= share_data.simulation_cache_steps():
-                        start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
-                        xdata = [i[indices[0]] for i in data[start_entries:frame_current + 1]]
-                        ax.xlim_min = min(i[indices[0]] for i in data)
-                        ax.xlim_max = max(i[indices[0]] for i in data)
-                        ydata = [i[indices[1]] for i in data[start_entries:frame_current + 1]]
-                        ax.ylim_max = max(i[indices[1]] for i in data)
-                        ax.ylim_min = min(i[indices[1]] for i in data)
-                        if len(indices) == 3:
-                            zdata = [i[indices[2]] for i in data[start_entries:frame_current + 1]]
-                            ax.zlim_max = max(i[indices[2]] for i in data)
-                            ax.zlim_min = min(i[indices[2]] for i in data)
-                            ax.set_data(X=xdata, Y=ydata, Z=zdata)
-                        else:
-                            ax.set_data(X=xdata, Y=ydata)
-                else:
+            indices = share_data.charts_sources[ax]
+            try:
+                if nengo_3d.show_whole_simulation:
                     xdata = [i[indices[0]] for i in data]
                     ydata = [i[indices[1]] for i in data]
                     if len(indices) == 3:
@@ -73,6 +58,24 @@ def frame_change_pre(scene: bpy.types.Scene):
                         ax.set_data(X=xdata, Y=ydata, Z=zdata, auto_range=True)
                     else:
                         ax.set_data(X=xdata, Y=ydata, auto_range=True)
+                else:
+                    if frame_current <= share_data.simulation_cache_steps():
+                        start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
+                        xdata = [i[indices[0]] for i in data[start_entries:frame_current + 1]]
+                        ax.xlim_min = min(i[indices[0]] for i in data[start_entries:frame_current + 1])
+                        ax.xlim_max = max(i[indices[0]] for i in data[start_entries:frame_current + 1])
+                        ydata = [i[indices[1]] for i in data[start_entries:frame_current + 1]]
+                        ax.ylim_max = max(i[indices[1]] for i in data)
+                        ax.ylim_min = min(i[indices[1]] for i in data)
+                        if len(indices) == 3:
+                            zdata = [i[indices[2]] for i in data[start_entries:frame_current + 1]]
+                            ax.zlim_max = max(i[indices[2]] for i in data[start_entries:frame_current + 1])
+                            ax.zlim_min = min(i[indices[2]] for i in data[start_entries:frame_current + 1])
+                            ax.set_data(X=xdata, Y=ydata, Z=zdata)
+                        else:
+                            ax.set_data(X=xdata, Y=ydata)
+            except IndexError as e:
+                logging.error(f'Invalid indexes for data: {indices} in {ax} of {(obj_name, param, is_neuron)}: {e}')
 
 
 class SimpleSelectOperator(bpy.types.Operator):
@@ -117,10 +120,10 @@ class ConnectOperator(bpy.types.Operator):
         share_data.sendall(mess.encode('utf-8'))
 
         data_scheme = schemas.Observe()
-        for obj, params in share_data.charts.items():
+        for (source_name, is_neurons), params in share_data.charts.items():
             for param, _axes in params.items():
                 data = data_scheme.dump(
-                    obj={'source': obj, 'parameter': param})
+                    obj={'source': source_name, 'parameter': param, 'neurons': is_neurons})
                 mess = message.dumps({'schema': schemas.Observe.__name__, 'data': data})
                 share_data.sendall(mess.encode('utf-8'))
         logging.debug(f'Sending: {mess}')
@@ -205,6 +208,8 @@ class NengoSimulateOperator(bpy.types.Operator):
             share_data.requested_steps_until = -1
             share_data.resume_playback_on_steps = False
             share_data.simulation_cache.clear()
+            share_data.sendall(mess.encode('utf-8'))
+            return {'FINISHED'}
         elif self.action == 'step':
             cached_steps = share_data.simulation_cache_steps()
             if cached_steps and context.scene.frame_current < cached_steps:
@@ -216,6 +221,8 @@ class NengoSimulateOperator(bpy.types.Operator):
                      'data': simulation_scheme.dump({'action': 'step', 'until': context.scene.frame_current + 1})
                      })
                 share_data.step_when_ready += step_num
+                share_data.sendall(mess.encode('utf-8'))
+                return {'FINISHED'}
         elif self.action == 'stepx10':
             cached_steps = share_data.simulation_cache_steps()
             if cached_steps and context.scene.frame_current + 10 < cached_steps:
@@ -230,11 +237,12 @@ class NengoSimulateOperator(bpy.types.Operator):
                      'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
                      })
                 share_data.step_when_ready += step_num
+                share_data.sendall(mess.encode('utf-8'))
+                return {'FINISHED'}
         else:
             raise TypeError(self.action)
-        share_data.sendall(mess.encode('utf-8'))
-        context.area.tag_redraw()  # todo not needed here?
-        return {'FINISHED'}
+        # context.area.tag_redraw()  # todo not needed here?
+        return {'CANCELLED'}
 
 
 classes = (

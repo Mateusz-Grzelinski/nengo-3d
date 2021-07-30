@@ -271,8 +271,7 @@ class Axes:
         obj = bpy.data.objects.new(name=name, object_data=mesh)
         self.collection.objects.link(obj)
         if solidify:
-            bpy.context.view_layer.objects.active = obj
-            bpy.ops.object.modifier_add(type='SOLIDIFY')
+            bpy.ops.object.modifier_add({'object': obj}, type='SOLIDIFY')
             obj.modifiers["Solidify"].thickness = solidify  # 0.04
         obj.hide_select = not selectable
         obj.parent = parent

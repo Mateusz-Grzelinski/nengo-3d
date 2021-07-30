@@ -14,6 +14,13 @@ import nengo_3d_schemas
 from nengo_3d_schemas import Message, Observe, Simulation
 
 
+class NeuronType(nengo_3d_schemas.NeuronType):
+    @pre_dump
+    def process_neuron_type(self, data: nengo.neurons.NeuronType, **kwargs):
+        data.name = type(data).__name__
+        return data
+
+
 class SimulationSteps(nengo_3d_schemas.SimulationSteps):
     @pre_dump(pass_many=True)
     def get_parameters(self, sim_data: nengo.simulator.SimulationData, many: bool):
@@ -26,12 +33,15 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
         try:
             for step in steps:
                 for obj, probes in requested_probes.items():
-                    _result = {'node_name': name_finder.name(obj), 'step': step, 'parameters': {}}
-                    for probe, parameter in probes:
-                        _result['parameters'][parameter] = list(sim_data[probe][step])
+                    _result = {'node_name': name_finder.name(obj), 'step': step, 'parameters': {}, 'neurons_parameters': {}}
+                    for probe, is_neuron, parameter in probes:
+                        if is_neuron:
+                            _result['neurons_parameters'][parameter] = list(sim_data[probe][step])
+                        else:
+                            _result['parameters'][parameter] = list(sim_data[probe][step])
                     result.append(_result)
         except KeyError as e:
-            logging.error(f'{e}: {list(sim_data.keys())}')
+            logging.error(f'No such key: {e}: {list(sim_data.keys())}')
         return result
 
 
@@ -72,6 +82,9 @@ class NodeSchema(nengo_3d_schemas.NodeSchema):
 
         result['size_in'] = data.size_in
         result['size_out'] = data.size_out
+        result['n_neurons'] = getattr(data, 'n_neurons', None)
+        result['neurons'] = getattr(data, 'neurons', None)
+        result['neuron_type'] = getattr(data, 'neuron_type', None)
 
         return result
 

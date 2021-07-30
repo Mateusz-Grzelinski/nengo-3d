@@ -29,12 +29,9 @@ class NengoSettingsPanel(bpy.types.Panel):
     def draw_header_preset(self, context):
         layout = self.layout
         layout.emboss = 'NONE'
-        if share_data.simulation_cache:
-            any_object = next(iter(share_data.simulation_cache.values()))
-            if any_object:
-                any_param = next(iter(any_object.values()))
-                cached_frames = len(any_param)
-                layout.label(text=f'Cached: {cached_frames}')
+        cached_frames = share_data.simulation_cache_steps()
+        if cached_frames:
+            layout.label(text=f'Cached: {cached_frames}')
 
     def draw(self, context):
         layout = self.layout.column()
@@ -120,7 +117,7 @@ class NengoContextPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout.column()
-        if bl_context_menu.DrawVoltagesOperator.poll(context):
+        if bl_context_menu.CreatePlotLineOperator.poll(context):
             obj_name = context.active_object.name
             node = share_data.model_graph.nodes.get(obj_name)
             e_source, e_target, edge = share_data.model_get_edge_by_name(obj_name)
@@ -130,52 +127,80 @@ class NengoContextPanel(bpy.types.Panel):
                 col.operator_context = 'EXEC_DEFAULT'
                 size_out = node['size_out'] + 1
                 if node['type'] == 'Ensemble':
+                    col = layout.column(align=True)
+                    col.operator_context = 'EXEC_DEFAULT'
+                    neurons = node['neurons']
+                    op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname,
+                                      text=f'Plot Neuron Spikes',
+                                      icon='ORIENTATION_VIEW')
+                    op.probe_neurons = 'output'
+                    op.neurons = True
+                    op.dim = 2
+                    op.xlabel = 'Step'
+                    op.ylabel = 'Spikes'
+                    op.xindex = 0
+                    op.yindex = 1
+                    op.title = f'{obj_name}: Spikes'
+
                     if size_out == 3:
-                        op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname,
-                                          text=f'Plot {size_out}d Voltage',
+                        op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname,
+                                          text=f'Plot {size_out}d output',
                                           icon='ORIENTATION_VIEW')
                         op.probe = 'decoded_output'
                         op.dim = size_out
+                        op.xlabel = 'X'
+                        op.ylabel = 'Y'
+                        op.zlabel = 'Step'
+                        op.xindex = 1
+                        op.yindex = 2
+                        op.zindex = 0
+                        op.title = f'{obj_name} 2d: decoded output'
 
-                        op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname,
-                                          text=f'Plot 2d Voltage',
+                        op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname,
+                                          text=f'Plot 2d ouput',
                                           icon='ORIENTATION_VIEW')
                         op.probe = 'decoded_output'
-                        op.dim = size_out - 1
+                        op.dim = node['size_out']
+                        op.xlabel = 'X'
+                        op.xindex = 1
+                        op.yindex = 2
+                        op.ylabel = 'Y'
+                        op.title = f'{obj_name} 3d: output'
+                    else:
+                        op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname,
+                                          text=f'Plot {size_out}d decoded ouput',
+                                          icon='ORIENTATION_VIEW')
+                        op.probe = 'decoded_output'
+                        op.dim = node['size_out']
+                        op.xlabel = 'Step'
+                        op.ylabel = 'Voltage'
+                        op.xindex = 0
+                        op.yindex = 1
+                        op.title = f'{obj_name}: output'
                 elif node['type'] == 'Node':
-                    op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot {size_out}d Voltage',
+                    op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname, text=f'Plot {size_out}d output',
                                       icon='ORIENTATION_VIEW')
                     op.probe = 'output'
-                    op.dim = size_out
+                    op.dim = node['size_out']
+                    op.xlabel = 'Step'
+                    op.ylabel = 'Voltage'
+                    op.xindex = 0
+                    op.yindex = 1
+                    op.title = f'{obj_name}: output'
             if edge:
                 # todo check format of weights
                 col = layout.column(align=True)
                 col.operator_context = 'EXEC_DEFAULT'
                 size_out = edge['size_out']
-                op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot {size_out}d Weights',
+                op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname, text=f'Plot {size_out}d Weights',
                                   icon='ORIENTATION_VIEW')
                 op.probe = 'weights'
                 op.dim = size_out
-
-            # if node or edge:
-            #     item = node if node else edge
-            # for param in sorted(item['probeable']):
-            #     row = layout.row(align=True)
-            #     col = row.column(align=True)
-            #     col.operator_context = 'EXEC_DEFAULT'
-            #     # todo how do I know what is the format of probed data? 2d, 3d, ndim? which one is in, out?
-            #     op = col.operator(bl_context_menu.DrawVoltagesOperator.bl_idname, text=f'Plot 2d: {param}',
-            #                       icon='ORIENTATION_VIEW')
-            #     # 'EMPTY_ARROWS'
-            #     op.probe = param
-            #     if params := share_data.charts.get(obj_name):
-            #         ax = params.get(param)
-            #         col.active = not bool(ax)
-            #         if not col.active:
-            #             col = row.column(align=True)
-            #             col.active = True
-            #             op = col.operator('object.simple_select', text='', icon='RESTRICT_SELECT_OFF')
-            #             op.object_name = ax._chart.name
+                op.xlabel = 'Step'
+                op.ylabel = 'Voltage'
+                op.xindex = 0
+                op.yindex = 1
+                op.title = f'{e_source} -> {e_target}: output'
         else:
             layout.label(text='No actions available')
 
@@ -201,21 +226,20 @@ class NengoInfoPanel(bpy.types.Panel):
         if share_data.model_graph:
             node = share_data.model_graph.nodes.get(obj.name)
             if node:
-                layout.label(text=f'Node: {obj.name}')
+                row.label(text=f'Node: {obj.name}')
                 return
             e_source, _, _edge = share_data.model_get_edge_by_name(obj.name)
             if e_source:
-                layout.label(text=f'Edge: {obj.name}')
+                row.label(text=f'Edge: {obj.name}')
                 return
 
             chart = None
-            for source, params in share_data.charts.items():
-                for charts in params.values():
-                    for ax in charts:
-                        if ax.root == obj:
-                            chart = ax
+            for source, charts in share_data.charts.items():
+                for ax in charts:
+                    if ax.root == obj:
+                        chart = ax
             if chart:
-                layout.label(text=f'Plot: {obj.name}')
+                row.label(text=f'Plot: {obj.name}')
 
     def draw(self, context):
         layout = self.layout.column()
@@ -234,11 +258,11 @@ class NengoInfoPanel(bpy.types.Panel):
             return
 
         chart = None
-        for source, params in share_data.charts.items():
-            for charts in params.values():
-                for ax in charts:
-                    if ax.root == obj:
-                        chart = ax
+        for source, charts in share_data.charts.items():
+            # for charts in params.values():
+            for ax in charts:
+                if ax.root == obj:
+                    chart = ax
         if chart:
             indices = share_data.charts_sources[chart]
             layout.label(text=f'{obj.name}:  {chart.title_text}')
@@ -269,19 +293,28 @@ class NengoInfoPanel(bpy.types.Panel):
         if node:
             layout.label(text=f'Node: {obj.name}')
             col = layout.box().column(align=True)
-            for param, value in sorted(node.items()):
-                row = col.row()
-                row.label(text=param)
-                row.label(text=str(value))
+            self._draw_expand(col, node)
         elif edge:
             layout.label(text=f'Edge: {obj.name}, {e_source} -> {e_target}')
             col = layout.box().column(align=True)
-            for param, value in sorted(edge.items()):
-                row = col.row()
-                row.label(text=param)
-                row.label(text=str(value))
+            self._draw_expand(col, edge)
         else:
             layout.label(text=f'Not a network element')
+
+    def _draw_expand(self, col, items: dict, tab=0):
+        edge = items
+        for param, value in sorted(edge.items()):
+            if value is None: continue
+            row = col.row()
+            row.separator(factor=tab)
+            if isinstance(value, dict):
+                row.label(text=param + ':')
+                self._draw_expand(col.box().column(align=True), value, tab + 1.4)
+            else:
+                row.label(text=param)
+                row.label(text=str(value))
+
+    # def _draw_expand_list(self, col, items: list):
 
 
 classes = (

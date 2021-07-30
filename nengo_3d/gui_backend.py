@@ -55,7 +55,7 @@ class Connection(threading.Thread):
             self.server.remove(self)
 
     def handle_message(self, msg: str) -> None:
-        logger.debug(f'{self.addr} incoming: {msg}')
+        logger.debug(f'{self.addr} incoming: {msg[:1000]}')
 
     def stop(self):
         self.running = False

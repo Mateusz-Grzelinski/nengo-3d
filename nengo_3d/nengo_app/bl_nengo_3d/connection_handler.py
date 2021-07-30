@@ -50,7 +50,7 @@ def handle_data(nengo_3d: Nengo3dProperties):
 
     if data:
         message = data
-        logger.debug(f'Incoming: {message}')
+        logger.debug(f'Incoming: {message[:1000]}')
         handle_single_packet(message, nengo_3d)
 
     return update_interval
@@ -85,21 +85,28 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
         for simulation_step in sorted(data, key=lambda sim_step: sim_step['step']):
             step = simulation_step['step']
             node_name = simulation_step['node_name']
-            if not share_data.simulation_cache.get(node_name):
-                share_data.simulation_cache[node_name] = defaultdict(list)
-            for param, value in simulation_step['parameters'].items():
-                assert step == len(share_data.simulation_cache[node_name][param]), \
-                    (step, len(share_data.simulation_cache[node_name][param]))
-                share_data.simulation_cache[node_name][param].append((step, *[float(i) for i in value]))
+            parameters = simulation_step.get('parameters')
+            if parameters:
+                for param, value in parameters.items():
+                    # assert step == len(share_data.simulation_cache[node_name][param, False]), \
+                    #     (step, len(share_data.simulation_cache[node_name][param, False]))
+                    share_data.simulation_cache[node_name, param, False].append((step, *[float(i) for i in value]))
+            neurons_parameters = simulation_step.get('neurons_parameters')
+            if neurons_parameters:
+                for param, value in neurons_parameters.items():
+                    # assert step == len(share_data.simulation_cache[node_name][param, True]), \
+                    #     (step, len(share_data.simulation_cache[node_name][param, True]))
+                    share_data.simulation_cache[node_name, param, True].append((step, *[float(i) for i in value]))
 
         if share_data.step_when_ready != 0 and not nengo_3d.is_realtime:
             bpy.context.scene.frame_current += share_data.step_when_ready
             share_data.step_when_ready = 0
 
-        if share_data.resume_playback_on_steps:
-            if not bpy.context.screen.is_animation_playing:
-                bpy.ops.screen.animation_play()  # start playback
-            share_data.resume_playback_on_steps = False
+        # todo, not reliable, scrubbing timeline is the same as playback
+        # if share_data.resume_playback_on_steps:
+        #     if not bpy.context.screen.is_animation_playing:
+        #         bpy.ops.screen.animation_play()  # start playback
+        #     share_data.resume_playback_on_steps = False
     else:
         logger.error(f'Unknown schema: {incoming_answer["schema"]}')
 

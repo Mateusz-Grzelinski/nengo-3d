@@ -20,12 +20,31 @@ def probeable(self, context):
         yield param, param, ''
 
 
-class DrawVoltagesOperator(bpy.types.Operator):
+def neurons_probeable(self, context):
+    item = None
+    obj = context.active_object
+    if share_data.model_graph and obj:
+        if node := share_data.model_graph.nodes.get(obj.name):
+            item = node['neuron_type']
+    for param in item['probeable']:
+        yield param, param, ''
+
+
+class CreatePlotLineOperator(bpy.types.Operator):
     bl_idname = 'nengo_3d.draw_voltages'
     bl_label = 'Voltages'
 
-    probe: bpy.props.EnumProperty(items=probeable, name='Parameter')
+    probe: bpy.props.EnumProperty(items=probeable, name='Probeable')
+    probe_neurons: bpy.props.EnumProperty(items=neurons_probeable, name='Probeable neurons')
     dim: bpy.props.IntProperty(name='Dimentions', min=2, max=3)
+    xindex: bpy.props.IntProperty(name='Source of x', min=0, max=2, default=0)
+    yindex: bpy.props.IntProperty(name='Source of y', min=0, max=2, default=1)
+    zindex: bpy.props.IntProperty(name='Source of z', min=0, max=2, default=2)
+    neurons: bpy.props.BoolProperty(name='Is neuron', default=False)
+    xlabel: bpy.props.StringProperty(name='X label', default='X')
+    ylabel: bpy.props.StringProperty(name='Y label', default='Y')
+    zlabel: bpy.props.StringProperty(name='Z label', default='')
+    title: bpy.props.StringProperty(name='Title', default='')
 
     def invoke(self, context, event):
         wm = context.window_manager
@@ -52,39 +71,33 @@ class DrawVoltagesOperator(bpy.types.Operator):
             share_data.resume_playback_on_steps = False
             share_data.step_when_ready = 0
         # register chart as input source: send info to probe model
-        ax = Axes(context, parameter=self.probe)
+        ax = Axes(context, parameter=self.probe_neurons if self.neurons else self.probe)
+        ax.xlabel(self.xlabel)
+        ax.ylabel(self.ylabel)
+        ax.zlabel(self.zlabel)
         if self.dim == 2:
-            if self.probe in {'decoded_output'}:
-                ax.xlabel('X')
-                ax.ylabel('Y')
-                data_indices = 1, 2
-            else:
-                ax.xlabel('Step')
-                ax.ylabel('Voltage')
-                ax.xlocator = IntegerLocator(numticks=8)
-                ax.xformat = '{:.0f}'
-                data_indices = 0, 1
+            data_indices = self.xindex, self.yindex
         else:
-            ax.xlabel('X')
-            ax.ylabel('Y')
-            ax.zlabel('Step')
+            data_indices = self.xindex, self.yindex, self.zindex
             ax.zlocator = IntegerLocator(numticks=8)
             ax.zformat = '{:.0f}'
-            data_indices = 1, 2, 0
         node: bpy.types.Object = context.active_object  # or selected_objects
-        ax.title(f'{node.name}:{self.probe}')
+        if self.title:
+            ax.title(self.title)
         ax.location = node.location + node.dimensions / 2
 
-        share_data.register_chart(source=node, ax=ax, data_indices=data_indices)
+        share_data.register_chart(source=node.name, is_neurons=self.neurons, ax=ax, data_indices=data_indices)
 
         s = schemas.Message()
         data_scheme = schemas.Observe()
         data = data_scheme.dump(
-            obj={'source': node.name, 'parameter': ax.parameter})  # todo what params are allowed?
+            obj={'source': node.name, 'parameter': ax.parameter,
+                 'neurons': self.neurons})
         message = s.dumps({'schema': schemas.Observe.__name__, 'data': data})
         logging.debug(f'Sending: {message}')
         share_data.sendall(message.encode('utf-8'))
         ax.draw()
+        # todo reset connection?
         return {'FINISHED'}
 
 
@@ -99,7 +112,7 @@ class DrawVoltagesOperator(bpy.types.Operator):
 
 
 classes = (
-    DrawVoltagesOperator,
+    CreatePlotLineOperator,
     # NENGO_MT_context_menu,
 )
 
