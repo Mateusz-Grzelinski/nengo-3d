@@ -27,8 +27,8 @@ def normalize_precalculated(x: list[float], min_x: float, max_x: float):
 
 
 def normalize(x: list[float]):
-    min_x = min(x)
-    max_x = max(x)
+    min_x = min(x) if len(x) == 0 else 0
+    max_x = max(x) if len(x) == 0 else 1
     if min_x == max_x:
         min_x = round(min_x - 1)
         max_x = round(max_x + 1)
@@ -81,6 +81,101 @@ class IntegerLocator:
         return ticklocs
 
 
+class Line:
+    def __init__(self, ax: 'Axes'):
+        self.ax = ax
+        self.original_data_x = []
+        self.original_data_y = []
+        self.original_data_z = []
+
+        self._line = ax._create_object('Line', solidify=0.04, parent=ax.root)
+
+    def make_line(self, X: list, Y: list, width: float = 0.01, depth: float = 0.04):
+        vers_pos = []
+        faces = []
+        for i, (x, y) in enumerate(zip(X, Y)):
+            vers_pos.append((x, y, 0.0))
+            # rotate vector 90 degrees to make line uniformly thick
+            # todo problems with edge cases
+            tangent_x = -(y - Y[i - 1])
+            tangent_y = x - X[i - 1]
+            # logger.debug(f'{x}: {(y - Y[i - 1], x - X[i - 1])}, {(tangent_x, tangent_y)}')
+            tangent_len = math.sqrt(tangent_x * tangent_x + tangent_y * tangent_y)
+            vers_pos.append((x + (tangent_x / tangent_len) * width,
+                             y + tangent_y / tangent_len * width,
+                             0.0))
+            if i >= 2:
+                i = 2 * i
+                faces.append((i - 4, i - 3, i - 1, i - 2))
+                assert len(vers_pos) == i + 2, i
+        faces.append((i - 2, i - 1, i - 1, i))  # last face
+        return vers_pos, [(0, 1)], faces
+
+    def set_data(self, X, Y, Z=None):
+        assert len(X) == len(Y), (len(X), len(Y), X, Y)
+        self.original_data_x = list(X)
+        self.original_data_y = list(Y)
+        if Z is not None:
+            assert len(X) == len(Z), (len(X), len(Z), X, Z)
+            self.original_data_z = list(Z)
+
+    # def set_y_data(self, Y):
+    #     XY = {i.co.x: i.co.y for i in self._line.data.vertices}
+    #     y, self.min_y, self.max_y = normalize(Y)
+    #     self._draw_line(X=list(XY.keys()), Y=y)
+
+    # def set_x_data(self, X):
+    #     x, self.min_x, self.max_x = normalize(X)
+    #     XY = {i.co.x: i.co.y for i in self._line.data.vertices}
+    #     self._draw_line(mesh=self._line.data, X=x, Y=list(XY.values()))
+
+    def append_data(self, X, Y, Z=None, truncate: int = None):
+        self.original_data_x.extend(X)
+        self.original_data_y.extend(Y)
+        if Z:
+            self.original_data_z.extend(Z)
+        if truncate:
+            self.original_data_x = self.original_data_x[-truncate:]
+            self.original_data_y = self.original_data_y[-truncate:]
+            if Z:
+                self.original_data_z = self.original_data_z[-truncate:]
+        self.set_data(self.original_data_x, self.original_data_y, Z=self.original_data_z)
+
+    def draw_line(self):
+        # X = self.original_data_x
+        # Y = self.original_data_y
+        # Z = self.original_data_z
+
+        X = normalize_precalculated(self.original_data_x.copy(), self.ax.xlim_min, self.ax.xlim_max)
+        Y = normalize_precalculated(self.original_data_y.copy(), self.ax.ylim_min, self.ax.ylim_max)
+        if not self.original_data_z:
+            Z = [0 for _i in X]
+        else:
+            Z = normalize_precalculated(self.original_data_z.copy(), self.ax.zlim_min, self.ax.zlim_max)
+
+        line_mesh = self._line.data
+        bm = bmesh.new()
+        bm.from_mesh(line_mesh)
+        bm.clear()
+        co1 = (X[0], Y[0], Z[0])
+        v1 = bm.verts.new(co1)
+        edges = []
+        for x, y, z in zip(X[1:], Y[1:], Z[1:]):
+            v2 = bm.verts.new((x, y, z))
+            edges.append(bm.edges.new((v1, v2)))
+            v1 = v2
+        result = bmesh.ops.extrude_edge_only(bm, edges=edges)
+        for v in result['geom']:
+            if isinstance(v, bmesh.types.BMVert):
+                v.co.z += 0.04
+        bm.to_mesh(line_mesh)
+        bm.free()
+
+    @property
+    def dim(self):
+        return 3 if self.original_data_z else 2
+
+
 class Axes:
     # todo handle graph removal
     """Contains most of chart
@@ -115,10 +210,8 @@ class Axes:
         self.collection = collection
         self._location = context.active_object.location if context.active_object else (0, 0, 0)
 
-        self._data = {}
-        self.original_data_x = []
-        self.original_data_y = []
-        self.original_data_z = []
+        self.plot_lines: list[Line] = []
+
         self.xlim_min = 0
         self.xlim_max = 1
         self.ylim_min = 0
@@ -133,7 +226,6 @@ class Axes:
         self.root.empty_display_type = 'ARROWS'  # 'PLAIN_AXES'
 
         self._chart = None
-        self._line = None
         self._ticks_x = None
         self._ticks_y = None
         self._ticks_z = None
@@ -151,8 +243,8 @@ class Axes:
 
     @location.setter
     def location(self, value: Sequence[float, float, float]):
-        if self._chart:
-            self._chart.location = value
+        if self.root:
+            self.root.location = value
         self._location = value
 
     def xlabel(self, text: str):
@@ -167,106 +259,10 @@ class Axes:
     def title(self, text: str):
         self.title_text = text
 
-    @property
-    def dim(self):
-        return 3 if self.original_data_z else 2
-
-    def make_line(self, X: list, Y: list, width: float = 0.01, depth: float = 0.04):
-        vers_pos = []
-        faces = []
-        for i, (x, y) in enumerate(zip(X, Y)):
-            vers_pos.append((x, y, 0.0))
-            # rotate vector 90 degrees to make line uniformly thick
-            # todo problems with edge cases
-            tangent_x = -(y - Y[i - 1])
-            tangent_y = x - X[i - 1]
-            # logger.debug(f'{x}: {(y - Y[i - 1], x - X[i - 1])}, {(tangent_x, tangent_y)}')
-            tangent_len = math.sqrt(tangent_x * tangent_x + tangent_y * tangent_y)
-            vers_pos.append((x + (tangent_x / tangent_len) * width,
-                             y + tangent_y / tangent_len * width,
-                             0.0))
-            if i >= 2:
-                i = 2 * i
-                faces.append((i - 4, i - 3, i - 1, i - 2))
-                assert len(vers_pos) == i + 2, i
-        faces.append((i - 2, i - 1, i - 1, i))  # last face
-        return vers_pos, [(0, 1)], faces
-
-    def set_data(self, X, Y, Z=None, auto_range=False):
-        assert len(X) == len(Y), (len(X), len(Y), X, Y)
-        self.original_data_x = X
-        self.original_data_y = Y
-        z = None
-        if Z:
-            self.original_data_z = Z
-        if auto_range:
-            x, self.xlim_min, self.xlim_max = normalize(self.original_data_x.copy())
-            y, self.ylim_min, self.ylim_max = normalize(self.original_data_y.copy())
-            if Z:
-                z, self.zlim_min, self.zlim_max = normalize(self.original_data_z.copy())
-        else:
-            x = normalize_precalculated(self.original_data_x.copy(), self.xlim_min, self.xlim_max)
-            y = normalize_precalculated(self.original_data_y.copy(), self.ylim_min, self.ylim_max)
-            if Z:
-                z = normalize_precalculated(self.original_data_z.copy(), self.zlim_min, self.zlim_max)
-        self.draw()
-        # self._draw_ticks_x(ticks=self.xlocator.tick_values(self.xlim_min, self.xlim_max),
-        #                    ticks_x_mesh=self._ticks_x.data)
-        # self._draw_ticks_y(ticks=self.ylocator.tick_values(self.ylim_min, self.ylim_max),
-        #                    ticks_y_mesh=self._ticks_y.data)
-        # self._draw_ticks_z(ticks=self.zlocator.tick_values(self.zlim_min, self.zlim_max),
-        #                    ticks_z_mesh=self._ticks_z.data)
-        self._draw_line(mesh=self._line.data, X=x, Y=y, Z=z)
-
-    # def set_y_data(self, Y):
-    #     XY = {i.co.x: i.co.y for i in self._line.data.vertices}
-    #     y, self.min_y, self.max_y = normalize(Y)
-    #     self._draw_line(X=list(XY.keys()), Y=y)
-    #
-    # def set_x_data(self, X):
-    #     x, self.min_x, self.max_x = normalize(X)
-    #     XY = {i.co.x: i.co.y for i in self._line.data.vertices}
-    #     self._draw_line(mesh=self._line.data, X=x, Y=list(XY.values()))
-
-    def append_data(self, X, Y, Z=None, truncate: int = None, auto_range=False):
-        self.original_data_x.extend(X)
-        self.original_data_y.extend(Y)
-        if Z:
-            self.original_data_z.extend(Z)
-        if truncate:
-            self.original_data_x = self.original_data_x[-truncate:]
-            self.original_data_y = self.original_data_y[-truncate:]
-            if Z:
-                self.original_data_z = self.original_data_z[-truncate:]
-        self.set_data(self.original_data_x, self.original_data_y, Z=self.original_data_z, auto_range=auto_range)
-
-    def _draw_line(self, mesh: bpy.types.Mesh, X: list, Y: list, Z: list = None):
-        if not Z:
-            Z = [0 for _i in X]
-        line_mesh = mesh
-        bm = bmesh.new()
-        bm.from_mesh(line_mesh)
-        bm.clear()
-        co1 = (X[0], Y[0], Z[0])
-        v1 = bm.verts.new(co1)
-        edges = []
-        for x, y, z in zip(X[1:], Y[1:], Z[1:]):
-            v2 = bm.verts.new((x, y, z))
-            edges.append(bm.edges.new((v1, v2)))
-            v1 = v2
-        result = bmesh.ops.extrude_edge_only(bm, edges=edges)
-        for v in result['geom']:
-            if isinstance(v, bmesh.types.BMVert):
-                v.co.z += 0.04
-        bm.to_mesh(line_mesh)
-        bm.free()
+    def relim(self):
+        return NotImplemented
 
     def _create_text(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False, ):
-        # obj = bpy.data.objects.get(name)
-        # mesh = bpy.data.curves.get(name)
-        # if not obj:
-        #     if not mesh:
-        #     mesh = bpy.data.curves.new(name, type='FONT')
         mesh = bpy.data.curves.new(name, type='FONT')
         obj = bpy.data.objects.new(name=name, object_data=mesh)
         self.collection.objects.link(obj)
@@ -278,19 +274,11 @@ class Axes:
         return obj
 
     def _create_object(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False, ):
-        # obj = bpy.data.objects.get(name)
-        # mesh = bpy.data.meshes.get(name)
-        # if not obj:
-        #     if not mesh:
-        #         mesh = bpy.data.meshes.new(name)
-        #     else:
-        #         mesh.clear_geometry()
         mesh = bpy.data.meshes.new(name)
         obj = bpy.data.objects.new(name=name, object_data=mesh)
         self.collection.objects.link(obj)
         if solidify:
-            bpy.context.view_layer.objects.active = obj
-            bpy.ops.object.modifier_add(type='SOLIDIFY')
+            bpy.ops.object.modifier_add({'object': obj}, type='SOLIDIFY')
             obj.modifiers["Solidify"].thickness = solidify  # 0.04
         obj.hide_select = not selectable
         obj.parent = parent
@@ -301,38 +289,32 @@ class Axes:
         y = args[1]
         try:
             z = list(args[2])
-            print(z)
             assert len(x) == len(y) == len(z)
         except IndexError:
             z = None
             assert len(x) == len(y)
 
-        self.original_data_x = x
-        self.original_data_y = y
-        self.original_data_z = z
-        x, self.xlim_min, self.xlim_max = normalize(self.original_data_x.copy())
-        y, self.ylim_min, self.ylim_max = normalize(self.original_data_y.copy())
+        _x, xlim_min, xlim_max = normalize(x.copy())
+        self.xlim_max = max(xlim_max, self.xlim_max)
+        self.xlim_min = min(xlim_min, self.xlim_min)
+        _y, ylim_min, ylim_max = normalize(y.copy())
+        self.ylim_max = max(ylim_max, self.ylim_max)
+        self.ylim_min = min(ylim_min, self.ylim_min)
         if z:
-            z, self.zlim_min, self.zlim_max = normalize(self.original_data_z.copy())
+            _z, zlim_min, zlim_max = normalize(z.copy())
+            self.zlim_max = max(zlim_max, self.zlim_max)
+            self.zlim_min = min(zlim_min, self.zlim_min)
+        line = Line(self)
+        line.set_data(x, y, z)
+        self.plot_lines.append(line)
+        # line.draw_line()
         self.draw()
-
-        self._draw_line(mesh=self._line.data, X=x, Y=y, Z=z)
+        return line
 
     def draw(self):
         if not self._chart:
             self.root.location = self._location
             self._chart = self._create_object('Chart', selectable=True, parent=self.root)
-            # self._chart.location = self._location
-        # else:
-        # if self.original_data_z:
-        #     chart_mesh = self._chart.data
-        # chart_mesh.clear_geometry()
-        # chart_mesh.from_pydata(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)], edges=[],
-        #                        faces=[(0, 1, 3, 2)])
-        # self._chart.rotation_euler = (math.pi / 2, 0, 0)
-
-        if not self._line:
-            self._line = self._create_object('Line', solidify=0.04, parent=self._chart)
 
         if not self._ticks_x:
             self._ticks_x = self._create_object('Ticks X', solidify=0.02, parent=self._chart)
@@ -344,17 +326,32 @@ class Axes:
         self._draw_ticks_y(ticks=self.ylocator.tick_values(self.ylim_min, self.ylim_max),
                            ticks_y_mesh=self._ticks_y.data)
 
-        if self.original_data_z:
+        if any(line.original_data_z for line in self.plot_lines):
             if not self._ticks_z:
                 self._ticks_z = self._create_object('Ticks Z', solidify=0.02, parent=self._chart)
             self._draw_ticks_z(ticks=self.zlocator.tick_values(self.zlim_min, self.zlim_max),
                                ticks_z_mesh=self._ticks_z.data)
+
+            if self.zlabel_text:
+                if not self._zlabel:
+                    self._zlabel = self._create_text('zlabel', solidify=0.01, parent=self._chart)
+                zlabel = self._zlabel.data
+                zlabel.body = self.zlabel_text
+                zlabel.size = 0.1
+                zlabel.align_x = 'CENTER'
+                zlabel.align_y = 'TOP'
+                marigin = self._tick_text_z[0].dimensions.x if self._tick_text_z else 0
+                self._zlabel.location = (-marigin - 0.07, 0, 0.5)
+                self._zlabel.rotation_euler = (0, math.pi / 2, 0)
         else:
-            bpy.ops.object.delete({'selected_objects': [self._ticks_z]})
-            self._ticks_z = None
-            while self._tick_text_z:
-                obj = self._tick_text_z.pop()
-                bpy.ops.object.delete({'selected_objects': [obj]})
+            if self._ticks_z:
+                bpy.ops.object.delete({'selected_objects': [self._ticks_z]})
+                self._ticks_z = None
+                while self._tick_text_z:
+                    obj = self._tick_text_z.pop()
+                    bpy.ops.object.delete({'selected_objects': [obj]})
+            if not self._zlabel:
+                bpy.ops.object.delete({'selected_objects': [self._zlabel]})
 
         if self.xlabel_text:
             if not self._xlabel:
@@ -379,18 +376,6 @@ class Axes:
             self._ylabel.location = (-0.07 - marigin, 0.5, 0)
             self._ylabel.rotation_euler = (0, 0, -math.pi / 2)
 
-        if self.zlabel_text:
-            if not self._zlabel:
-                self._zlabel = self._create_text('zlabel', solidify=0.01, parent=self._chart)
-            zlabel = self._zlabel.data
-            zlabel.body = self.zlabel_text
-            zlabel.size = 0.1
-            zlabel.align_x = 'CENTER'
-            zlabel.align_y = 'TOP'
-            marigin = self._tick_text_z[0].dimensions.x if self._tick_text_z else 0
-            self._zlabel.location = (-marigin - 0.07, 0, 0.5)
-            self._zlabel.rotation_euler = (0, math.pi / 2, 0)
-
         if self.title_text:
             if not self._title:
                 self._title = self._create_text('Title', solidify=0.01, parent=self._chart)
@@ -401,6 +386,9 @@ class Axes:
             title.align_y = 'BOTTOM'
             self._title.location = (0.5, 1.1, 0)
             # self._title.rotation_euler = (0, 0, -math.pi / 2)
+
+        for line in self.plot_lines:
+            line.draw_line()
 
     def _draw_ticks_x(self, ticks: list, ticks_x_mesh):
         bm = bmesh.new()

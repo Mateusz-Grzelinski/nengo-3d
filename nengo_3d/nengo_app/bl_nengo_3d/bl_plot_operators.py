@@ -2,7 +2,7 @@ import logging
 
 import bpy
 
-from bl_nengo_3d import schemas
+from bl_nengo_3d import schemas, charts
 from bl_nengo_3d.charts import Axes, IntegerLocator
 from bl_nengo_3d.share_data import share_data
 
@@ -30,21 +30,38 @@ def neurons_probeable(self, context):
         yield param, param, ''
 
 
-class CreatePlotLineOperator(bpy.types.Operator):
-    bl_idname = 'nengo_3d.draw_voltages'
+class Sources(bpy.types.PropertyGroup):
+    xindex: bpy.props.IntProperty(name='Source of x', min=0, max=2, default=0)
+    yindex: bpy.props.IntProperty(name='Source of y', min=0, max=2, default=1)
+    use_z: bpy.props.BoolProperty(default=False)
+    zindex: bpy.props.IntProperty(name='Source of z', min=0, max=2, default=2)
+
+
+locators = [
+    (charts.LinearLocator.__name__, charts.LinearLocator.__name__, ''),
+    (charts.IntegerLocator.__name__, charts.IntegerLocator.__name__, ''),
+]
+
+
+class PlotLineOperator(bpy.types.Operator):
+    bl_idname = 'nengo_3d.plot_line'
     bl_label = 'Voltages'
 
     probe: bpy.props.EnumProperty(items=probeable, name='Probeable')
     probe_neurons: bpy.props.EnumProperty(items=neurons_probeable, name='Probeable neurons')
-    dim: bpy.props.IntProperty(name='Dimentions', min=2, max=3)
-    xindex: bpy.props.IntProperty(name='Source of x', min=0, max=2, default=0)
-    yindex: bpy.props.IntProperty(name='Source of y', min=0, max=2, default=1)
-    zindex: bpy.props.IntProperty(name='Source of z', min=0, max=2, default=2)
     neurons: bpy.props.BoolProperty(name='Is neuron', default=False)
+    indices: bpy.props.CollectionProperty(type=Sources)
     xlabel: bpy.props.StringProperty(name='X label', default='X')
     ylabel: bpy.props.StringProperty(name='Y label', default='Y')
     zlabel: bpy.props.StringProperty(name='Z label', default='')
     title: bpy.props.StringProperty(name='Title', default='')
+    xlocator: bpy.props.EnumProperty(items=locators)
+    ylocator: bpy.props.EnumProperty(items=locators)
+    zlocator: bpy.props.EnumProperty(items=locators)
+    numticks: bpy.props.IntProperty(default=8)
+    xformat: bpy.props.StringProperty(default='{:.2f}')
+    yformat: bpy.props.StringProperty(default='{:.2f}')
+    zformat: bpy.props.StringProperty(default='{:.2f}')
 
     def invoke(self, context, event):
         wm = context.window_manager
@@ -65,6 +82,13 @@ class CreatePlotLineOperator(bpy.types.Operator):
                 return True
         return False
 
+    def get_locator(self, name: str):
+        if name == charts.LinearLocator.__name__:
+            return charts.LinearLocator(numticks=self.numticks)
+        if name == charts.IntegerLocator.__name__:
+            return charts.IntegerLocator(numticks=self.numticks)
+        return None
+
     def execute(self, context):
         if context.screen.is_animation_playing:
             bpy.ops.screen.animation_play()
@@ -75,18 +99,27 @@ class CreatePlotLineOperator(bpy.types.Operator):
         ax.xlabel(self.xlabel)
         ax.ylabel(self.ylabel)
         ax.zlabel(self.zlabel)
-        if self.dim == 2:
-            data_indices = self.xindex, self.yindex
-        else:
-            data_indices = self.xindex, self.yindex, self.zindex
-            ax.zlocator = IntegerLocator(numticks=8)
-            ax.zformat = '{:.0f}'
-        node: bpy.types.Object = context.active_object  # or selected_objects
+        ax.xlocator = self.get_locator(self.xlocator)
+        ax.ylocator = self.get_locator(self.ylocator)
+        ax.zlocator = self.get_locator(self.zlocator)
+        ax.xformat = self.xformat
+        ax.yformat = self.yformat
+        ax.zformat = self.zformat
+
+        node: bpy.types.Object = context.active_object  # or for all selected_objects
         if self.title:
             ax.title(self.title)
         ax.location = node.location + node.dimensions / 2
 
-        share_data.register_chart(source=node.name, is_neurons=self.neurons, ax=ax, data_indices=data_indices)
+        for sources in self.indices:
+            line = ax.plot([0], [0])
+            if sources.use_z:
+                share_data.register_plot_line_source(line=line,
+                                                     data_indices=(sources.xindex, sources.yindex, sources.zindex))
+            else:
+                share_data.register_plot_line_source(line=line, data_indices=(sources.xindex, sources.yindex))
+
+        share_data.register_chart(source=node.name, is_neurons=self.neurons, ax=ax)
 
         s = schemas.Message()
         data_scheme = schemas.Observe()
@@ -112,8 +145,8 @@ class CreatePlotLineOperator(bpy.types.Operator):
 
 
 classes = (
-    CreatePlotLineOperator,
-    # NENGO_MT_context_menu,
+    Sources,
+    PlotLineOperator,
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)

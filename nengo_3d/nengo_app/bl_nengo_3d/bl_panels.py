@@ -4,7 +4,7 @@ import logging
 
 import bpy
 
-from bl_nengo_3d import bl_operators, bl_context_menu
+from bl_nengo_3d import bl_operators, bl_plot_operators
 from bl_nengo_3d.bl_properties import Nengo3dProperties
 from bl_nengo_3d.share_data import share_data
 
@@ -117,7 +117,7 @@ class NengoContextPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout.column()
-        if bl_context_menu.CreatePlotLineOperator.poll(context):
+        if bl_plot_operators.PlotLineOperator.poll(context):
             obj_name = context.active_object.name
             node = share_data.model_graph.nodes.get(obj_name)
             e_source, e_target, edge = share_data.model_get_edge_by_name(obj_name)
@@ -130,77 +130,84 @@ class NengoContextPanel(bpy.types.Panel):
                     col = layout.column(align=True)
                     col.operator_context = 'EXEC_DEFAULT'
                     neurons = node['neurons']
-                    op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname,
+                    op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                       text=f'Plot Neuron Spikes',
                                       icon='ORIENTATION_VIEW')
                     op.probe_neurons = 'output'
                     op.neurons = True
-                    op.dim = 2
                     op.xlabel = 'Step'
                     op.ylabel = 'Spikes'
-                    op.xindex = 0
-                    op.yindex = 1
+                    op.xformat = '{:.0f}'
                     op.title = f'{obj_name}: Spikes'
+                    for i in range(neurons['size_out']):
+                        item = op.indices.add()
+                        item.xindex = 0
+                        item.yindex = i + 1
 
                     if size_out == 3:
-                        op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname,
-                                          text=f'Plot {size_out}d output',
-                                          icon='ORIENTATION_VIEW')
+                        op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
+                                          text=f'Plot 3d output',
+                                          icon='ORIENTATION_GLOBAL')
                         op.probe = 'decoded_output'
-                        op.dim = size_out
                         op.xlabel = 'X'
                         op.ylabel = 'Y'
                         op.zlabel = 'Step'
-                        op.xindex = 1
-                        op.yindex = 2
-                        op.zindex = 0
-                        op.title = f'{obj_name} 2d: decoded output'
+                        op.zformat = '{:.0f}'
+                        op.title = f'{obj_name} 3d: decoded output'
+                        item = op.indices.add()
+                        item.xindex = 1
+                        item.yindex = 2
+                        item.use_z = True
+                        item.zindex = 0
 
-                        op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname,
+                        op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                           text=f'Plot 2d ouput',
                                           icon='ORIENTATION_VIEW')
                         op.probe = 'decoded_output'
-                        op.dim = node['size_out']
                         op.xlabel = 'X'
-                        op.xindex = 1
-                        op.yindex = 2
                         op.ylabel = 'Y'
                         op.title = f'{obj_name} 3d: output'
+                        item = op.indices.add()
+                        item.xindex = 1
+                        item.yindex = 2
                     else:
-                        op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname,
+                        op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                           text=f'Plot {size_out}d decoded ouput',
                                           icon='ORIENTATION_VIEW')
                         op.probe = 'decoded_output'
-                        op.dim = node['size_out']
                         op.xlabel = 'Step'
                         op.ylabel = 'Voltage'
-                        op.xindex = 0
-                        op.yindex = 1
+                        op.xformat = '{:.0f}'
                         op.title = f'{obj_name}: output'
+                        item = op.indices.add()
+                        item.xindex = 0
+                        item.yindex = 1
                 elif node['type'] == 'Node':
-                    op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname, text=f'Plot {size_out}d output',
+                    op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot {size_out}d output',
                                       icon='ORIENTATION_VIEW')
                     op.probe = 'output'
-                    op.dim = node['size_out']
                     op.xlabel = 'Step'
                     op.ylabel = 'Voltage'
-                    op.xindex = 0
-                    op.yindex = 1
+                    op.xformat = '{:.0f}'
                     op.title = f'{obj_name}: output'
+                    item = op.indices.add()
+                    item.xindex = 0
+                    item.yindex = 1
             if edge:
                 # todo check format of weights
                 col = layout.column(align=True)
                 col.operator_context = 'EXEC_DEFAULT'
-                size_out = edge['size_out']
-                op = col.operator(bl_context_menu.CreatePlotLineOperator.bl_idname, text=f'Plot {size_out}d Weights',
+                size_out = edge['size_out'] + 1
+                op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot {size_out}d Weights',
                                   icon='ORIENTATION_VIEW')
                 op.probe = 'weights'
-                op.dim = size_out
                 op.xlabel = 'Step'
                 op.ylabel = 'Voltage'
-                op.xindex = 0
-                op.yindex = 1
+                op.xformat = '{:.0f}'
                 op.title = f'{e_source} -> {e_target}: output'
+                item = op.indices.add()
+                item.xindex = 0
+                item.yindex = 1
         else:
             layout.label(text='No actions available')
 
@@ -264,33 +271,33 @@ class NengoInfoPanel(bpy.types.Panel):
                 if ax.root == obj:
                     chart = ax
         if chart:
-            indices = share_data.charts_sources[chart]
             layout.label(text=f'{obj.name}:  {chart.title_text}')
-            col = layout.box().column(align=True)
-            row = col.row()
+            row = layout.row()
             row.label(text='Parameter:')
             row.label(text=f'{chart.parameter}')
-            row = col.row()
-            row.label(text='Source:')
-            row.label(text=f'{source}')
-            row = col.row()
-            ind_str = 'Indices: '
-            if indices[0] == 0:
-                ind_str += 'x=step, '
-            else:
-                ind_str += f'x={indices[0]}, '
-            if indices[1] == 0:
-                ind_str += 'y=step'
-            else:
-                ind_str += f'y={indices[1]}, '
-            if len(indices) == 3:
-                if indices[2] == 0:
-                    ind_str += ', z=step'
+            row = layout.row()
+            for line in chart.plot_lines:
+                col = layout.box().column(align=True)
+                indices = share_data.plot_line_sources[line]
+                row.label(text='Source:')
+                row.label(text=f'{source}')
+                row = col.row()
+                ind_str = f'{line} indices: '
+                if indices[0] == 0:
+                    ind_str += 'x=step, '
                 else:
-                    ind_str += f', z={indices[1]}'
-            row.label(text=ind_str)
-
-        if node:
+                    ind_str += f'x={indices[0]}, '
+                if indices[1] == 0:
+                    ind_str += 'y=step'
+                else:
+                    ind_str += f'y={indices[1]}'
+                if len(indices) == 3:
+                    if indices[2] == 0:
+                        ind_str += ', z=step'
+                    else:
+                        ind_str += f', z={indices[1]}'
+                row.label(text=ind_str)
+        elif node:
             layout.label(text=f'Node: {obj.name}')
             col = layout.box().column(align=True)
             self._draw_expand(col, node)

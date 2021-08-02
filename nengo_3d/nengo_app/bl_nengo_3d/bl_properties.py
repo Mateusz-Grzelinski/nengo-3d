@@ -3,8 +3,19 @@ import logging
 import bpy
 
 
-# class Nengo3dChartProperties(bpy.types.PropertyGroup):
-#     parent: bpy.props.StringProperty(name='')
+class Nengo3dChartProperties(bpy.types.PropertyGroup):
+    parent: bpy.props.StringProperty(name='')
+    auto_range: bpy.props.BoolProperty(default=True)
+    x_min: bpy.props.FloatProperty()
+    x_max: bpy.props.FloatProperty()
+    y_min: bpy.props.FloatProperty()
+    y_max: bpy.props.FloatProperty()
+    z_min: bpy.props.FloatProperty()
+    z_max: bpy.props.FloatProperty()
+
+    simplify: bpy.props.BoolProperty()
+    threshold: bpy.props.FloatProperty()
+    # n_step: bpy.props.IntProperty()
 
 
 class Nengo3dProperties(bpy.types.PropertyGroup):
@@ -50,6 +61,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
 
 classes = (
     Nengo3dProperties,
+    Nengo3dChartProperties,
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)
@@ -58,9 +70,10 @@ register_factory, unregister_factory = bpy.utils.register_classes_factory(classe
 def register():
     register_factory()
     bpy.types.WindowManager.nengo_3d = bpy.props.PointerProperty(type=Nengo3dProperties)
-    bpy.types.Object
+    bpy.types.Object.figure = bpy.props.PointerProperty(type=Nengo3dChartProperties)
 
 
 def unregister():
     del bpy.types.WindowManager.nengo_3d
+    del bpy.types.Object.figure
     unregister_factory()

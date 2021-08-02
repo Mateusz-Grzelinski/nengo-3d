@@ -1,23 +1,3 @@
-# GPLv3 License
-#
-# Copyright (C) 2020 Ubisoft
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-"""
-This module defines global state of the addon. It is encapsulated in a ShareData instance.
-"""
 import logging
 import socket
 import struct
@@ -26,8 +6,20 @@ from typing import *
 
 import bpy
 import networkx as nx
+import collections
 
-from bl_nengo_3d.charts import Axes
+from bl_nengo_3d.charts import Axes, Line
+
+
+class Indices2(NamedTuple):
+    x: int
+    y: int
+
+
+class Indices3(NamedTuple):
+    x: int
+    y: int
+    z: int
 
 
 class _ShareData:
@@ -58,7 +50,7 @@ class _ShareData:
         """
         dict[(object, is_neurons, param), list[data]] ]
         """
-        self.charts_sources = {}
+        self.plot_line_sources = {}
         """chart/line -> (x,y,z)]
         """
         self.step_when_ready = 0
@@ -95,13 +87,18 @@ class _ShareData:
     def get_chart(self, source: str, is_neurons: bool) -> list[Axes]:
         return self.charts[source, is_neurons]
 
-    def register_chart(self, source: str, is_neurons: bool, ax: Axes, data_indices: tuple):
+    def register_chart(self, source: str, is_neurons: bool, ax: Axes):
         # if not self.charts[source.name].get(ax.parameter):
         #     self.charts[source.name][ax.parameter] = []
         charts = self.charts[source, is_neurons]
         if ax not in charts:
             charts.append(ax)
-            self.charts_sources[ax] = data_indices
+
+    def register_plot_line_source(self, line: Line, data_indices: tuple):
+        if len(data_indices) == 2:
+            self.plot_line_sources[line] = Indices2(*data_indices)
+        else:
+            self.plot_line_sources[line] = Indices3(*data_indices)
 
 
 share_data = _ShareData()  # Instance storing addon state, is used by most of the sub-modules.

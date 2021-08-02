@@ -47,35 +47,38 @@ def frame_change_pre(scene: bpy.types.Scene):
         for ax in charts:
             if ax.parameter != param:
                 continue
-            # logging.debug(f'{ax.title_text}: {scene.frame_current}:{data}')
-            indices = share_data.charts_sources[ax]
-            try:
-                if nengo_3d.show_whole_simulation:
-                    xdata = [i[indices[0]] for i in data]
-                    ydata = [i[indices[1]] for i in data]
-                    if len(indices) == 3:
-                        zdata = [i[indices[2]] for i in data]
-                        ax.set_data(X=xdata, Y=ydata, Z=zdata, auto_range=True)
-                    else:
-                        ax.set_data(X=xdata, Y=ydata, auto_range=True)
-                else:
-                    if frame_current <= share_data.simulation_cache_steps():
-                        start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
-                        xdata = [i[indices[0]] for i in data[start_entries:frame_current + 1]]
-                        ax.xlim_min = min(i[indices[0]] for i in data[start_entries:frame_current + 1])
-                        ax.xlim_max = max(i[indices[0]] for i in data[start_entries:frame_current + 1])
-                        ydata = [i[indices[1]] for i in data[start_entries:frame_current + 1]]
-                        ax.ylim_max = max(i[indices[1]] for i in data)
-                        ax.ylim_min = min(i[indices[1]] for i in data)
+            for line in ax.plot_lines:
+                # logging.debug(f'{ax.title_text}: {scene.frame_current}:{data}')
+                indices = share_data.plot_line_sources[line]
+                try:
+                    if nengo_3d.show_whole_simulation:
+                        xdata = [i[indices.x] for i in data]
+                        ydata = [i[indices.y] for i in data]
                         if len(indices) == 3:
-                            zdata = [i[indices[2]] for i in data[start_entries:frame_current + 1]]
-                            ax.zlim_max = max(i[indices[2]] for i in data[start_entries:frame_current + 1])
-                            ax.zlim_min = min(i[indices[2]] for i in data[start_entries:frame_current + 1])
-                            ax.set_data(X=xdata, Y=ydata, Z=zdata)
+                            zdata = [i[indices.z] for i in data]
+                            line.set_data(X=xdata, Y=ydata, Z=zdata)
                         else:
-                            ax.set_data(X=xdata, Y=ydata)
-            except IndexError as e:
-                logging.error(f'Invalid indexes for data: {indices} in {ax} of {(obj_name, param, is_neuron)}: {e}')
+                            line.set_data(X=xdata, Y=ydata)
+                    else:
+                        if frame_current > share_data.simulation_cache_steps():
+                            continue
+                        start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
+                        xdata = [row[indices.x] for row in data[start_entries:frame_current + 1]]
+                        ax.xlim_min = min(row[indices.x] for row in data[start_entries:frame_current + 1])
+                        ax.xlim_max = max(row[indices.x] for row in data[start_entries:frame_current + 1])
+                        ydata = [row[indices.y] for row in data[start_entries:frame_current + 1]]
+                        ax.ylim_max = max(row[indices.y] for row in data)
+                        ax.ylim_min = min(row[indices.y] for row in data)
+                        if len(indices) == 3:
+                            zdata = [row[indices.z] for row in data[start_entries:frame_current + 1]]
+                            ax.zlim_max = max(row[indices.z] for row in data[start_entries:frame_current + 1])
+                            ax.zlim_min = min(row[indices.z] for row in data[start_entries:frame_current + 1])
+                            line.set_data(X=xdata, Y=ydata, Z=zdata)
+                        else:
+                            line.set_data(X=xdata, Y=ydata)
+                except IndexError as e:
+                    logging.error(f'Invalid indexes for data: {indices} in {ax} of {(obj_name, param, is_neuron)}: {e}')
+                ax.draw()
 
 
 class SimpleSelectOperator(bpy.types.Operator):

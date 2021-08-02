@@ -3,7 +3,7 @@ import itertools
 import bpy
 
 from .addon_reload import ReloadAddonOperator
-from .charts import CreateChartOperator, UpdateChartOperator
+from .charts import DebugPlotLine, DebugUpdatePlotLineOperator, DebugRasterPlotOperator
 from .connection import DebugConnectionOperator
 
 
@@ -20,18 +20,17 @@ class NengoDebugPanel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = 'Nengo 3d'
 
-    # @classmethod
-    # def poll(cls, context):
-    #     return True
-
     def draw(self, context):
         layout = self.layout.column()
         from bl_nengo_3d.share_data import share_data
         if share_data.simulation_cache:
             layout.label(text=f'Cached steps: {share_data.simulation_cache_steps()}')
-        layout.operator(CreateChartOperator.bl_idname, text='Plot 2d').dim = 2
-        layout.operator(CreateChartOperator.bl_idname, text='Plot 3d').dim = 3
-        layout.operator(UpdateChartOperator.bl_idname)
+        col = layout.column(align=True)
+        col.operator(DebugPlotLine.bl_idname, text='Plot 2d').dim = 2
+        col.operator(DebugPlotLine.bl_idname, text='Plot 3d').dim = 3
+        col.operator(DebugUpdatePlotLineOperator.bl_idname)
+        col = layout.column(align=True)
+        col.operator(DebugRasterPlotOperator.bl_idname, text='Raster plot').dim = 2
         layout.operator(ReloadAddonOperator.bl_idname)
         layout.operator(DebugConnectionOperator.bl_idname)
 
@@ -56,10 +55,10 @@ class NengoSimulationCachePanel(bpy.types.Panel):
 
         row = col.row()
         row.label(text=f'Key')
-        row.label(text=f'Used indices')
+        # row.label(text=f'Used indices')
         row.label(text=f'First value')
         for param, value in sorted(items.items()):
             row = col.row()
             row.label(text=f'{param}, dim={len(value[0]) if value else "?"}, len={len(value)}')
-            row.label(text=str([share_data.charts_sources[ax] for ax in share_data.charts[param[0], param[2]]]))
+            # row.label(text=str([share_data.plot_line_sources[ax] for ax in share_data.charts[param[0], param[2]]]))
             row.label(text=f'{value[0]}, ...' if value else "?")
