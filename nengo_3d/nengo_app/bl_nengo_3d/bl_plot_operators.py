@@ -31,10 +31,10 @@ def neurons_probeable(self, context):
 
 
 class Sources(bpy.types.PropertyGroup):
-    xindex: bpy.props.IntProperty(name='Source of x', min=0, max=2, default=0)
-    yindex: bpy.props.IntProperty(name='Source of y', min=0, max=2, default=1)
+    xindex: bpy.props.IntProperty(name='Source of x', min=0, default=0)
+    yindex: bpy.props.IntProperty(name='Source of y', min=0, default=1)
     use_z: bpy.props.BoolProperty(default=False)
-    zindex: bpy.props.IntProperty(name='Source of z', min=0, max=2, default=2)
+    zindex: bpy.props.IntProperty(name='Source of z', min=0, default=2)
 
 
 locators = [
@@ -62,6 +62,7 @@ class PlotLineOperator(bpy.types.Operator):
     xformat: bpy.props.StringProperty(default='{:.2f}')
     yformat: bpy.props.StringProperty(default='{:.2f}')
     zformat: bpy.props.StringProperty(default='{:.2f}')
+    line_offset: bpy.props.FloatProperty(default=0)
 
     def invoke(self, context, event):
         wm = context.window_manager
@@ -105,6 +106,7 @@ class PlotLineOperator(bpy.types.Operator):
         ax.xformat = self.xformat
         ax.yformat = self.yformat
         ax.zformat = self.zformat
+        ax.line_offset = self.line_offset
 
         node: bpy.types.Object = context.active_object  # or for all selected_objects
         if self.title:

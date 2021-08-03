@@ -86,7 +86,7 @@ class Line:
         self.ax = ax
         self.original_data_x = []
         self.original_data_y = []
-        self.original_data_z = []
+        self.original_data_z = None
 
         self._line = ax._create_object('Line', solidify=0.04, parent=ax.root)
 
@@ -142,10 +142,6 @@ class Line:
         self.set_data(self.original_data_x, self.original_data_y, Z=self.original_data_z)
 
     def draw_line(self):
-        # X = self.original_data_x
-        # Y = self.original_data_y
-        # Z = self.original_data_z
-
         X = normalize_precalculated(self.original_data_x.copy(), self.ax.xlim_min, self.ax.xlim_max)
         Y = normalize_precalculated(self.original_data_y.copy(), self.ax.ylim_min, self.ax.ylim_max)
         if not self.original_data_z:
@@ -209,6 +205,8 @@ class Axes:
             context.collection.children.link(collection)
         self.collection = collection
         self._location = context.active_object.location if context.active_object else (0, 0, 0)
+        self._line_z_offset = 0
+        """Offset multiple lines in z direction. Only for 2 dim lines"""
 
         self.plot_lines: list[Line] = []
 
@@ -238,6 +236,20 @@ class Axes:
         self._title = None
 
     @property
+    def line_offset(self):
+        return self._line_z_offset
+
+    @line_offset.setter
+    def line_offset(self, value: float):
+        for i, line in enumerate(self.plot_lines):
+            line._line.location.z = value * i
+        self._line_z_offset = value
+
+    @line_offset.deleter
+    def line_offset(self):
+        pass
+
+    @property
     def location(self):
         return self._location
 
@@ -260,7 +272,14 @@ class Axes:
         self.title_text = text
 
     def relim(self):
-        return NotImplemented
+        for line in self.plot_lines:
+            self.xlim_max = max(self.xlim_max, max(line.original_data_x))
+            self.xlim_min = min(self.xlim_min, min(line.original_data_x))
+            self.ylim_max = max(self.ylim_max, max(line.original_data_y))
+            self.ylim_min = min(self.ylim_min, min(line.original_data_y))
+            if line.original_data_z:
+                self.zlim_max = max(self.zlim_max, max(line.original_data_z))
+                self.zlim_min = min(self.zlim_min, min(line.original_data_z))
 
     def _create_text(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False, ):
         mesh = bpy.data.curves.new(name, type='FONT')
@@ -305,6 +324,7 @@ class Axes:
             self.zlim_max = max(zlim_max, self.zlim_max)
             self.zlim_min = min(zlim_min, self.zlim_min)
         line = Line(self)
+        line._line.location.z = len(self.plot_lines) * self._line_z_offset
         line.set_data(x, y, z)
         self.plot_lines.append(line)
         # line.draw_line()

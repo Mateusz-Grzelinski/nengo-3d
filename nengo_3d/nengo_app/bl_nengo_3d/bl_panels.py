@@ -138,6 +138,7 @@ class NengoContextPanel(bpy.types.Panel):
                     op.xlabel = 'Step'
                     op.ylabel = 'Spikes'
                     op.xformat = '{:.0f}'
+                    op.line_offset = 0.05
                     op.title = f'{obj_name}: Spikes'
                     for i in range(neurons['size_out']):
                         item = op.indices.add()

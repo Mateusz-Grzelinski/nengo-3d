@@ -67,8 +67,8 @@ def frame_change_pre(scene: bpy.types.Scene):
                         ax.xlim_min = min(row[indices.x] for row in data[start_entries:frame_current + 1])
                         ax.xlim_max = max(row[indices.x] for row in data[start_entries:frame_current + 1])
                         ydata = [row[indices.y] for row in data[start_entries:frame_current + 1]]
-                        ax.ylim_max = max(row[indices.y] for row in data)
-                        ax.ylim_min = min(row[indices.y] for row in data)
+                        ax.ylim_max = max(row[indices.y] for row in data[start_entries:frame_current + 1])
+                        ax.ylim_min = min(row[indices.y] for row in data[start_entries:frame_current + 1])
                         if len(indices) == 3:
                             zdata = [row[indices.z] for row in data[start_entries:frame_current + 1]]
                             ax.zlim_max = max(row[indices.z] for row in data[start_entries:frame_current + 1])
@@ -78,6 +78,7 @@ def frame_change_pre(scene: bpy.types.Scene):
                             line.set_data(X=xdata, Y=ydata)
                 except IndexError as e:
                     logging.error(f'Invalid indexes for data: {indices} in {ax} of {(obj_name, param, is_neuron)}: {e}')
+                ax.relim()
                 ax.draw()
 
 
