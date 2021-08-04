@@ -187,7 +187,7 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
             node_obj.name = node_name
             collection.objects.link(node_obj)
         node_obj.location = (position[0], position[1], 0.0 if nengo_3d.algorithm_dim == '2D' else position[2])
-        g.nodes[node_name]['blender_object'] = node_obj
+        # g.nodes[node_name]['_blender_object'] = node_obj
 
     for node_source, node_target, edge_data in g.edges.data():
         source_pos = pos[node_source]
@@ -231,7 +231,7 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
             assert False, 'Should never happen'
         connection_obj.location = source_pos
         connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
-        g.edges[node_source, node_target]['blender_object'] = connection_obj
+        # g.edges[node_source, node_target]['_blender_object'] = connection_obj
     share_data.model_graph = g
 
 

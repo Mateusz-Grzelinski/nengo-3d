@@ -1,3 +1,4 @@
+import itertools
 import logging
 import socket
 from functools import partial
@@ -52,8 +53,8 @@ def frame_change_pre(scene: bpy.types.Scene):
                 indices = share_data.plot_line_sources[line]
                 try:
                     if nengo_3d.show_whole_simulation:
-                        xdata = [i[indices.x] for i in data]
-                        ydata = [i[indices.y] for i in data]
+                        xdata = [i[indices.x] for i in data[:scene.frame_current]]
+                        ydata = [i[indices.y] for i in data[:scene.frame_current]]
                         if len(indices) == 3:
                             zdata = [i[indices.z] for i in data]
                             line.set_data(X=xdata, Y=ydata, Z=zdata)
@@ -62,6 +63,7 @@ def frame_change_pre(scene: bpy.types.Scene):
                     else:
                         if frame_current > share_data.simulation_cache_steps():
                             continue
+
                         start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
                         xdata = [row[indices.x] for row in data[start_entries:frame_current + 1]]
                         ax.xlim_min = min(row[indices.x] for row in data[start_entries:frame_current + 1])

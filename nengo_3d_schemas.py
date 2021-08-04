@@ -51,10 +51,16 @@ class ConnectionSchema(Schema):
     size_mid = fields.Int()
     size_out = fields.Int()
     seed = fields.Int(allow_none=True)
+    has_weights = fields.Bool(required=True)
+    # for now just names of classes:
+    function_info = fields.Str()
+    solver = fields.Str()
+    synapse = fields.Str()
+    transform = fields.Str()
 
 
 class NeuronType(Schema):
-    name = fields.Str()
+    name = fields.Str(required=True)
     probeable = fields.List(fields.Str())
     negative = fields.Bool()
     spiking = fields.Bool()

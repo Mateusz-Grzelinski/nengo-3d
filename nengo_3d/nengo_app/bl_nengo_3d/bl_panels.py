@@ -111,14 +111,11 @@ class NengoContextPanel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = 'Nengo 3d'
 
-    @classmethod
-    def poll(cls, context):
-        return True
-
     def draw(self, context):
         layout = self.layout.column()
+        obj = context.active_object
+        obj_name = context.active_object.name
         if bl_plot_operators.PlotLineOperator.poll(context):
-            obj_name = context.active_object.name
             node = share_data.model_graph.nodes.get(obj_name)
             e_source, e_target, edge = share_data.model_get_edge_by_name(obj_name)
 
@@ -138,7 +135,8 @@ class NengoContextPanel(bpy.types.Panel):
                     op.xlabel = 'Step'
                     op.ylabel = 'Spikes'
                     op.xformat = '{:.0f}'
-                    op.line_offset = 0.05
+                    op.yformat = '{:.2f}'
+                    op.line_offset = -0.05
                     op.title = f'{obj_name}: Spikes'
                     for i in range(neurons['size_out']):
                         item = op.indices.add()
@@ -153,6 +151,8 @@ class NengoContextPanel(bpy.types.Panel):
                         op.xlabel = 'X'
                         op.ylabel = 'Y'
                         op.zlabel = 'Step'
+                        op.xformat = '{:.2f}'
+                        op.yformat = '{:.2f}'
                         op.zformat = '{:.0f}'
                         op.title = f'{obj_name} 3d: decoded output'
                         item = op.indices.add()
@@ -167,7 +167,9 @@ class NengoContextPanel(bpy.types.Panel):
                         op.probe = 'decoded_output'
                         op.xlabel = 'X'
                         op.ylabel = 'Y'
-                        op.title = f'{obj_name} 3d: output'
+                        op.xformat = '{:.2f}'
+                        op.yformat = '{:.2f}'
+                        op.title = f'{obj_name} 2d: output'
                         item = op.indices.add()
                         item.xindex = 1
                         item.yindex = 2
@@ -179,6 +181,7 @@ class NengoContextPanel(bpy.types.Panel):
                         op.xlabel = 'Step'
                         op.ylabel = 'Voltage'
                         op.xformat = '{:.0f}'
+                        op.yformat = '{:.2f}'
                         op.title = f'{obj_name}: output'
                         item = op.indices.add()
                         item.xindex = 0
@@ -190,6 +193,7 @@ class NengoContextPanel(bpy.types.Panel):
                     op.xlabel = 'Step'
                     op.ylabel = 'Voltage'
                     op.xformat = '{:.0f}'
+                    op.yformat = '{:.2f}'
                     op.title = f'{obj_name}: output'
                     item = op.indices.add()
                     item.xindex = 0
@@ -201,16 +205,31 @@ class NengoContextPanel(bpy.types.Panel):
                 size_out = edge['size_out'] + 1
                 op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot {size_out}d Weights',
                                   icon='ORIENTATION_VIEW')
+                """Weights are solved once. They are used to approximate function given in connection"""
                 op.probe = 'weights'
                 op.xlabel = 'Step'
-                op.ylabel = 'Voltage'
+                op.ylabel = 'Neuron Weight'
                 op.xformat = '{:.0f}'
+                op.yformat = '{:.2f}'
                 op.title = f'{e_source} -> {e_target}: output'
                 item = op.indices.add()
                 item.xindex = 0
                 item.yindex = 1
         else:
             layout.label(text='No actions available')
+
+        # chart = None
+        # for source, charts in share_data.charts.items():
+        #     for ax in charts:
+        #         if ax.root == obj:
+        #             chart = ax
+        # if chart:
+        #     layout.label(text=f'Plot: {obj.name}')
+        #     row = layout.row(align=True)
+        #     row.prop(obj.figure, 'simplify', text='')
+        #     col = row.column(align=True)
+        #     col.prop(obj.figure, 'threshold')
+        #     col.active = obj.figure.simplify
 
 
 class NengoInfoPanel(bpy.types.Panel):

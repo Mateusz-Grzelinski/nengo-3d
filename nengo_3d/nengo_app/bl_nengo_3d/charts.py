@@ -362,7 +362,7 @@ class Axes:
                 zlabel.align_y = 'TOP'
                 marigin = self._tick_text_z[0].dimensions.x if self._tick_text_z else 0
                 self._zlabel.location = (-marigin - 0.07, 0, 0.5)
-                self._zlabel.rotation_euler = (0, math.pi / 2, 0)
+                self._zlabel.rotation_euler = (math.pi / 2, math.pi / 2, 0)
         else:
             if self._ticks_z:
                 bpy.ops.object.delete({'selected_objects': [self._ticks_z]})

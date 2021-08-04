@@ -14,13 +14,6 @@ import nengo_3d_schemas
 from nengo_3d_schemas import Message, Observe, Simulation
 
 
-class NeuronType(nengo_3d_schemas.NeuronType):
-    @pre_dump
-    def process_neuron_type(self, data: nengo.neurons.NeuronType, **kwargs):
-        data.name = type(data).__name__
-        return data
-
-
 class SimulationSteps(nengo_3d_schemas.SimulationSteps):
     @pre_dump(pass_many=True)
     def get_parameters(self, sim_data: nengo.simulator.SimulationData, many: bool):
@@ -33,7 +26,8 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
         try:
             for step in steps:
                 for obj, probes in requested_probes.items():
-                    _result = {'node_name': name_finder.name(obj), 'step': step, 'parameters': {}, 'neurons_parameters': {}}
+                    _result = {'node_name': name_finder.name(obj), 'step': step, 'parameters': {},
+                               'neurons_parameters': {}}
                     for probe, is_neuron, parameter in probes:
                         if is_neuron:
                             _result['neurons_parameters'][parameter] = list(sim_data[probe][step])
@@ -44,11 +38,6 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
             logging.error(f'No such key: {e}: {list(sim_data.keys())}')
         return result
 
-
-# val = '{\'parameters\': {1: {(\'ens\', \'decoded_output\'): [0.19893262191626648, -0.11674964730659484]}}}'
-# val = {'parameters': {1: {('ens', 'decoded_output'): [0.19893262191626648, -0.11674964730659484]}}}
-# s = SimulationSteps()
-# print(s.dumps(val))
 
 class ConnectionSchema(nengo_3d_schemas.ConnectionSchema):
     @pre_dump
@@ -62,6 +51,11 @@ class ConnectionSchema(nengo_3d_schemas.ConnectionSchema):
         result['size_in'] = data.size_in
         result['size_mid'] = data.size_mid
         result['size_out'] = data.size_out
+        result['has_weights'] = data.has_weights
+        result['function_info'] = str(data.function_info)
+        result['solver'] = str(data.solver)
+        result['synapse'] = str(data.synapse)
+        result['transform'] = str(data.transform)
         return result
 
 
@@ -84,8 +78,13 @@ class NodeSchema(nengo_3d_schemas.NodeSchema):
         result['size_out'] = data.size_out
         result['n_neurons'] = getattr(data, 'n_neurons', None)
         result['neurons'] = getattr(data, 'neurons', None)
-        result['neuron_type'] = getattr(data, 'neuron_type', None)
-
+        if getattr(data, 'neuron_type', None):
+            result['neuron_type'] = {
+                'name': str(data.neuron_type),
+                'negative': data.neuron_type.negative,
+                'spiking': data.neuron_type.spiking,
+                'probeable': data.neuron_type.probeable,
+            }
         return result
 
 

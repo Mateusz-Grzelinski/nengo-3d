@@ -14,7 +14,9 @@ class Nengo3dChartProperties(bpy.types.PropertyGroup):
     z_max: bpy.props.FloatProperty()
 
     simplify: bpy.props.BoolProperty()
-    threshold: bpy.props.FloatProperty()
+    threshold: bpy.props.FloatProperty(default=0.01,
+                                       description='If delta is than threshold, vertex will not be added to plot',
+                                       min=0.0, max=1.0, subtype='PERCENTAGE')
     # n_step: bpy.props.IntProperty()
 
 
