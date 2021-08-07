@@ -14,6 +14,8 @@ from typing import *
 
 import nengo
 import nengo.utils.progress
+import nengo.ensemble
+import nengo.utils
 # from components import EnhancedJSONEncoder, NengoObjectType, NengoObject, Network
 
 from nengo_3d.gui_backend import Nengo3dServer, Connection
@@ -24,12 +26,25 @@ script_path = os.path.dirname(os.path.realpath(__file__))
 
 logger = logging.getLogger(__name__)
 
+message = schemas.Message()
+
+
+class RequestedProbes(NamedTuple):
+    probe: nengo.Probe
+    """source object to probe"""
+    is_neuron: bool
+    """Does this param applies to neurons?"""
+    parameter: str
+    """Parameter to probe"""
+
 
 class GuiConnection(Connection):
     def __init__(self, client_socket: socket.socket, addr, server: 'GUI', model: nengo.Network):
         super().__init__(client_socket, addr, server)
         self.server: GUI
-        self.requested_probes: dict[nengo.base.NengoObject, list[tuple[nengo.Probe, bool, str]]] = defaultdict(list)
+        self.requested_probes: dict[nengo.base.NengoObject, list[RequestedProbes]] = defaultdict(list)
+        self.requested_tuning_curves = []
+        self.requested_response_curves = []
         self.model = model
         self.name_finder = NameFinder(terms=self.server.locals, net=model)
         self.sim: nengo.Simulator = None
@@ -38,54 +53,14 @@ class GuiConnection(Connection):
     def handle_message(self, msg: str):
         super().handle_message(msg)
         self.server: GUI
-        message = schemas.Message()
         try:
             incoming_message: dict = message.loads(msg)
             if incoming_message['schema'] == schemas.NetworkSchema.__name__:
-                data_scheme = schemas.NetworkSchema(
-                    context={'name_finder': self.name_finder, 'file': self.server.filename})
-                answer = message.dumps({'schema': schemas.NetworkSchema.__name__, 'data': data_scheme.dump(self.model)})
-                self.sendall(answer.encode('utf-8'))
+                self.handle_network(incoming_message)
             elif incoming_message['schema'] == schemas.Observe.__name__:
-                schema = schemas.Observe()
-                observe = schema.load(data=incoming_message['data'])
-                parameter = observe['parameter']
-                is_neuron = observe['neurons']
-
-                obj = self.name_finder.object(name=observe['source'])
-                to_probe = obj.neurons if is_neuron else obj
-
-                with self.model:
-                    probe = nengo.Probe(to_probe, attr=parameter)
-                self.requested_probes[obj].append((probe, is_neuron, parameter))  # ??
+                self.handle_observe(incoming_message)
             elif incoming_message['schema'] == schemas.Simulation.__name__:
-                schema = schemas.Simulation()
-                sim = schema.load(data=incoming_message['data'])
-                if sim['action'] == 'reset':
-                    del self.sim
-                    self.sim = None
-                elif sim['action'] == 'stop':
-                    logger.warning('Not implemented')
-                elif sim['action'] == 'step':
-                    if not self.sim:
-                        self.sim = nengo.Simulator(network=self.model)
-                    steps = list(range(self.sim.n_steps, sim['until'] + 1))
-                    if not len(steps) >= 1:
-                        logger.warning(f'Requested step: {sim["until"]}, but {self.sim.n_steps} is already computed')
-                        return
-                    for _ in steps:
-                        self.sim.step()  # this can be done async
-                    data_scheme = schemas.SimulationSteps(many=True,
-                                                          context={'model': self.model,
-                                                                   'name_finder': self.name_finder,
-                                                                   'steps': steps,
-                                                                   'requested_probes': self.requested_probes})
-                    answer = message.dumps({'schema': schemas.SimulationSteps.__name__,
-                                            'data': data_scheme.dump(self.sim.data)})
-                    logger.debug(f'Sending step {steps}: {str(answer)[:1000]}')
-                    self.sendall(answer.encode('utf-8'))
-                else:
-                    logger.warning('Unknown field value')
+                self.handle_simulation(incoming_message)
             else:
                 logger.error(f'Unknown schema: {incoming_message["schema"]}')
         except json.JSONDecodeError:
@@ -93,8 +68,71 @@ class GuiConnection(Connection):
         # except Exception as e:
         #     logger.exception(f'Failed executing: {incoming_message}', exc_info=e)
 
+    def handle_network(self, incoming_message):
+        data_scheme = schemas.NetworkSchema(
+            context={'name_finder': self.name_finder, 'file': self.server.filename})
+        answer = message.dumps({'schema': schemas.NetworkSchema.__name__, 'data': data_scheme.dump(self.model)})
+        self.sendall(answer.encode('utf-8'))
+
+    def handle_observe(self, incoming_message):
+        schema = schemas.Observe()
+        observe = schema.load(data=incoming_message['data'])
+        parameter = observe['parameter']
+        is_neuron = observe['neurons']
+        obj = self.name_finder.object(name=observe['source'])
+        if is_neuron:
+            if parameter == 'tuning_curves':
+                self.requested_tuning_curves.append(obj)
+                return
+            if parameter == 'response_curves':
+                self.requested_response_curves.append(obj)
+                return
+        to_probe = obj.neurons if is_neuron else obj
+        with self.model:
+            probe = nengo.Probe(to_probe, attr=parameter)
+        self.requested_probes[obj].append(RequestedProbes(probe, is_neuron, parameter))
+
+    def handle_simulation(self, incoming_message):
+        schema = schemas.Simulation()
+        sim = schema.load(data=incoming_message['data'])
+        if sim['action'] == 'reset':
+            del self.sim
+            self.sim = None
+        elif sim['action'] == 'stop':
+            logger.warning('Not implemented')
+        elif sim['action'] == 'step':
+            if not self.sim:
+                self.sim = nengo.Simulator(network=self.model)
+            steps = list(range(self.sim.n_steps, sim['until'] + 1))
+            if not len(steps) >= 1:
+                logger.warning(f'Requested step: {sim["until"]}, but {self.sim.n_steps} is already computed')
+                return
+            for _ in steps:
+                self.sim.step()  # this can be done async
+            data_scheme = schemas.SimulationSteps(
+                many=True,
+                context={'model': self.model,
+                         'name_finder': self.name_finder,
+                         'steps': steps,
+                         'requested_probes': self.requested_probes,
+                         'tuning_curves': self.requested_tuning_curves,
+                         'response_curves': self.requested_response_curves,
+                         })
+            answer = message.dumps({'schema': schemas.SimulationSteps.__name__,
+                                    'data': data_scheme.dump(self.sim.data)})
+            logger.debug(f'Sending step {steps}: {str(answer)[:1000]}')
+            self.sendall(answer.encode('utf-8'))
+        else:
+            logger.warning('Unknown field value')
+
     def sendall(self, msg: bytes):
         self._socket.sendall(struct.pack("i", len(msg)) + msg)
+
+    def get_response_curve(self, ens: nengo.Ensemble):
+        return nengo.utils.ensemble.response_curves(ens=ens, sim=self.sim)
+
+    def get_tuning_curve(self, ens: nengo.Ensemble):
+        return nengo.utils.ensemble.tuning_curves(ens=ens, sim=self.sim)
 
 
 class GUI(Nengo3dServer):

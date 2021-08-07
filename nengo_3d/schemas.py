@@ -22,6 +22,8 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
         model: nengo.Network = self.context['model']
         steps: list[int] = self.context['steps']
         requested_probes = self.context['requested_probes']
+        tuning_curves = self.context['tuning_curves']
+        response_curves = self.context['response_curves']
         result = []
         try:
             for step in steps:
@@ -30,9 +32,13 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
                                'neurons_parameters': {}}
                     for probe, is_neuron, parameter in probes:
                         if is_neuron:
-                            _result['neurons_parameters'][parameter] = list(sim_data[probe][step])
+                            _result['neurons_parameters'][parameter] = sim_data[probe][step].tolist()
+                            if obj in tuning_curves:
+                                _result['neurons_parameters']['tuning_curves'] = []  # todo
+                            if obj in response_curves:
+                                _result['neurons_parameters']['response_curves'] = []  # todo
                         else:
-                            _result['parameters'][parameter] = list(sim_data[probe][step])
+                            _result['parameters'][parameter] = sim_data[probe][step].tolist()
                     result.append(_result)
         except KeyError as e:
             logging.error(f'No such key: {e}: {list(sim_data.keys())}')

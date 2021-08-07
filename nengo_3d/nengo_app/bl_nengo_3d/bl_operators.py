@@ -4,13 +4,14 @@ import socket
 from functools import partial
 
 import bpy
+import numpy as np
 
 import bl_nengo_3d.schemas as schemas
 from bl_nengo_3d import bl_properties
 from bl_nengo_3d.bl_properties import Nengo3dProperties
 from bl_nengo_3d.charts import Axes
 from bl_nengo_3d.connection_handler import handle_data, handle_network_model
-from bl_nengo_3d.share_data import share_data
+from bl_nengo_3d.share_data import share_data, Indices
 
 message = schemas.Message()
 simulation_scheme = schemas.Simulation()
@@ -40,7 +41,7 @@ def frame_change_pre(scene: bpy.types.Scene):
             if bpy.context.screen.is_animation_playing:
                 bpy.ops.screen.animation_play()  # stop playback
                 share_data.resume_playback_on_steps = True
-                return
+            return
 
     nengo_3d: Nengo3dProperties = bpy.context.window_manager.nengo_3d
     for (obj_name, param, is_neuron), data in share_data.simulation_cache.items():
@@ -50,36 +51,34 @@ def frame_change_pre(scene: bpy.types.Scene):
                 continue
             for line in ax.plot_lines:
                 # logging.debug(f'{ax.title_text}: {scene.frame_current}:{data}')
-                indices = share_data.plot_line_sources[line]
+                indices: Indices = share_data.plot_line_sources[line]
                 try:
                     if nengo_3d.show_whole_simulation:
-                        xdata = [i[indices.x] for i in data[:scene.frame_current]]
-                        ydata = [i[indices.y] for i in data[:scene.frame_current]]
-                        if len(indices) == 3:
-                            zdata = [i[indices.z] for i in data]
-                            line.set_data(X=xdata, Y=ydata, Z=zdata)
-                        else:
-                            line.set_data(X=xdata, Y=ydata)
+                        start_entries = 0
                     else:
-                        if frame_current > share_data.simulation_cache_steps():
-                            continue
-
                         start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
-                        xdata = [row[indices.x] for row in data[start_entries:frame_current + 1]]
-                        ax.xlim_min = min(row[indices.x] for row in data[start_entries:frame_current + 1])
-                        ax.xlim_max = max(row[indices.x] for row in data[start_entries:frame_current + 1])
-                        ydata = [row[indices.y] for row in data[start_entries:frame_current + 1]]
-                        ax.ylim_max = max(row[indices.y] for row in data[start_entries:frame_current + 1])
-                        ax.ylim_min = min(row[indices.y] for row in data[start_entries:frame_current + 1])
-                        if len(indices) == 3:
-                            zdata = [row[indices.z] for row in data[start_entries:frame_current + 1]]
-                            ax.zlim_max = max(row[indices.z] for row in data[start_entries:frame_current + 1])
-                            ax.zlim_min = min(row[indices.z] for row in data[start_entries:frame_current + 1])
-                            line.set_data(X=xdata, Y=ydata, Z=zdata)
+                    _data = data[start_entries:frame_current]
+
+                    if indices.x_is_step:
+                        xdata = range(start_entries, frame_current)
+                    else:
+                        xdata = [row[indices.x] for row in _data]
+
+                    if indices.y_multi_dim:
+                        ydata = [eval(f'row{indices.y_multi_dim}') for row in _data]
+                    else:
+                        ydata = [row[indices.y] for row in _data]
+                    if indices.z:
+                        if indices.z_is_step:
+                            zdata = range(start_entries, frame_current)
                         else:
-                            line.set_data(X=xdata, Y=ydata)
+                            zdata = [row[indices.z] for row in _data]
+                        line.set_data(X=xdata, Y=ydata, Z=zdata)
+                    else:
+                        line.set_data(X=xdata, Y=ydata)
                 except IndexError as e:
                     logging.error(f'Invalid indexes for data: {indices} in {ax} of {(obj_name, param, is_neuron)}: {e}')
+                # todo do not relim step
                 ax.relim()
                 ax.draw()
 
@@ -164,6 +163,7 @@ class DisconnectOperator(bpy.types.Operator):
         share_data.step_when_ready = 0
         share_data.requested_steps_until = -1
         share_data.resume_playback_on_steps = False
+        # share_data.simulation_cache_step.clear()
         share_data.simulation_cache.clear()
         self.report({'INFO'}, 'Disconnected')
         return {'FINISHED'}
@@ -213,6 +213,7 @@ class NengoSimulateOperator(bpy.types.Operator):
             share_data.step_when_ready = 0
             share_data.requested_steps_until = -1
             share_data.resume_playback_on_steps = False
+            # share_data.simulation_cache_step.clear()
             share_data.simulation_cache.clear()
             share_data.sendall(mess.encode('utf-8'))
             return {'FINISHED'}

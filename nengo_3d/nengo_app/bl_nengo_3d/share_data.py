@@ -11,15 +11,13 @@ import collections
 from bl_nengo_3d.charts import Axes, Line
 
 
-class Indices2(NamedTuple):
+class Indices(NamedTuple):
     x: int
-    y: int
-
-
-class Indices3(NamedTuple):
-    x: int
-    y: int
-    z: int
+    x_is_step: bool
+    y: Optional[int]
+    y_multi_dim: Optional[str]
+    z_is_step: bool
+    z: Optional[int]
 
 
 class _ShareData:
@@ -46,6 +44,7 @@ class _ShareData:
         """
         Cached chart 
         """
+        # self.simulation_cache_step = list()
         self.simulation_cache = defaultdict(list)
         """
         dict[(object, is_neurons, param), list[data]] ]
@@ -94,11 +93,10 @@ class _ShareData:
         if ax not in charts:
             charts.append(ax)
 
-    def register_plot_line_source(self, line: Line, data_indices: tuple):
-        if len(data_indices) == 2:
-            self.plot_line_sources[line] = Indices2(*data_indices)
-        else:
-            self.plot_line_sources[line] = Indices3(*data_indices)
+    def register_plot_line_source(self, line: Line, xindex: int, yindex: int, yindex_multi_dim: str, zindex: int = None,
+                                  x_is_step: bool = False, z_is_step: bool = False):
+        self.plot_line_sources[line] = Indices(x=xindex, y=yindex, y_multi_dim=yindex_multi_dim, z=zindex,
+                                               x_is_step=x_is_step, z_is_step=z_is_step)
 
 
 share_data = _ShareData()  # Instance storing addon state, is used by most of the sub-modules.

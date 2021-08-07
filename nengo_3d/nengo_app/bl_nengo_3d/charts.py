@@ -78,17 +78,21 @@ class IntegerLocator:
         if self.numticks == 0:
             return []
         ticklocs = np.arange(vmin, vmax + 1, step=int((vmax - vmin) / self.numticks) or 1)
-        return ticklocs
+        return list(set(ticklocs))
 
 
 class Line:
-    def __init__(self, ax: 'Axes'):
+    def __init__(self, ax: 'Axes', name: str):
         self.ax = ax
+        self.label = name
         self.original_data_x = []
         self.original_data_y = []
         self.original_data_z = None
 
-        self._line = ax._create_object('Line', solidify=0.04, parent=ax.root)
+        self._line = ax._create_object('Line', solidify=None, parent=ax.root)
+
+    def set_label(self, text):
+        self.label = text
 
     def make_line(self, X: list, Y: list, width: float = 0.01, depth: float = 0.04):
         vers_pos = []
@@ -272,14 +276,33 @@ class Axes:
         self.title_text = text
 
     def relim(self):
+        if not self.plot_lines:
+            return
+        xlim_max = -math.inf
+        xlim_min = math.inf
+        ylim_max = -math.inf
+        ylim_min = math.inf
+        zlim_max = -math.inf
+        zlim_min = math.inf
         for line in self.plot_lines:
-            self.xlim_max = max(self.xlim_max, max(line.original_data_x))
-            self.xlim_min = min(self.xlim_min, min(line.original_data_x))
-            self.ylim_max = max(self.ylim_max, max(line.original_data_y))
-            self.ylim_min = min(self.ylim_min, min(line.original_data_y))
+            if not line.original_data_x:
+                continue
+            if not line.original_data_y:
+                continue
+            xlim_max = max(xlim_max, max(line.original_data_x))
+            xlim_min = min(xlim_min, min(line.original_data_x))
+            ylim_max = max(ylim_max, max(line.original_data_y))
+            ylim_min = min(ylim_min, min(line.original_data_y))
             if line.original_data_z:
-                self.zlim_max = max(self.zlim_max, max(line.original_data_z))
-                self.zlim_min = min(self.zlim_min, min(line.original_data_z))
+                zlim_max = max(zlim_max, max(line.original_data_z))
+                zlim_min = min(zlim_min, min(line.original_data_z))
+        self.xlim_max = xlim_max
+        self.xlim_min = xlim_min
+        self.ylim_max = ylim_max
+        self.ylim_min = ylim_min
+        if any(line.original_data_z for line in self.plot_lines):
+            self.zlim_max = zlim_max
+            self.zlim_min = zlim_min
 
     def _create_text(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False, ):
         mesh = bpy.data.curves.new(name, type='FONT')
@@ -303,7 +326,7 @@ class Axes:
         obj.parent = parent
         return obj
 
-    def plot(self, *args):
+    def plot(self, *args, label: str):
         x = args[0]
         y = args[1]
         try:
@@ -323,7 +346,7 @@ class Axes:
             _z, zlim_min, zlim_max = normalize(z.copy())
             self.zlim_max = max(zlim_max, self.zlim_max)
             self.zlim_min = min(zlim_min, self.zlim_min)
-        line = Line(self)
+        line = Line(self, name=label)
         line._line.location.z = len(self.plot_lines) * self._line_z_offset
         line.set_data(x, y, z)
         self.plot_lines.append(line)

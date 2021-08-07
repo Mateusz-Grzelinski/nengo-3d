@@ -2,12 +2,12 @@ import logging
 import os
 import socket
 import struct
-from collections import defaultdict
 from functools import partial
 
 import bmesh
 import bpy
 import networkx as nx
+import numpy as np
 from mathutils import Vector
 
 import bl_nengo_3d.schemas as schemas
@@ -90,13 +90,14 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
                 for param, value in parameters.items():
                     # assert step == len(share_data.simulation_cache[node_name][param, False]), \
                     #     (step, len(share_data.simulation_cache[node_name][param, False]))
-                    share_data.simulation_cache[node_name, param, False].append((step, *[float(i) for i in value]))
+                    # share_data.simulation_cache_step.append(step)
+                    share_data.simulation_cache[node_name, param, False].append(np.array(value))
             neurons_parameters = simulation_step.get('neurons_parameters')
             if neurons_parameters:
                 for param, value in neurons_parameters.items():
                     # assert step == len(share_data.simulation_cache[node_name][param, True]), \
                     #     (step, len(share_data.simulation_cache[node_name][param, True]))
-                    share_data.simulation_cache[node_name, param, True].append((step, *[float(i) for i in value]))
+                    share_data.simulation_cache[node_name, param, True].append(np.array(value))
 
         if share_data.step_when_ready != 0 and not nengo_3d.is_realtime:
             bpy.context.scene.frame_current += share_data.step_when_ready

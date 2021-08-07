@@ -17,7 +17,7 @@ class Message(Schema):
 class Observe(Schema):
     source = fields.Str(required=True, allow_none=False)
     parameter = fields.Str(required=True)
-    neurons = fields.Int(required=True)
+    neurons = fields.Bool(required=True)
 
 
 class SimulationSteps(Schema):
@@ -26,13 +26,12 @@ class SimulationSteps(Schema):
     node_name = fields.Str()
     # parameters= fields.Method(serialize='get_parameters', deserialize='load_parameters')
     parameters = fields.Dict(keys=fields.Str(),
-                             values=fields.List(fields.Float), default=None)
+                             values=fields.List(fields.Field), default=None)
     """dict[step, dict[parameter name, values]]"""
     neurons_parameters = fields.Dict(keys=fields.Str(),
-                                     values=fields.List(fields.Float), default=None)
-
-    def get_multi_dim_array(self, obj):
-        return tuple(obj)
+                                     values=fields.List(fields.Field), default=None)
+    # tuning_curves = fields.Dict(keys=fields.Str(),
+    #                             values=fields.List(fields.Field), default=None)
 
 
 class Simulation(Schema):

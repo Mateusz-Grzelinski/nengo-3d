@@ -114,6 +114,10 @@ class NengoContextPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout.column()
         obj = context.active_object
+        if not obj:
+            layout.label(text='No active object')
+            return
+
         obj_name = context.active_object.name
         if bl_plot_operators.PlotLineOperator.poll(context):
             node = share_data.model_graph.nodes.get(obj_name)
@@ -124,24 +128,55 @@ class NengoContextPanel(bpy.types.Panel):
                 col.operator_context = 'EXEC_DEFAULT'
                 size_out = node['size_out'] + 1
                 if node['type'] == 'Ensemble':
+                    col.operator_context = 'EXEC_DEFAULT'
+                    op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
+                                      text=f'Plot 2d Response curves',
+                                      icon='ORIENTATION_VIEW')
+                    op.probe_neurons = 'response_curves'
+                    op.xlabel = 'Step'
+                    op.ylabel = 'Response curves'
+                    op.xformat = '{:.2f}'
+                    op.yformat = '{:.2f}'
+                    op.title = f'{obj_name}: Neuron response curves'
+                    # todo iterate
+                    item = op.indices.add()
+                    item.x_is_step = True
+                    item.yindex = 0
+
+                    col.operator_context = 'EXEC_DEFAULT'
+                    op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
+                                      text=f'Plot 2d Tuning curves',
+                                      icon='ORIENTATION_VIEW')
+                    op.probe_neurons = 'tuning_curves'
+                    op.xlabel = 'Input signal'
+                    op.ylabel = 'Firing rate (Hz)'
+                    op.xformat = '{:.2f}'
+                    op.yformat = '{:.2f}'
+                    op.title = f'{obj_name}: Neuron tuning curves'
+                    item = op.indices.add()
+                    item.x_is_step = True
+                    item.yindex = 0
+
                     col = layout.column(align=True)
                     col.operator_context = 'EXEC_DEFAULT'
                     neurons = node['neurons']
                     op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
-                                      text=f'Plot Neuron Spikes',
+                                      text=f'Plot 2d Neuron Spikes',
                                       icon='ORIENTATION_VIEW')
                     op.probe_neurons = 'output'
                     op.neurons = True
                     op.xlabel = 'Step'
                     op.ylabel = 'Spikes'
+                    op.xlocator = 'IntegerLocator'
                     op.xformat = '{:.0f}'
                     op.yformat = '{:.2f}'
                     op.line_offset = -0.05
                     op.title = f'{obj_name}: Spikes'
                     for i in range(neurons['size_out']):
                         item = op.indices.add()
-                        item.xindex = 0
-                        item.yindex = i + 1
+                        item.x_is_step = True
+                        item.yindex = i
+                        item.label = f'Neuron {i}'
 
                     if size_out == 3:
                         op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
@@ -154,12 +189,13 @@ class NengoContextPanel(bpy.types.Panel):
                         op.xformat = '{:.2f}'
                         op.yformat = '{:.2f}'
                         op.zformat = '{:.0f}'
+                        op.zlocator = 'IntegerLocator'
                         op.title = f'{obj_name} 3d: decoded output'
                         item = op.indices.add()
-                        item.xindex = 1
-                        item.yindex = 2
+                        item.xindex = 0
+                        item.yindex = 1
                         item.use_z = True
-                        item.zindex = 0
+                        item.z_is_step = True
 
                         op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                           text=f'Plot 2d ouput',
@@ -171,50 +207,92 @@ class NengoContextPanel(bpy.types.Panel):
                         op.yformat = '{:.2f}'
                         op.title = f'{obj_name} 2d: output'
                         item = op.indices.add()
-                        item.xindex = 1
-                        item.yindex = 2
+                        item.xindex = 0
+                        item.yindex = 1
                     else:
                         op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
-                                          text=f'Plot {size_out}d decoded ouput',
+                                          text=f'Plot 2d decoded ouput',
                                           icon='ORIENTATION_VIEW')
                         op.probe = 'decoded_output'
                         op.xlabel = 'Step'
                         op.ylabel = 'Voltage'
+                        op.xlocator = 'IntegerLocator'
                         op.xformat = '{:.0f}'
                         op.yformat = '{:.2f}'
                         op.title = f'{obj_name}: output'
                         item = op.indices.add()
-                        item.xindex = 0
-                        item.yindex = 1
+                        item.x_is_step = True
+                        item.yindex = 0
                 elif node['type'] == 'Node':
-                    op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot {size_out}d output',
+                    op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d output',
                                       icon='ORIENTATION_VIEW')
                     op.probe = 'output'
                     op.xlabel = 'Step'
                     op.ylabel = 'Voltage'
+                    op.xlocator = 'IntegerLocator'
                     op.xformat = '{:.0f}'
                     op.yformat = '{:.2f}'
                     op.title = f'{obj_name}: output'
                     item = op.indices.add()
-                    item.xindex = 0
-                    item.yindex = 1
+                    item.x_is_step = True
+                    item.yindex = 0
             if edge:
-                # todo check format of weights
                 col = layout.column(align=True)
                 col.operator_context = 'EXEC_DEFAULT'
-                size_out = edge['size_out'] + 1
-                op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot {size_out}d Weights',
+                op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d input',
                                   icon='ORIENTATION_VIEW')
-                """Weights are solved once. They are used to approximate function given in connection"""
-                op.probe = 'weights'
+                op.probe = 'input'
                 op.xlabel = 'Step'
-                op.ylabel = 'Neuron Weight'
+                op.ylabel = 'Input'
+                op.xlocator = 'IntegerLocator'
+                op.xformat = '{:.0f}'
+                op.yformat = '{:.2f}'
+                op.line_offset = -0.05
+                op.title = f'{e_source} -> {e_target}: input'
+                source_node = share_data.model_graph.nodes[e_source]
+                for i in range(source_node['neurons']['size_out']):
+                    item = op.indices.add()
+                    item.x_is_step = True
+                    item.yindex = i
+                    item.label = f'Neuron {i}'
+
+                col.operator_context = 'EXEC_DEFAULT'
+                op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d output',
+                                  icon='ORIENTATION_VIEW')
+                op.probe = 'output'
+                op.xlabel = 'Step'
+                op.ylabel = 'Output'
+                op.xlocator = 'IntegerLocator'
                 op.xformat = '{:.0f}'
                 op.yformat = '{:.2f}'
                 op.title = f'{e_source} -> {e_target}: output'
                 item = op.indices.add()
-                item.xindex = 0
-                item.yindex = 1
+                item.x_is_step = True
+                item.yindex = 0
+
+                if edge['has_weights']:
+                    # todo check format of weights
+                    col.operator_context = 'EXEC_DEFAULT'
+                    op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d Weights',
+                                      icon='ORIENTATION_VIEW')
+                    """Weights are solved once. They are used to approximate function given in connection"""
+                    op.probe = 'weights'
+                    op.xlabel = 'Step'
+                    op.ylabel = 'Neuron Weight'
+                    op.xlocator = 'IntegerLocator'
+                    op.xformat = '{:.0f}'
+                    op.yformat = '{:.4f}'
+                    op.title = f'{e_source} -> {e_target}: weights'
+                    op.line_offset = -0.05
+                    target_node = share_data.model_graph.nodes[e_target]
+                    # dimension 1 weight [neuron1, neuron2, ...]
+                    # dimension 2 weight [neuron1, neuron2, ...], ...
+                    for d in range(target_node['size_in']):
+                        for i in range(source_node['neurons']['size_out']):
+                            item = op.indices.add()
+                            item.x_is_step = True
+                            item.yindex_multi_dim = f'[{d}, {i}]'  # same as numpy array slice. Must return single value
+                            item.label = f'Neuron {item.yindex_multi_dim}'
         else:
             layout.label(text='No actions available')
 
@@ -286,37 +364,23 @@ class NengoInfoPanel(bpy.types.Panel):
 
         chart = None
         for source, charts in share_data.charts.items():
-            # for charts in params.values():
             for ax in charts:
                 if ax.root == obj:
                     chart = ax
         if chart:
             layout.label(text=f'{obj.name}:  {chart.title_text}')
             row = layout.row()
-            row.label(text='Parameter:')
+            row.label(text='Parameter')
             row.label(text=f'{chart.parameter}')
             row = layout.row()
+            row.label(text='Legend:')
+            col = layout.box().column(align=True)
             for line in chart.plot_lines:
-                col = layout.box().column(align=True)
                 indices = share_data.plot_line_sources[line]
-                row.label(text='Source:')
-                row.label(text=f'{source}')
-                row = col.row()
-                ind_str = f'{line} indices: '
-                if indices[0] == 0:
-                    ind_str += 'x=step, '
-                else:
-                    ind_str += f'x={indices[0]}, '
-                if indices[1] == 0:
-                    ind_str += 'y=step'
-                else:
-                    ind_str += f'y={indices[1]}'
-                if len(indices) == 3:
-                    if indices[2] == 0:
-                        ind_str += ', z=step'
-                    else:
-                        ind_str += f', z={indices[1]}'
-                row.label(text=ind_str)
+                row = col.row(align=True)
+                row.separator(factor=1.4)
+                row.label(text=line.label)
+                row.label(text=str(indices))
         elif node:
             layout.label(text=f'Node: {obj.name}')
             col = layout.box().column(align=True)

@@ -22,19 +22,29 @@ def probeable(self, context):
 
 def neurons_probeable(self, context):
     item = None
+    node = None
     obj = context.active_object
     if share_data.model_graph and obj:
         if node := share_data.model_graph.nodes.get(obj.name):
             item = node['neuron_type']
     for param in item['probeable']:
         yield param, param, ''
+    if node and node['type'] == 'Ensemble':
+        yield 'response_curves', 'Response Curves', ''
+        yield 'tuning_curves', 'Tuning Curves', ''
 
 
 class Sources(bpy.types.PropertyGroup):
     xindex: bpy.props.IntProperty(name='Source of x', min=0, default=0)
+    x_is_step: bpy.props.BoolProperty(default=False,
+                                      description='Ignore value of xindex, instead use x as step indicator')
     yindex: bpy.props.IntProperty(name='Source of y', min=0, default=1)
+    yindex_multi_dim: bpy.props.StringProperty()
     use_z: bpy.props.BoolProperty(default=False)
     zindex: bpy.props.IntProperty(name='Source of z', min=0, default=2)
+    z_is_step: bpy.props.BoolProperty(default=False,
+                                      description='Ignore value of zindex, instead use z as step indicator')
+    label: bpy.props.StringProperty()
 
 
 locators = [
@@ -47,9 +57,10 @@ class PlotLineOperator(bpy.types.Operator):
     bl_idname = 'nengo_3d.plot_line'
     bl_label = 'Voltages'
 
-    probe: bpy.props.EnumProperty(items=probeable, name='Probeable')
-    probe_neurons: bpy.props.EnumProperty(items=neurons_probeable, name='Probeable neurons')
+    probe: bpy.props.EnumProperty(items=probeable, name='Inspect value connected to node')
+    probe_neurons: bpy.props.EnumProperty(items=neurons_probeable, name='Inspect value connected to neurons')
     neurons: bpy.props.BoolProperty(name='Is neuron', default=False)
+
     indices: bpy.props.CollectionProperty(type=Sources)
     xlabel: bpy.props.StringProperty(name='X label', default='X')
     ylabel: bpy.props.StringProperty(name='Y label', default='Y')
@@ -95,8 +106,20 @@ class PlotLineOperator(bpy.types.Operator):
             bpy.ops.screen.animation_play()
             share_data.resume_playback_on_steps = False
             share_data.step_when_ready = 0
+
+        for sources in self.indices:
+            if sources.yindex_multi_dim:
+                y_multi_dim = sources.yindex_multi_dim.strip()
+                if not y_multi_dim.startswith('[') or not y_multi_dim.endswith(']'):
+                    logging.error(f'Misformatted argument: y_multi_dim={y_multi_dim}')
+                    return {'CANCELLED'}
+
         # register chart as input source: send info to probe model
-        ax = Axes(context, parameter=self.probe_neurons if self.neurons else self.probe)
+        if self.neurons:
+            parameter = self.probe_neurons
+        else:
+            parameter = self.probe
+        ax = Axes(context, parameter=parameter)
         ax.xlabel(self.xlabel)
         ax.ylabel(self.ylabel)
         ax.zlabel(self.zlabel)
@@ -114,12 +137,11 @@ class PlotLineOperator(bpy.types.Operator):
         ax.location = node.location + node.dimensions / 2
 
         for sources in self.indices:
-            line = ax.plot([0], [0])
-            if sources.use_z:
-                share_data.register_plot_line_source(line=line,
-                                                     data_indices=(sources.xindex, sources.yindex, sources.zindex))
-            else:
-                share_data.register_plot_line_source(line=line, data_indices=(sources.xindex, sources.yindex))
+            line = ax.plot([0], [0], label=sources.label)
+            share_data.register_plot_line_source(
+                line=line, xindex=sources.xindex, yindex=sources.yindex, yindex_multi_dim=sources.yindex_multi_dim,
+                zindex=sources.zindex if sources.use_z else None, x_is_step=sources.x_is_step,
+                z_is_step=sources.z_is_step if sources.use_z else False)
 
         share_data.register_chart(source=node.name, is_neurons=self.neurons, ax=ax)
 
