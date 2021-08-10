@@ -1,17 +1,12 @@
 import logging
-import typing
-# from typing import *
 from itertools import chain
+
 import nengo
-import numpy as np
-from marshmallow import pre_dump, types
+from marshmallow import pre_dump
 
+import nengo_3d.nengo_3d_schemas as nengo_3d_schemas
 from nengo_3d.name_finder import NameFinder
-import sys
-
-sys.path.append("..")  # Adds higher directory to python modules path to import nengo_3d_schemas
-import nengo_3d_schemas
-from nengo_3d_schemas import Message, Observe, Simulation, PlotLines
+from nengo_3d.nengo_3d_schemas import Message, Observe, Simulation, PlotLines
 
 
 class SimulationSteps(nengo_3d_schemas.SimulationSteps):

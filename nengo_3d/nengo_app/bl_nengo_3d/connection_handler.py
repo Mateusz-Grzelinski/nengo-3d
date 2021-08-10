@@ -267,7 +267,7 @@ def calculate_layout(nengo_3d: Nengo3dProperties, g: nx.Graph) -> Positions:
     dim = 2 if nengo_3d.algorithm_dim == '2D' else 3
     # not the most efficient...
     maping = {  # both 3d and 2d algorithms
-        "HIERARCHICAL": nx_layouts.hierarchy_pos,
+        "HIERARCHICAL": partial(nx_layouts.hierarchy_pos, seed=0),
         "BIPARTITE_LAYOUT": partial(nx.bipartite_layout, nodes=[]),
         "CIRCULAR_LAYOUT": partial(nx.circular_layout, dim=dim),
         "KAMADA_KAWAI_LAYOUT": partial(nx.kamada_kawai_layout, dim=dim),
@@ -279,14 +279,28 @@ def calculate_layout(nengo_3d: Nengo3dProperties, g: nx.Graph) -> Positions:
         "SPRING_LAYOUT": partial(nx.spring_layout, dim=dim, seed=0),
         "SPECTRAL_LAYOUT": partial(nx.spectral_layout, dim=dim),
         "SPIRAL_LAYOUT": partial(nx.spiral_layout, dim=dim),
-        "MULTIPARTITE_LAYOUT": nx.multipartite_layout,
+        "MULTIPARTITE_LAYOUT": partial(nx.multipartite_layout, subset_key='_type'),
     }
 
+    if 'MULTIPARTITE_LAYOUT' in {nengo_3d.layout_algorithm_2d, nengo_3d.layout_algorithm_3d} and \
+            not next(iter(g.nodes.values())).get('_type'):
+        cache = {}
+        i = 0
+
+        def gen_id(name: str):
+            nonlocal i
+            if id := cache.get(name):
+                return id
+            else:
+                i += 1
+                cache[name] = i
+                return i
+
+        for node, node_data in g.nodes(data=True):
+            node_data['_type'] = gen_id(node_data['type'])
     if dim == 2:
         return maping[nengo_3d.layout_algorithm_2d](G=g)
     else:
         return maping[nengo_3d.layout_algorithm_3d](G=g)
-    # if 'SPRING_LAYOUT' == nengo_3d.layout_algorithm:
-    #     return nx.spring_layout(g, dim=dim)
     logger.error(f'not implemented algorithm: {nengo_3d.layout_algorithm}')
     return {}

@@ -48,12 +48,9 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
         items=[
             ("CIRCULAR_LAYOUT", "Circular", "Position nodes on a circle"),
             ("KAMADA_KAWAI_LAYOUT", "Kamada kawai", "Position nodes using Kamada-Kawai path-length cost-function"),
-            ("PLANAR_LAYOUT", "Planar", "Position nodes without edge intersections"),
             ("RANDOM_LAYOUT", "Random", "Position nodes uniformly at random in the unit square"),
-            ("SHELL_LAYOUT", "Shell", "Position nodes in concentric circles"),
             ("SPRING_LAYOUT", "Spring", "Position nodes using Fruchterman-Reingold force-directed algorithm"),
             ("SPECTRAL_LAYOUT", "Spectral", "Position nodes using the eigenvectors of the graph Laplacian"),
-            ("SPIRAL_LAYOUT", "Spiral", "Position nodes in a spiral layout"),
         ], name='Layout', description='', default='SPRING_LAYOUT')
     spacing: bpy.props.FloatProperty(name='spacing', description='', default=2, min=0)
 

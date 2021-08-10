@@ -1,6 +1,8 @@
 import os
 import sys
 
+sys.path.append('blender_pip_modules')
+
 import bpy
 from bpy.app.handlers import persistent
 

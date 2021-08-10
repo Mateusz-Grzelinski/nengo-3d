@@ -18,14 +18,22 @@ logging.basicConfig(
     format=f'%(levelname)s:{__name__}:"%(pathname)s:%(lineno)d":%(message)s'
 )
 
-from bl_nengo_3d import bl_operators
-from bl_nengo_3d import bl_panels
-from bl_nengo_3d import debug
-from bl_nengo_3d import bl_properties
-from bl_nengo_3d import bl_plot_operators
+
+try:
+    OK = True
+    from bl_nengo_3d import bl_operators
+    from bl_nengo_3d import bl_panels
+    from bl_nengo_3d import debug
+    from bl_nengo_3d import bl_properties
+    from bl_nengo_3d import bl_plot_operators
+except ModuleNotFoundError as e:
+    logging.error(f'Addon nengo3d did not start: {e}')
+    OK = False
 
 
 def register():
+    if not OK:
+        return
     bl_plot_operators.register()
     bl_operators.register()
     bl_panels.register()
@@ -35,6 +43,8 @@ def register():
 
 
 def unregister():
+    if not OK:
+        return
     bl_plot_operators.unregister()
     bl_operators.unregister()
     bl_panels.unregister()

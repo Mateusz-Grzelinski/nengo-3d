@@ -1,12 +1,11 @@
-import logging
-
-import networkx as nx
 import random
 
+import networkx as nx
 
-def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5):
+
+def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5, seed=None):
     """
-    From Joel's answer at https://stackoverflow.com/a/29597209/2966723.
+    Modified from Joel's answer at https://stackoverflow.com/a/29597209/2966723.
     Licensed under Creative Commons Attribution-Share Alike
 
     If the graph is a tree this will return the positions to plot this in a
@@ -37,31 +36,35 @@ def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5)
         if isinstance(G, nx.DiGraph):
             root = next(iter(nx.topological_sort(G)))  # allows back compatibility with nx version 1.11
         else:
+            random.seed(seed)
             root = random.choice(list(G.nodes))
+    visited = set()
 
-    def _hierarchy_pos(G, root, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5, pos=None, parent=None):
+    def _hierarchy_pos(G, root, width=1., vert_gap=0.2, vert_loc=0.0, xcenter=0.5, pos=None, parent=None):
         """
         see hierarchy_pos docstring for most arguments
 
         pos: a dict saying where all nodes go if they have been assigned
         parent: parent of this branch. - only affects it if non-directed
         """
-        logging.debug(pos)
         if pos is None:
             pos = {root: (xcenter, vert_loc)}
         else:
             pos[root] = (xcenter, vert_loc)
         children = list(G.neighbors(root))
-        if not isinstance(G, nx.DiGraph) and parent is not None:
-            children.remove(parent)
+        children.extend(G.predecessors(root))
+        # if not isinstance(G, nx.DiGraph) and parent is not None:
+        #     children.remove(parent)
+        visited.add(root)
         if len(children) != 0:
             dx = width / len(children)
             nextx = xcenter - width / 2 - dx / 2
             for child in children:
                 nextx += dx
-                pos = _hierarchy_pos(G, child, width=dx, vert_gap=vert_gap,
-                                     vert_loc=vert_loc - vert_gap, xcenter=nextx,
-                                     pos=pos, parent=root)
+                if child not in visited:
+                    pos = _hierarchy_pos(G, child, width=dx, vert_gap=vert_gap,
+                                         vert_loc=vert_loc - vert_gap, xcenter=nextx,
+                                         pos=pos, parent=root)
         return pos
 
     return _hierarchy_pos(G, root, width, vert_gap, vert_loc, xcenter)

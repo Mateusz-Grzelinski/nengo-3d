@@ -20,7 +20,7 @@ import nengo.utils
 
 from nengo_3d.gui_backend import Nengo3dServer, Connection
 from nengo_3d.name_finder import NameFinder
-from nengo_3d import schemas
+import nengo_3d.schemas as schemas
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
