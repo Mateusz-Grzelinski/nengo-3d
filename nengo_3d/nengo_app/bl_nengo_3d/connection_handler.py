@@ -83,10 +83,10 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
 
         # logger.debug(sorted(data, key=lambda sim_step: sim_step['step']))
         for simulation_step in sorted(data, key=lambda sim_step: sim_step['step']):
-            step = simulation_step['step']
-            node_name = simulation_step['node_name']
+            share_data.current_step = simulation_step['step']
             parameters = simulation_step.get('parameters')
             if parameters:
+                node_name = simulation_step['node_name']
                 for param, value in parameters.items():
                     # assert step == len(share_data.simulation_cache[node_name][param, False]), \
                     #     (step, len(share_data.simulation_cache[node_name][param, False]))
@@ -94,6 +94,7 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
                     share_data.simulation_cache[node_name, param, False].append(np.array(value))
             neurons_parameters = simulation_step.get('neurons_parameters')
             if neurons_parameters:
+                node_name = simulation_step['node_name']
                 for param, value in neurons_parameters.items():
                     # assert step == len(share_data.simulation_cache[node_name][param, True]), \
                     #     (step, len(share_data.simulation_cache[node_name][param, True]))
@@ -108,6 +109,29 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
         #     if not bpy.context.screen.is_animation_playing:
         #         bpy.ops.screen.animation_play()  # start playback
         #     share_data.resume_playback_on_steps = False
+    elif incoming_answer['schema'] == schemas.PlotLines.__name__:
+        data_scheme = schemas.PlotLines()
+        data = data_scheme.load(data=incoming_answer['data'])
+        plot_id = data['plot_id']
+        parameter = data['parameter']
+        source = data['source']
+        is_neuron = data['is_neuron']
+        axes = share_data.get_chart(source, is_neuron)
+        ax = None
+        for _ax in axes:
+            if _ax.root.name == plot_id and _ax.parameter == parameter:
+                ax = _ax
+                break
+        datax = np.array(data['x'])
+        datay = np.array(data['y'])
+        if parameter == 'response_curves':
+            for i in range(datay.shape[1]):
+                ax.plot(datax, datay[:, i], label=f'Neuron {i}')
+        elif parameter == 'tuning_curves':  # todo handle higher dim
+            for i in range(datay.shape[-1]):
+                ax.plot(datax[:, 0], datay[:, i], label=f'Neuron {i}')
+        ax.relim()
+        ax.draw()
     else:
         logger.error(f'Unknown schema: {incoming_answer["schema"]}')
 

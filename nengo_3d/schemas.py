@@ -11,7 +11,7 @@ import sys
 
 sys.path.append("..")  # Adds higher directory to python modules path to import nengo_3d_schemas
 import nengo_3d_schemas
-from nengo_3d_schemas import Message, Observe, Simulation
+from nengo_3d_schemas import Message, Observe, Simulation, PlotLines
 
 
 class SimulationSteps(nengo_3d_schemas.SimulationSteps):
@@ -19,30 +19,24 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
     def get_parameters(self, sim_data: nengo.simulator.SimulationData, many: bool):
         assert many is True, 'many=False is not supported'
         name_finder: NameFinder = self.context['name_finder']
-        model: nengo.Network = self.context['model']
+        sim: nengo.Simulator = self.context['sim']
         steps: list[int] = self.context['steps']
         requested_probes = self.context['requested_probes']
-        tuning_curves = self.context['tuning_curves']
-        response_curves = self.context['response_curves']
-        result = []
+        results = []
         try:
             for step in steps:
+                _result = {'step': step, 'parameters': {}, 'neurons_parameters': {}}
                 for obj, probes in requested_probes.items():
-                    _result = {'node_name': name_finder.name(obj), 'step': step, 'parameters': {},
-                               'neurons_parameters': {}}
+                    _result['node_name'] = name_finder.name(obj)
                     for probe, is_neuron, parameter in probes:
                         if is_neuron:
                             _result['neurons_parameters'][parameter] = sim_data[probe][step].tolist()
-                            if obj in tuning_curves:
-                                _result['neurons_parameters']['tuning_curves'] = []  # todo
-                            if obj in response_curves:
-                                _result['neurons_parameters']['response_curves'] = []  # todo
                         else:
                             _result['parameters'][parameter] = sim_data[probe][step].tolist()
-                    result.append(_result)
+                results.append(_result)
         except KeyError as e:
             logging.error(f'No such key: {e}: {list(sim_data.keys())}')
-        return result
+        return results
 
 
 class ConnectionSchema(nengo_3d_schemas.ConnectionSchema):

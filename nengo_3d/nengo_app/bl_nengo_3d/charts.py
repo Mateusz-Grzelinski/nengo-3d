@@ -116,12 +116,13 @@ class Line:
         return vers_pos, [(0, 1)], faces
 
     def set_data(self, X, Y, Z=None):
-        assert len(X) == len(Y), (len(X), len(Y), X, Y)
         self.original_data_x = list(X)
         self.original_data_y = list(Y)
         if Z is not None:
             assert len(X) == len(Z), (len(X), len(Z), X, Z)
             self.original_data_z = list(Z)
+        assert len(self.original_data_x) == len(self.original_data_y), \
+            (len(self.original_data_x), len(self.original_data_y), X, Y)
 
     # def set_y_data(self, Y):
     #     XY = {i.co.x: i.co.y for i in self._line.data.vertices}
@@ -351,7 +352,7 @@ class Axes:
         line.set_data(x, y, z)
         self.plot_lines.append(line)
         # line.draw_line()
-        self.draw()
+        self.draw()  # todo should we draw here?
         return line
 
     def draw(self):

@@ -1,8 +1,21 @@
-from marshmallow import post_load
+import logging
+
+from marshmallow import post_load, pre_dump
 import networkx as nx
 
 import nengo_3d_schemas
 from nengo_3d_schemas import Message, Observe, SimulationSteps, Simulation
+
+
+class PlotLines(nengo_3d_schemas.PlotLines):
+    @pre_dump
+    def process_axes(self, data: 'Axes', **kwargs):
+        ax = data
+        node = self.context['node']
+        is_neuron = self.context['is_neuron']
+        result = {'plot_id': ax.root.name, 'source': node.name, 'parameter': ax.parameter, 'is_neuron': is_neuron,
+                  'x': [], 'y': []}
+        return result
 
 
 class NetworkSchema(nengo_3d_schemas.NetworkSchema):

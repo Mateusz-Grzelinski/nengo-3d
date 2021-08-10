@@ -162,6 +162,7 @@ class DisconnectOperator(bpy.types.Operator):
         context.scene.frame_current = 0
         share_data.step_when_ready = 0
         share_data.requested_steps_until = -1
+        share_data.current_step = -1
         share_data.resume_playback_on_steps = False
         # share_data.simulation_cache_step.clear()
         share_data.simulation_cache.clear()
@@ -212,6 +213,7 @@ class NengoSimulateOperator(bpy.types.Operator):
             context.scene.frame_current = 0
             share_data.step_when_ready = 0
             share_data.requested_steps_until = -1
+            share_data.current_step = -1
             share_data.resume_playback_on_steps = False
             # share_data.simulation_cache_step.clear()
             share_data.simulation_cache.clear()

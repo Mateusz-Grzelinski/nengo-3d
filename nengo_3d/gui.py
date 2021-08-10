@@ -43,8 +43,6 @@ class GuiConnection(Connection):
         super().__init__(client_socket, addr, server)
         self.server: GUI
         self.requested_probes: dict[nengo.base.NengoObject, list[RequestedProbes]] = defaultdict(list)
-        self.requested_tuning_curves = []
-        self.requested_response_curves = []
         self.model = model
         self.name_finder = NameFinder(terms=self.server.locals, net=model)
         self.sim: nengo.Simulator = None
@@ -61,6 +59,8 @@ class GuiConnection(Connection):
                 self.handle_observe(incoming_message)
             elif incoming_message['schema'] == schemas.Simulation.__name__:
                 self.handle_simulation(incoming_message)
+            elif incoming_message['schema'] == schemas.PlotLines.__name__:
+                self.handle_plot_lines(incoming_message)
             else:
                 logger.error(f'Unknown schema: {incoming_message["schema"]}')
         except json.JSONDecodeError:
@@ -74,19 +74,33 @@ class GuiConnection(Connection):
         answer = message.dumps({'schema': schemas.NetworkSchema.__name__, 'data': data_scheme.dump(self.model)})
         self.sendall(answer.encode('utf-8'))
 
+    def handle_plot_lines(self, incoming_message):
+        schema = schemas.PlotLines()
+        plot_lines = schema.load(data=incoming_message['data'])
+        parameter = plot_lines['parameter']
+        plot_id = plot_lines['plot_id']
+        is_neuron = plot_lines['is_neuron']
+        obj = self.name_finder.object(name=plot_lines['source'])
+        if parameter == 'tuning_curves':
+            inputs, activities = nengo.utils.ensemble.tuning_curves(ens=obj, sim=self.sim)
+        if parameter == 'response_curves':
+            inputs, activities = nengo.utils.ensemble.response_curves(ens=obj, sim=self.sim)
+        data_scheme = schemas.PlotLines()
+        answer = message.dumps({'schema': schemas.PlotLines.__name__,
+                                'data': data_scheme.dump({
+                                    **plot_lines,
+                                    'x': inputs.tolist(),
+                                    'y': activities.tolist()
+                                })})
+        logger.debug(f'Sending "{parameter}": {plot_id}: {str(answer)[:1000]}')
+        self.sendall(answer.encode('utf-8'))
+
     def handle_observe(self, incoming_message):
         schema = schemas.Observe()
         observe = schema.load(data=incoming_message['data'])
         parameter = observe['parameter']
         is_neuron = observe['neurons']
         obj = self.name_finder.object(name=observe['source'])
-        if is_neuron:
-            if parameter == 'tuning_curves':
-                self.requested_tuning_curves.append(obj)
-                return
-            if parameter == 'response_curves':
-                self.requested_response_curves.append(obj)
-                return
         to_probe = obj.neurons if is_neuron else obj
         with self.model:
             probe = nengo.Probe(to_probe, attr=parameter)
@@ -111,12 +125,10 @@ class GuiConnection(Connection):
                 self.sim.step()  # this can be done async
             data_scheme = schemas.SimulationSteps(
                 many=True,
-                context={'model': self.model,
+                context={'sim': self.sim,
                          'name_finder': self.name_finder,
                          'steps': steps,
                          'requested_probes': self.requested_probes,
-                         'tuning_curves': self.requested_tuning_curves,
-                         'response_curves': self.requested_response_curves,
                          })
             answer = message.dumps({'schema': schemas.SimulationSteps.__name__,
                                     'data': data_scheme.dump(self.sim.data)})
@@ -127,12 +139,6 @@ class GuiConnection(Connection):
 
     def sendall(self, msg: bytes):
         self._socket.sendall(struct.pack("i", len(msg)) + msg)
-
-    def get_response_curve(self, ens: nengo.Ensemble):
-        return nengo.utils.ensemble.response_curves(ens=ens, sim=self.sim)
-
-    def get_tuning_curve(self, ens: nengo.Ensemble):
-        return nengo.utils.ensemble.tuning_curves(ens=ens, sim=self.sim)
 
 
 class GUI(Nengo3dServer):

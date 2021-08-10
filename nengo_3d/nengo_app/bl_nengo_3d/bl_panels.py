@@ -29,8 +29,8 @@ class NengoSettingsPanel(bpy.types.Panel):
     def draw_header_preset(self, context):
         layout = self.layout
         layout.emboss = 'NONE'
-        cached_frames = share_data.simulation_cache_steps()
-        if cached_frames:
+        cached_frames = share_data.current_step
+        if cached_frames > -1:
             layout.label(text=f'Cached: {cached_frames}')
 
     def draw(self, context):
@@ -125,37 +125,40 @@ class NengoContextPanel(bpy.types.Panel):
 
             if node:
                 col = layout.column(align=True)
-                col.operator_context = 'EXEC_DEFAULT'
-                size_out = node['size_out'] + 1
+                # col.operator_context = 'EXEC_DEFAULT'
+                # size_out = node['size_out'] + 1
                 if node['type'] == 'Ensemble':
                     col.operator_context = 'EXEC_DEFAULT'
+                    col.active = share_data.current_step > 0
                     op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                       text=f'Plot 2d Response curves',
                                       icon='ORIENTATION_VIEW')
-                    op.probe_neurons = 'response_curves'
-                    op.xlabel = 'Step'
-                    op.ylabel = 'Response curves'
-                    op.xformat = '{:.2f}'
-                    op.yformat = '{:.2f}'
-                    op.title = f'{obj_name}: Neuron response curves'
+                    op.probe_now = 'response_curves'
+                    op.xlabel = 'Input signal'
+                    op.ylabel = 'Firing rate (Hz)'
+                    # op.xformat = '{:.2f}'
+                    # op.yformat = '{:.2f}'
+                    op.title = f'{obj_name}: Neuron response curves\n' \
+                               f'(step {share_data.current_step}, {node["neuron_type"]["name"]})'
                     # todo iterate
                     item = op.indices.add()
                     item.x_is_step = True
                     item.yindex = 0
 
+                    col = col.column(align=True)
                     col.operator_context = 'EXEC_DEFAULT'
+                    col.active = share_data.current_step > 0 and node['size_out'] < 2
                     op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                       text=f'Plot 2d Tuning curves',
                                       icon='ORIENTATION_VIEW')
-                    op.probe_neurons = 'tuning_curves'
+                    op.probe_now = 'tuning_curves'
                     op.xlabel = 'Input signal'
                     op.ylabel = 'Firing rate (Hz)'
-                    op.xformat = '{:.2f}'
-                    op.yformat = '{:.2f}'
-                    op.title = f'{obj_name}: Neuron tuning curves'
-                    item = op.indices.add()
-                    item.x_is_step = True
-                    item.yindex = 0
+                    # op.xformat = '{:.2f}'
+                    # op.yformat = '{:.2f}'
+                    op.title = f'{obj_name}: Neuron tuning curves\n' \
+                               f'(step {share_data.current_step}, {node["neuron_type"]["name"]})'
+                    op.line_offset = -0.05
 
                     col = layout.column(align=True)
                     col.operator_context = 'EXEC_DEFAULT'
@@ -178,7 +181,7 @@ class NengoContextPanel(bpy.types.Panel):
                         item.yindex = i
                         item.label = f'Neuron {i}'
 
-                    if size_out == 3:
+                    if node['size_out'] == 2:
                         op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                           text=f'Plot 3d output',
                                           icon='ORIENTATION_GLOBAL')
@@ -250,11 +253,19 @@ class NengoContextPanel(bpy.types.Panel):
                 op.line_offset = -0.05
                 op.title = f'{e_source} -> {e_target}: input'
                 source_node = share_data.model_graph.nodes[e_source]
-                for i in range(source_node['neurons']['size_out']):
-                    item = op.indices.add()
-                    item.x_is_step = True
-                    item.yindex = i
-                    item.label = f'Neuron {i}'
+                if source_node['type'] == 'Ensemble':
+                    for i in range(source_node['neurons']['size_out']):
+                        item = op.indices.add()
+                        item.x_is_step = True
+                        item.yindex = i
+                        item.label = f'Neuron {i}'
+                elif source_node['type'] == 'Node':
+                    # todo check
+                    for i in range(source_node['size_out']):
+                        item = op.indices.add()
+                        item.x_is_step = True
+                        item.yindex = i
+                        item.label = f'Neuron {i}'
 
                 col.operator_context = 'EXEC_DEFAULT'
                 op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d output',
@@ -376,10 +387,11 @@ class NengoInfoPanel(bpy.types.Panel):
             row.label(text='Legend:')
             col = layout.box().column(align=True)
             for line in chart.plot_lines:
-                indices = share_data.plot_line_sources[line]
                 row = col.row(align=True)
                 row.separator(factor=1.4)
                 row.label(text=line.label)
+                indices = share_data.plot_line_sources.get(line)
+                if not indices: continue
                 row.label(text=str(indices))
         elif node:
             layout.label(text=f'Node: {obj.name}')

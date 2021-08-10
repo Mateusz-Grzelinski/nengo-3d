@@ -59,6 +59,7 @@ class _ShareData:
         self.resume_playback_on_steps = False
         """buggy... sometimes we need to wait for data during playback. We need to temporarily stop and then resume"""
         self.requested_steps_until = -1
+        self.current_step = -1
 
     def sendall(self, msg: bytes):
         try:

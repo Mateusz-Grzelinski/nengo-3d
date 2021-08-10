@@ -38,6 +38,7 @@ class Sources(bpy.types.PropertyGroup):
     xindex: bpy.props.IntProperty(name='Source of x', min=0, default=0)
     x_is_step: bpy.props.BoolProperty(default=False,
                                       description='Ignore value of xindex, instead use x as step indicator')
+    # xindex_multi_dim: bpy.props.StringProperty()
     yindex: bpy.props.IntProperty(name='Source of y', min=0, default=1)
     yindex_multi_dim: bpy.props.StringProperty()
     use_z: bpy.props.BoolProperty(default=False)
@@ -45,6 +46,7 @@ class Sources(bpy.types.PropertyGroup):
     z_is_step: bpy.props.BoolProperty(default=False,
                                       description='Ignore value of zindex, instead use z as step indicator')
     label: bpy.props.StringProperty()
+    # x_take_row: bpy.props.BoolProperty()
 
 
 locators = [
@@ -59,6 +61,11 @@ class PlotLineOperator(bpy.types.Operator):
 
     probe: bpy.props.EnumProperty(items=probeable, name='Inspect value connected to node')
     probe_neurons: bpy.props.EnumProperty(items=neurons_probeable, name='Inspect value connected to neurons')
+    probe_now: bpy.props.EnumProperty(items=[
+        ('', '', ''),
+        ('response_curves', 'Response curves', ''),
+        ('tuning_curves', 'Tuning curves', ''),
+    ])
     neurons: bpy.props.BoolProperty(name='Is neuron', default=False)
 
     indices: bpy.props.CollectionProperty(type=Sources)
@@ -107,15 +114,21 @@ class PlotLineOperator(bpy.types.Operator):
             share_data.resume_playback_on_steps = False
             share_data.step_when_ready = 0
 
-        for sources in self.indices:
-            if sources.yindex_multi_dim:
-                y_multi_dim = sources.yindex_multi_dim.strip()
-                if not y_multi_dim.startswith('[') or not y_multi_dim.endswith(']'):
-                    logging.error(f'Misformatted argument: y_multi_dim={y_multi_dim}')
-                    return {'CANCELLED'}
+        # for sources in self.indices:
+        #     if sources.yindex_multi_dim:
+        #         y_multi_dim = sources.yindex_multi_dim.strip()
+        #         if not y_multi_dim.startswith('[') or not y_multi_dim.endswith(']'):
+        #             logging.error(f'Misformatted argument: y_multi_dim={y_multi_dim}')
+        #             return {'CANCELLED'}
+        #     if sources.xindex_multi_dim:
+        #         x_multi_dim = sources.xindex_multi_dim.strip()
+        #         if not x_multi_dim.startswith('[') or not x_multi_dim.endswith(']'):
+        #             logging.error(f'Misformatted argument: x_multi_dim={x_multi_dim}')
+        #             return {'CANCELLED'}
 
-        # register chart as input source: send info to probe model
-        if self.neurons:
+        if self.probe_now:
+            parameter = self.probe_now
+        elif self.neurons:
             parameter = self.probe_neurons
         else:
             parameter = self.probe
@@ -136,11 +149,24 @@ class PlotLineOperator(bpy.types.Operator):
             ax.title(self.title)
         ax.location = node.location + node.dimensions / 2
 
+        if self.probe_now:
+            share_data.register_chart(source=node.name, is_neurons=self.neurons, ax=ax)
+            s = schemas.Message()
+            data_scheme = schemas.PlotLines(context={'node': node, 'is_neuron': self.neurons})
+            data = data_scheme.dump(obj=ax)
+
+            message = s.dumps({'schema': schemas.PlotLines.__name__, 'data': data})
+            logging.debug(f'Sending: {message}')
+            share_data.sendall(message.encode('utf-8'))
+            return {'FINISHED'}
+
         for sources in self.indices:
             line = ax.plot([0], [0], label=sources.label)
             share_data.register_plot_line_source(
-                line=line, xindex=sources.xindex, yindex=sources.yindex, yindex_multi_dim=sources.yindex_multi_dim,
-                zindex=sources.zindex if sources.use_z else None, x_is_step=sources.x_is_step,
+                line=line, xindex=sources.xindex, yindex=sources.yindex,
+                zindex=sources.zindex if sources.use_z else None,
+                yindex_multi_dim=sources.yindex_multi_dim,
+                x_is_step=sources.x_is_step,
                 z_is_step=sources.z_is_step if sources.use_z else False)
 
         share_data.register_chart(source=node.name, is_neurons=self.neurons, ax=ax)
@@ -148,13 +174,12 @@ class PlotLineOperator(bpy.types.Operator):
         s = schemas.Message()
         data_scheme = schemas.Observe()
         data = data_scheme.dump(
-            obj={'source': node.name, 'parameter': ax.parameter,
-                 'neurons': self.neurons})
+            obj={'source': node.name, 'parameter': ax.parameter, 'neurons': self.neurons}
+        )
         message = s.dumps({'schema': schemas.Observe.__name__, 'data': data})
         logging.debug(f'Sending: {message}')
         share_data.sendall(message.encode('utf-8'))
         ax.draw()
-        # todo reset connection?
         return {'FINISHED'}
 
 
