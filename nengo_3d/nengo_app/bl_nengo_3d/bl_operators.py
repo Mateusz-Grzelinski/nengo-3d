@@ -7,8 +7,8 @@ import bpy
 import numpy as np
 
 import bl_nengo_3d.schemas as schemas
-from bl_nengo_3d import bl_properties
-from bl_nengo_3d.bl_properties import Nengo3dProperties
+from bl_nengo_3d import bl_properties, colors
+from bl_nengo_3d.bl_properties import Nengo3dProperties, Nengo3dColors, Nengo3dMappedColor
 from bl_nengo_3d.charts import Axes
 from bl_nengo_3d.connection_handler import handle_data, handle_network_model
 from bl_nengo_3d.share_data import share_data, Indices
@@ -130,8 +130,8 @@ class ConnectOperator(bpy.types.Operator):
                 data = data_scheme.dump(
                     obj={'source': source_name, 'parameter': param, 'neurons': is_neurons})
                 mess = message.dumps({'schema': schemas.Observe.__name__, 'data': data})
+                logging.debug(f'Sending: {mess}')
                 share_data.sendall(mess.encode('utf-8'))
-        logging.debug(f'Sending: {mess}')
 
         bpy.app.handlers.frame_change_pre.append(frame_change_pre)
         context.scene.frame_current = 0
@@ -254,12 +254,76 @@ class NengoSimulateOperator(bpy.types.Operator):
         return {'CANCELLED'}
 
 
+def get_from_path(source: dict, access_path: tuple['str']):
+    value = source
+    try:
+        for path in access_path:
+            value = value.get(path)
+        return value
+    except (IndexError, AttributeError):
+        return None
+
+
+# class NengoColorNodesOperator(bpy.types.Operator):
+#     """Calculate graph drawing"""
+#     bl_idname = 'nengo_3d.color_nodes'
+#     bl_label = 'Color Nodes'
+#     bl_options = {'REGISTER'}
+#
+#     action: bpy.props.EnumProperty(
+#         items=[
+#             ('step', 'step', ''),
+#             ('stepx10', 'step x10', ''),
+#             ('reset', 'reset', ''),
+#         ], name='Action', description='')
+#
+#     @classmethod
+#     def poll(cls, context):
+#         return bool(share_data.model_graph)
+#
+#     def execute(self, context):
+#         self.recolor_nodes(context)
+#         return {'FINISHED'}
+#
+#     @staticmethod
+#     def recolor_nodes(context):
+#         nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+#         access_path, attr_type = nengo_3d.node_attribute.split(':')
+#         nengo_3d.node_mapped_colors.clear()
+#         access_path = access_path.split('.')
+#         share_data.color_gen = colors.cycle_color(nengo_3d.node_initial_color)
+#         for node, data in share_data.model_graph.nodes(data=True):
+#             value = get_from_path(data, access_path)
+#             obj = data['_blender_object']
+#             if nengo_3d.node_color_map == 'ENUM':
+#                 value = str(value)
+#                 # mapped_color = nengo_3d.node_mapped_colors.get(value)
+#                 # if not mapped_color:
+#                 #     mapped_color: Nengo3dMappedColor = nengo_3d.node_mapped_colors.add()
+#                 #     mapped_color.name = value
+#                 #     mapped_color.color = next(share_data.color_gen)
+#                 # obj.nengo_colors.color = mapped_color.color
+#                 try:
+#                     obj.nengo_colors.weight = float(value)  # todo normalize
+#                 except:
+#                     obj.nengo_colors.weight = 0.0
+#             elif nengo_3d.node_color_map == 'GRADIENT':
+#                 try:
+#                     obj.nengo_colors.weight = float(value)  # todo normalize
+#                 except:
+#                     obj.nengo_colors.weight = 0.0
+#             else:
+#                 logging.error(f'Unknown value: {nengo_3d.node_color_map}')
+#             obj.update_tag()
+
+
 classes = (
     ConnectOperator,
     DisconnectOperator,
     NengoCalculateOperator,
     NengoSimulateOperator,
-    SimpleSelectOperator
+    SimpleSelectOperator,
+    # NengoColorNodesOperator,
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)

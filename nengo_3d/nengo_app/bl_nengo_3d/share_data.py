@@ -8,6 +8,7 @@ import bpy
 import networkx as nx
 import collections
 
+from bl_nengo_3d import colors
 from bl_nengo_3d.charts import Axes, Line
 
 
@@ -60,6 +61,7 @@ class _ShareData:
         """buggy... sometimes we need to wait for data during playback. We need to temporarily stop and then resume"""
         self.requested_steps_until = -1
         self.current_step = -1
+        self.color_gen = colors.cycle_color((0.65, 0.65, 0.65))
 
     def sendall(self, msg: bytes):
         try:

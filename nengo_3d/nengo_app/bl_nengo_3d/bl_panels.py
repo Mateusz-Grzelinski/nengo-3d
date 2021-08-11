@@ -90,10 +90,11 @@ class NengoAlgorithmPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout.column()
-        win_man = context.window_manager
-        layout.operator(bl_operators.NengoCalculateOperator.bl_idname)
 
+        win_man = context.window_manager
         nengo_3d = win_man.nengo_3d
+
+        layout.operator(bl_operators.NengoCalculateOperator.bl_idname)
         layout.prop(nengo_3d, 'spacing')
         layout.use_property_split = False
         row = layout.row()
@@ -395,6 +396,7 @@ class NengoInfoPanel(bpy.types.Panel):
                 row.label(text=str(indices))
         elif node:
             layout.label(text=f'Node: {obj.name}')
+            layout.prop(obj.nengo_colors, 'color')
             col = layout.box().column(align=True)
             self._draw_expand(col, node)
         elif edge:
@@ -417,7 +419,75 @@ class NengoInfoPanel(bpy.types.Panel):
                 row.label(text=param)
                 row.label(text=str(value))
 
-    # def _draw_expand_list(self, col, items: list):
+
+def draw_enum(layout, nengo_3d):
+    col = layout.column(align=True)
+    col.prop(nengo_3d, 'node_initial_color')
+    col.prop(nengo_3d, 'node_color_shift')
+    box = layout.box()
+    col = box.column()
+    for name, data in sorted(nengo_3d.node_mapped_colors.items()):
+        row = col.row(align=True)
+        # todo add filters for hiding and selecting nodes and edges
+        row.prop(data, 'color', text=name)
+
+
+def draw_gradient(layout, nengo_3d):
+    cr_node = bpy.data.materials['NengoNodeMaterial'].node_tree.nodes['ColorRamp']
+    row = layout.row(align=True)
+    row.label(text=f'Min: {nengo_3d.node_attr_min}')
+    row.label(text=f'Max: {nengo_3d.node_attr_max}')
+
+    box = layout.box()
+    box.template_color_ramp(cr_node, 'color_ramp', expand=True)
+
+
+class NengoColorsPanel(bpy.types.Panel):
+    bl_label = 'Colors'
+    bl_idname = 'NENGO_PT_colors'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Nengo Colors'
+
+    def draw(self, context):
+        layout = self.layout
+        nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+        layout.active = bool(share_data.model_graph)
+
+
+class NengoNodeColorsPanel(bpy.types.Panel):
+    bl_label = 'Node'
+    bl_idname = 'NENGO_PT_node_colors'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Nengo Colors'
+    bl_parent_id = NengoColorsPanel.bl_idname
+
+    def draw(self, context):
+        layout = self.layout
+        nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+        layout.active = bool(share_data.model_graph)
+        layout.prop(nengo_3d, 'node_attribute')
+        if nengo_3d.node_attribute == ':':
+            pass
+        elif nengo_3d.node_attribute.endswith(':str'):
+            nengo_3d.node_color_map = 'ENUM'
+            draw_enum(layout, nengo_3d)
+        elif nengo_3d.node_attribute.endswith(':int'):
+            layout.prop(nengo_3d, 'node_color_map', expand=True)
+            if nengo_3d.node_color_map == 'GRADIENT':
+                draw_gradient(layout, nengo_3d)
+            elif nengo_3d.node_color_map == 'ENUM':
+                draw_enum(layout, nengo_3d)
+            else:
+                logging.error(f'Unknown value: {nengo_3d.node_color_map}')
+        elif nengo_3d.node_attribute.endswith(':float'):
+            nengo_3d.node_color_map = 'GRADIENT'
+            draw_gradient(layout, nengo_3d)
+        elif nengo_3d.node_attribute.endswith(':bool'):
+            draw_enum(layout, nengo_3d)
+        else:
+            logging.error(f'Unknown type: "{nengo_3d.node_attribute}"')
 
 
 classes = (
@@ -425,13 +495,8 @@ classes = (
     NengoContextPanel,
     NengoInfoPanel,
     NengoAlgorithmPanel,
+    NengoColorsPanel,
+    NengoNodeColorsPanel,
 )
-register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)
 
-
-def register():
-    register_factory()
-
-
-def unregister():
-    unregister_factory()
+register, unregister = bpy.utils.register_classes_factory(classes)
