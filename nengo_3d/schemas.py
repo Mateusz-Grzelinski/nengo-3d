@@ -14,7 +14,7 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
     def get_parameters(self, sim_data: nengo.simulator.SimulationData, many: bool):
         assert many is True, 'many=False is not supported'
         name_finder: NameFinder = self.context['name_finder']
-        sim: nengo.Simulator = self.context['sim']
+        # sim: nengo.Simulator = self.context['sim']
         steps: list[int] = self.context['steps']
         requested_probes = self.context['requested_probes']
         results = []
@@ -23,11 +23,8 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
                 _result = {'step': step, 'parameters': {}, 'neurons_parameters': {}}
                 for obj, probes in requested_probes.items():
                     _result['node_name'] = name_finder.name(obj)
-                    for probe, is_neuron, parameter in probes:
-                        if is_neuron:
-                            _result['neurons_parameters'][parameter] = sim_data[probe][step].tolist()
-                        else:
-                            _result['parameters'][parameter] = sim_data[probe][step].tolist()
+                    for probe, access_path in probes:
+                        _result['parameters'][access_path] = sim_data[probe][step].tolist()
                 results.append(_result)
         except KeyError as e:
             logging.error(f'No such key: {e}: {list(sim_data.keys())}')

@@ -80,54 +80,37 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
     elif incoming_answer['schema'] == schemas.SimulationSteps.__name__:
         data_scheme = schemas.SimulationSteps(many=True)
         data = data_scheme.load(data=incoming_answer['data'])
-
-        # logger.debug(sorted(data, key=lambda sim_step: sim_step['step']))
         for simulation_step in sorted(data, key=lambda sim_step: sim_step['step']):
             share_data.current_step = simulation_step['step']
             parameters = simulation_step.get('parameters')
-            if parameters:
-                node_name = simulation_step['node_name']
-                for param, value in parameters.items():
-                    # assert step == len(share_data.simulation_cache[node_name][param, False]), \
-                    #     (step, len(share_data.simulation_cache[node_name][param, False]))
-                    # share_data.simulation_cache_step.append(step)
-                    share_data.simulation_cache[node_name, param, False].append(np.array(value))
-            neurons_parameters = simulation_step.get('neurons_parameters')
-            if neurons_parameters:
-                node_name = simulation_step['node_name']
-                for param, value in neurons_parameters.items():
-                    # assert step == len(share_data.simulation_cache[node_name][param, True]), \
-                    #     (step, len(share_data.simulation_cache[node_name][param, True]))
-                    share_data.simulation_cache[node_name, param, True].append(np.array(value))
+            if not parameters:
+                continue
+            node_name = simulation_step['node_name']
+            for access_path, value in parameters.items():
+                share_data.simulation_cache[node_name, access_path].append(np.array(value))
 
         if share_data.step_when_ready != 0 and not nengo_3d.is_realtime:
             bpy.context.scene.frame_current += share_data.step_when_ready
             share_data.step_when_ready = 0
 
-        # todo, not reliable, scrubbing timeline is the same as playback
-        # if share_data.resume_playback_on_steps:
-        #     if not bpy.context.screen.is_animation_playing:
-        #         bpy.ops.screen.animation_play()  # start playback
-        #     share_data.resume_playback_on_steps = False
     elif incoming_answer['schema'] == schemas.PlotLines.__name__:
         data_scheme = schemas.PlotLines()
         data = data_scheme.load(data=incoming_answer['data'])
         plot_id = data['plot_id']
-        parameter = data['parameter']
+        access_path = data['access_path']
         source = data['source']
-        is_neuron = data['is_neuron']
-        axes = share_data.get_chart(source, is_neuron)
+        axes = share_data.get_chart(source, access_path=access_path)
         ax = None
         for _ax in axes:
-            if _ax.root.name == plot_id and _ax.parameter == parameter:
+            if _ax.root.name == plot_id and _ax.parameter == access_path:
                 ax = _ax
                 break
         datax = np.array(data['x'])
         datay = np.array(data['y'])
-        if parameter == 'response_curves':
+        if access_path == 'neurons.response_curves':
             for i in range(datay.shape[1]):
                 ax.plot(datax, datay[:, i], label=f'Neuron {i}')
-        elif parameter == 'tuning_curves':  # todo handle higher dim
+        elif access_path == 'neurons.tuning_curves':  # todo handle higher dim
             for i in range(datay.shape[-1]):
                 ax.plot(datax[:, 0], datay[:, i], label=f'Neuron {i}')
         ax.relim()
@@ -157,6 +140,7 @@ def get_primitive(type_name: str) -> bpy.types.Object:
             collection = bpy.data.collections.new(collection_name)
             bpy.context.scene.collection.children.link(collection)
             collection.hide_viewport = True
+            collection.hide_render = True
 
         name = 'Node primitive'
         if not _PRIMITIVES.get(name):
@@ -225,31 +209,11 @@ def get_primitive_material(mat_name):
 
         mix_rgb = material.node_tree.nodes.new('ShaderNodeMixRGB')
         mix_rgb.location = (-200 * 2, 0)
-        mix_rgb.inputs[0].default_value = 0  # ???
+        mix_rgb.inputs[0].default_value = 1  # ???
         material.node_tree.links.new(mix_rgb.inputs[2], attribute.outputs[0])
         material.node_tree.links.new(mix_rgb.inputs[1], color_ramp.outputs[0])
         material.node_tree.links.new(diffuse.inputs[0], mix_rgb.outputs[0])
 
-    return material
-
-
-def get_primitive_material2():
-    mat_name = 'NengoMaterial'
-    material = bpy.data.materials.get(mat_name)
-    if not material:
-        material = bpy.data.materials.new(mat_name)
-        material.use_nodes = True
-        material.node_tree.nodes.remove(material.node_tree.nodes['Principled BSDF'])
-        material_output = material.node_tree.nodes.get('Material Output')
-        material_output.location = (0, 0)
-        diffuse = material.node_tree.nodes.new('ShaderNodeBsdfDiffuse')
-        diffuse.location = (-100, 0)
-        material.node_tree.links.new(material_output.inputs[0], diffuse.outputs[0])
-        attribute = material.node_tree.nodes.new('ShaderNodeAttribute')
-        attribute.location = (-200, 0)
-        attribute.attribute_type = 'OBJECT'
-        attribute.attribute_name = 'nengo_colors.color'
-        material.node_tree.links.new(diffuse.inputs[0], attribute.outputs[0])
     return material
 
 

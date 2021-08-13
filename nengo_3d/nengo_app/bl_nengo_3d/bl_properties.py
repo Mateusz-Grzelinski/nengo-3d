@@ -3,13 +3,19 @@ import math
 
 import bpy
 
-from bl_nengo_3d import colors
+from bl_nengo_3d import colors, charts
+from bl_nengo_3d.charts import locators
 from bl_nengo_3d.share_data import share_data
 
 
+# class Nengo3dLineProperties(bpy.types.PropertyGroup):
+#     color: bpy.props.FloatVectorProperty(subtype='COLOR', default=[1.0, 1.0, 1.0], update=color_update)
+
+
 class Nengo3dChartProperties(bpy.types.PropertyGroup):
-    parent: bpy.props.StringProperty(name='')
-    auto_range: bpy.props.BoolProperty(default=True)
+    # parent: bpy.props.StringProperty(name='')
+    access_path: bpy.props.StringProperty(name='')
+    # auto_range: bpy.props.BoolProperty(default=True)
     x_min: bpy.props.FloatProperty()
     x_max: bpy.props.FloatProperty()
     y_min: bpy.props.FloatProperty()
@@ -17,11 +23,19 @@ class Nengo3dChartProperties(bpy.types.PropertyGroup):
     z_min: bpy.props.FloatProperty()
     z_max: bpy.props.FloatProperty()
 
-    simplify: bpy.props.BoolProperty()
-    threshold: bpy.props.FloatProperty(default=0.01,
-                                       description='If delta is than threshold, vertex will not be added to plot',
-                                       min=0.0, max=1.0, subtype='PERCENTAGE')
-    # n_step: bpy.props.IntProperty()
+    title: bpy.props.StringProperty(name='Title', default='')
+    numticks: bpy.props.IntProperty(default=8)
+    xlabel: bpy.props.StringProperty(name='X label', default='X')
+    ylabel: bpy.props.StringProperty(name='Y label', default='Y')
+    zlabel: bpy.props.StringProperty(name='Z label', default='')
+    xlocator: bpy.props.EnumProperty(items=locators)
+    ylocator: bpy.props.EnumProperty(items=locators)
+    zlocator: bpy.props.EnumProperty(items=locators)
+    xformat: bpy.props.StringProperty(default='{:.2f}')
+    yformat: bpy.props.StringProperty(default='{:.2f}')
+    zformat: bpy.props.StringProperty(default='{:.2f}')
+
+    # lines: bpy.props.CollectionProperty(type=Nengo3dLineProperties)
 
 
 def recurse_dict(prefix: str, value: dict):
@@ -75,9 +89,11 @@ def node_attributes(self, context):
     return _node_anti_crash
 
 
-def node_attributes_update(self: Nengo3dChartProperties, context):
+def node_attributes_update(self: 'Nengo3dProperties', context):
     from bl_nengo_3d.bl_operators import get_from_path
     nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+    if nengo_3d.node_attribute == ':':
+        return
     access_path, attr_type = nengo_3d.node_attribute.split(':')
     nengo_3d.node_mapped_colors.clear()
     access_path = access_path.split('.')
@@ -114,66 +130,6 @@ def node_attributes_update(self: Nengo3dChartProperties, context):
                 obj.nengo_colors.weight = float(value) - min / (max - min)
 
 
-_edge_anti_crash = None
-
-
-def edge_attributes(self, context):
-    global _edge_anti_crash
-    g = share_data.model_graph
-    if not g:
-        return [(':', '--no data--', '')]
-    used = {}
-    for _e_src, _e_t, data in g.edges(data=True):
-        for k, v in data.items():
-            if k.startswith('_'):
-                continue
-            if used.get(k):
-                if used[k] is None:
-                    used[k] = v
-                continue
-            elif isinstance(v, list):
-                continue
-            elif isinstance(v, tuple):
-                continue
-            elif isinstance(v, dict):
-                for i, _v in recurse_dict(prefix=k, value=v):
-                    if used.get(i):
-                        if used[i] is None:
-                            used[i] = _v
-                        continue
-                    used[i] = _v
-            elif v is None:
-                continue
-            else:
-                used[k] = v
-    _edge_anti_crash = [(':', '--Choose an attribute--', '')]
-    for k, v in sorted(used.items()):
-        _edge_anti_crash.append((k, f'{k}: {type(v).__name__}', f''))
-    return _edge_anti_crash
-
-
-def edge_attributes2(self, context):
-    global _edge_anti_crash
-    g = share_data.model_graph
-    used = set()
-    for _edge_s, _e_t, edge_data in g.edges(data=True):
-        for k, v in edge_data.items():
-            if k in used:
-                continue
-            if isinstance(v, list):
-                continue
-            if isinstance(v, tuple):
-                continue
-            if isinstance(v, dict):
-                for i, _v in recurse_dict(prefix=k, value=v):
-                    if i in used:
-                        continue
-                    yield i, i, f'{type(_v)}:{_v}'
-                    used.add(i)
-            yield k, k, f'{type(v)}:{v}'
-            used.add(k)
-
-
 color_map_items = [
     ('ENUM', 'Enum', ''),
     ('GRADIENT', 'Gradient', ''),
@@ -181,7 +137,9 @@ color_map_items = [
 
 
 def color_map_node_update(self: 'Nengo3dProperties', context):
-    material = bpy.data.materials['NengoNodeMaterial']
+    material = bpy.data.materials.get('NengoNodeMaterial')
+    if not material:
+        return
     mix = material.node_tree.nodes['Mix']
     if self.node_color_map == 'ENUM':
         mix.inputs[0].default_value = 1.0
@@ -189,17 +147,6 @@ def color_map_node_update(self: 'Nengo3dProperties', context):
         mix.inputs[0].default_value = 0.0
     else:
         logging.error(f'Unknown value: {self.node_color_map}')
-
-
-def color_map_edge_update(self, context):
-    material = bpy.data.materials['NengoEdgeMaterial']
-    mix = material.node_tree.nodes['Mix']
-    if self.edge_color_map == 'ENUM':
-        mix.inputs[0].default_value = 1.0
-    elif self.edge_color_map == 'GRADIENT':
-        mix.inputs[0].default_value = 0.0
-    else:
-        logging.error(f'Unknown value: {self.edge_color_map}')
 
 
 def color_update(self, context):
@@ -222,6 +169,13 @@ class Nengo3dMappedColor(bpy.types.PropertyGroup):
     # id: bpy.props.StringProperty()
     color: bpy.props.FloatVectorProperty(subtype='COLOR', default=[1.0, 1.0, 1.0], update=color_update)
     # tags: bpy.props.StringProperty()
+
+
+def node_color_single_update(self: 'Nengo3dProperties', context):
+    for node, data in share_data.model_graph.nodes(data=True):
+        obj = data['_blender_object']
+        obj.nengo_colors.color = self.node_color_single
+        obj.update_tag()
 
 
 class Nengo3dProperties(bpy.types.PropertyGroup):
@@ -258,7 +212,19 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
         ], name='Layout', description='', default='SPRING_LAYOUT')
     spacing: bpy.props.FloatProperty(name='spacing', description='', default=2, min=0)
 
+    node_color_source: bpy.props.EnumProperty(items=[
+        ('SINGLE', 'Single color', ''),
+        # ('GRAPH', 'Graph properties', ''),
+        ('MODEL', 'Model properties', ''),
+        ('MODEL_DYNAMIC', 'Model dynamic properties', ''),
+    ])
+    node_color_single: bpy.props.FloatVectorProperty(name='Color', subtype='COLOR', update=node_color_single_update,
+                                                     default=[0.099202, 1.000000, 0.217183])
     node_attribute: bpy.props.EnumProperty(name='Attribute', items=node_attributes, update=node_attributes_update)
+    node_dynamic_attribute: bpy.props.EnumProperty(name='Attribute', items=[
+        ('SPIKES', 'Spike frequency', ''),
+        ('INPUT', '', ''),  # all probeable??
+    ])
     node_attr_min: bpy.props.FloatProperty(name='Min')
     node_attr_max: bpy.props.FloatProperty(name='Max')
     node_color_map: bpy.props.EnumProperty(items=color_map_items, update=color_map_node_update)
@@ -271,16 +237,16 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
         ('V', 'Shift value', ''),
     ])
 
-    edge_attribute: bpy.props.EnumProperty(name='Attribute', items=edge_attributes)
-    edge_color_map: bpy.props.EnumProperty(items=color_map_items, update=color_map_edge_update)
+    # edge_attribute: bpy.props.EnumProperty(name='Attribute', items=edge_attributes)
+    # edge_color_map: bpy.props.EnumProperty(items=color_map_items, update=color_map_edge_update)
     # max_colors: bpy.props.IntProperty(min=1)
     # gradient_start: bpy.props.FloatVectorProperty(subtype='COLOR', default=[0.099202, 1.000000, 0.217183])
     # gradient_end: bpy.props.FloatVectorProperty(subtype='COLOR', default=[0.099202, 1.000000, 0.217183])
 
 
 class Nengo3dColors(bpy.types.PropertyGroup):
-    color: bpy.props.FloatVectorProperty(subtype='COLOR', default=[1.0, 1.0, 1.0])
-    weight: bpy.props.FloatProperty(default=0.0)
+    color: bpy.props.FloatVectorProperty(subtype='COLOR', default=[0.099202, 1.000000, 0.217183])
+    weight: bpy.props.FloatProperty(default=1.0)
 
 
 classes = (
@@ -296,12 +262,12 @@ register_factory, unregister_factory = bpy.utils.register_classes_factory(classe
 def register():
     register_factory()
     bpy.types.WindowManager.nengo_3d = bpy.props.PointerProperty(type=Nengo3dProperties)
-    bpy.types.Object.figure = bpy.props.PointerProperty(type=Nengo3dChartProperties)
+    bpy.types.Object.charts = bpy.props.CollectionProperty(type=Nengo3dChartProperties)
     bpy.types.Object.nengo_colors = bpy.props.PointerProperty(type=Nengo3dColors)
 
 
 def unregister():
     del bpy.types.WindowManager.nengo_3d
-    del bpy.types.Object.figure
+    del bpy.types.Object.charts
     del bpy.types.Object.nengo_colors
     unregister_factory()

@@ -12,10 +12,13 @@ class PlotLines(nengo_3d_schemas.PlotLines):
     def process_axes(self, data: 'Axes', **kwargs):
         ax = data
         node = self.context['node']
-        is_neuron = self.context['is_neuron']
-        result = {'plot_id': ax.root.name, 'source': node.name, 'parameter': ax.parameter, 'is_neuron': is_neuron,
-                  'x': [], 'y': []}
-        return result
+        access_path = self.context['access_path']
+        return {
+            'plot_id': ax.root.name,
+            'source': node.name,
+            'access_path': access_path,
+            'x': [], 'y': []
+        }
 
 
 class NetworkSchema(nengo_3d_schemas.NetworkSchema):

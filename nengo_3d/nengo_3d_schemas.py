@@ -9,15 +9,13 @@ class Message(Schema):
 
 class Observe(Schema):
     source = fields.Str(required=True, allow_none=False)
-    parameter = fields.Str(required=True)
-    neurons = fields.Bool(required=True)
+    access_path = fields.Str(required=True)
 
 
 class PlotLines(Schema):
     plot_id = fields.Str(required=True)
-    parameter = fields.Str(required=True)
     source = fields.Str(required=True)
-    is_neuron = fields.Bool(required=True)
+    access_path = fields.Str(required=True)
     x = fields.List(fields.Field())
     y = fields.List(fields.Field())
     z = fields.List(fields.Field(), allow_none=True)
@@ -25,16 +23,10 @@ class PlotLines(Schema):
 
 class SimulationSteps(Schema):
     step = fields.Int(strict=True)
-    # dim= fields.Int()
     node_name = fields.Str()
-    # parameters= fields.Method(serialize='get_parameters', deserialize='load_parameters')
     parameters = fields.Dict(keys=fields.Str(),
                              values=fields.List(fields.Field()), default=None)
-    """dict[step, dict[parameter name, values]]"""
-    neurons_parameters = fields.Dict(keys=fields.Str(),
-                                     values=fields.List(fields.Field()), default=None)
-    # tuning_curves = fields.Nested(PlotLines)
-    # response_curves = fields.Nested(PlotLines)
+    """dict[step, dict[access_path, values]]"""
 
 
 class Simulation(Schema):

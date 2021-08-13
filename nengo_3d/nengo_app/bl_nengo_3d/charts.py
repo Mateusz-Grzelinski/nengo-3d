@@ -7,14 +7,30 @@ from collections import Sequence
 import bmesh
 import bpy.utils
 
-# import matplotlib.pyplot as plt
-# import matplotlib.ticker
-#
-# plt.xticks()
-# matplotlib.ticker.MaxNLocator
+import bl_nengo_3d.colors as colors
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+def get_primitive_material():
+    mat_name = 'NengoChartMaterial'
+    material = bpy.data.materials.get(mat_name)
+    if not material:
+        material = bpy.data.materials.new(mat_name)
+        material.use_nodes = True
+        material.node_tree.nodes.remove(material.node_tree.nodes['Principled BSDF'])
+        material_output = material.node_tree.nodes.get('Material Output')
+        material_output.location = (0, 0)
+        diffuse = material.node_tree.nodes.new('ShaderNodeBsdfDiffuse')
+        diffuse.location = (-100, 0)
+        material.node_tree.links.new(material_output.inputs[0], diffuse.outputs[0])
+        attribute = material.node_tree.nodes.new('ShaderNodeAttribute')
+        attribute.location = (-200, 0)
+        attribute.attribute_type = 'OBJECT'
+        attribute.attribute_name = 'nengo_colors.color'
+        material.node_tree.links.new(diffuse.inputs[0], attribute.outputs[0])
+    return material
 
 
 def normalize_precalculated(x: list[float], min_x: float, max_x: float):
@@ -90,6 +106,8 @@ class Line:
         self.original_data_z = None
 
         self._line = ax._create_object('Line', solidify=None, parent=ax.root)
+        if not self.label:
+            self.label = self._line.name
 
     def set_label(self, text):
         self.label = text
@@ -188,7 +206,10 @@ class Axes:
     """
 
     def __init__(self, context: bpy.types.Context, parameter: str = None):
+        self.text_color = [0.019607, 0.019607, 0.019607]  # [1.000000, 0.982973, 0.926544]
         self.parameter = parameter
+        self.color_gen = colors.cycle_color(initial_rgb=(0.080099, 0.226146, 1.000000))
+
         self.xlabel_text = None
         self.ylabel_text = None
         self.zlabel_text = None
@@ -250,10 +271,6 @@ class Axes:
             line._line.location.z = value * i
         self._line_z_offset = value
 
-    @line_offset.deleter
-    def line_offset(self):
-        pass
-
     @property
     def location(self):
         return self._location
@@ -313,6 +330,8 @@ class Axes:
             bpy.ops.object.modifier_add({'object': obj}, type='SOLIDIFY')
             obj.modifiers["Solidify"].thickness = solidify  # 0.04
         obj.hide_select = not selectable
+        obj.active_material = get_primitive_material()
+        obj.nengo_colors.color = self.text_color
         obj.parent = parent
         return obj
 
@@ -324,6 +343,8 @@ class Axes:
             bpy.ops.object.modifier_add({'object': obj}, type='SOLIDIFY')
             obj.modifiers["Solidify"].thickness = solidify  # 0.04
         obj.hide_select = not selectable
+        obj.active_material = get_primitive_material()
+        obj.nengo_colors.color = next(self.color_gen)
         obj.parent = parent
         return obj
 
@@ -352,7 +373,7 @@ class Axes:
         line.set_data(x, y, z)
         self.plot_lines.append(line)
         # line.draw_line()
-        self.draw()  # todo should we draw here?
+        # self.draw()  # todo should we draw here?
         return line
 
     def draw(self):
@@ -362,17 +383,20 @@ class Axes:
 
         if not self._ticks_x:
             self._ticks_x = self._create_object('Ticks X', solidify=0.02, parent=self._chart)
+            self._ticks_x.nengo_colors.color = self.text_color
         self._draw_ticks_x(ticks=self.xlocator.tick_values(self.xlim_min, self.xlim_max),
                            ticks_x_mesh=self._ticks_x.data)
 
         if not self._ticks_y:
             self._ticks_y = self._create_object('Ticks Y', solidify=0.02, parent=self._chart)
+            self._ticks_y.nengo_colors.color = self.text_color
         self._draw_ticks_y(ticks=self.ylocator.tick_values(self.ylim_min, self.ylim_max),
                            ticks_y_mesh=self._ticks_y.data)
 
         if any(line.original_data_z for line in self.plot_lines):
             if not self._ticks_z:
                 self._ticks_z = self._create_object('Ticks Z', solidify=0.02, parent=self._chart)
+                self._ticks_z.nengo_colors.color = self.text_color
             self._draw_ticks_z(ticks=self.zlocator.tick_values(self.zlim_min, self.zlim_max),
                                ticks_z_mesh=self._ticks_z.data)
 
@@ -529,3 +553,9 @@ class Axes:
             tick_text.align_x = 'RIGHT'
             tick_text.align_y = 'TOP'
             tick_text_obj.location = (-tick_height, 0, t_loc + tick_width / 2)
+
+
+locators = [
+    (LinearLocator.__name__, LinearLocator.__name__, ''),
+    (IntegerLocator.__name__, IntegerLocator.__name__, ''),
+]

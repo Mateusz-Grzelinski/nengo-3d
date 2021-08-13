@@ -6,6 +6,7 @@ import bpy
 
 from bl_nengo_3d import bl_operators, bl_plot_operators
 from bl_nengo_3d.bl_properties import Nengo3dProperties
+from bl_nengo_3d.charts import Axes
 from bl_nengo_3d.share_data import share_data
 
 logger = logging.getLogger(__name__)
@@ -123,18 +124,20 @@ class NengoContextPanel(bpy.types.Panel):
         if bl_plot_operators.PlotLineOperator.poll(context):
             node = share_data.model_graph.nodes.get(obj_name)
             e_source, e_target, edge = share_data.model_get_edge_by_name(obj_name)
+            op = layout.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d anything',
+                                 icon='FORCE_HARMONIC')
 
             if node:
+                # op = layout.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d anything',
+                #                      icon='FORCE_HARMONIC')
                 col = layout.column(align=True)
-                # col.operator_context = 'EXEC_DEFAULT'
-                # size_out = node['size_out'] + 1
                 if node['type'] == 'Ensemble':
                     col.operator_context = 'EXEC_DEFAULT'
                     col.active = share_data.current_step > 0
                     op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                       text=f'Plot 2d Response curves',
                                       icon='ORIENTATION_VIEW')
-                    op.probe_now = 'response_curves'
+                    op.probe_now = 'neurons.response_curves'
                     op.xlabel = 'Input signal'
                     op.ylabel = 'Firing rate (Hz)'
                     # op.xformat = '{:.2f}'
@@ -152,7 +155,7 @@ class NengoContextPanel(bpy.types.Panel):
                     op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                       text=f'Plot 2d Tuning curves',
                                       icon='ORIENTATION_VIEW')
-                    op.probe_now = 'tuning_curves'
+                    op.probe_now = 'neurons.tuning_curves'
                     op.xlabel = 'Input signal'
                     op.ylabel = 'Firing rate (Hz)'
                     # op.xformat = '{:.2f}'
@@ -167,8 +170,7 @@ class NengoContextPanel(bpy.types.Panel):
                     op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                       text=f'Plot 2d Neuron Spikes',
                                       icon='ORIENTATION_VIEW')
-                    op.probe_neurons = 'output'
-                    op.neurons = True
+                    op.probe = 'neurons.probeable.output'
                     op.xlabel = 'Step'
                     op.ylabel = 'Spikes'
                     op.xlocator = 'IntegerLocator'
@@ -186,7 +188,7 @@ class NengoContextPanel(bpy.types.Panel):
                         op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                           text=f'Plot 3d output',
                                           icon='ORIENTATION_GLOBAL')
-                        op.probe = 'decoded_output'
+                        op.probe = 'probeable.decoded_output'
                         op.xlabel = 'X'
                         op.ylabel = 'Y'
                         op.zlabel = 'Step'
@@ -204,7 +206,7 @@ class NengoContextPanel(bpy.types.Panel):
                         op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                           text=f'Plot 2d ouput',
                                           icon='ORIENTATION_VIEW')
-                        op.probe = 'decoded_output'
+                        op.probe = 'probeable.decoded_output'
                         op.xlabel = 'X'
                         op.ylabel = 'Y'
                         op.xformat = '{:.2f}'
@@ -217,7 +219,7 @@ class NengoContextPanel(bpy.types.Panel):
                         op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
                                           text=f'Plot 2d decoded ouput',
                                           icon='ORIENTATION_VIEW')
-                        op.probe = 'decoded_output'
+                        op.probe = 'probeable.decoded_output'
                         op.xlabel = 'Step'
                         op.ylabel = 'Voltage'
                         op.xlocator = 'IntegerLocator'
@@ -228,9 +230,10 @@ class NengoContextPanel(bpy.types.Panel):
                         item.x_is_step = True
                         item.yindex = 0
                 elif node['type'] == 'Node':
+                    col.operator_context = 'EXEC_DEFAULT'
                     op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d output',
                                       icon='ORIENTATION_VIEW')
-                    op.probe = 'output'
+                    op.probe = 'probeable.output'
                     op.xlabel = 'Step'
                     op.ylabel = 'Voltage'
                     op.xlocator = 'IntegerLocator'
@@ -245,7 +248,7 @@ class NengoContextPanel(bpy.types.Panel):
                 col.operator_context = 'EXEC_DEFAULT'
                 op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d input',
                                   icon='ORIENTATION_VIEW')
-                op.probe = 'input'
+                op.probe = 'probeable.input'
                 op.xlabel = 'Step'
                 op.ylabel = 'Input'
                 op.xlocator = 'IntegerLocator'
@@ -271,7 +274,7 @@ class NengoContextPanel(bpy.types.Panel):
                 col.operator_context = 'EXEC_DEFAULT'
                 op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d output',
                                   icon='ORIENTATION_VIEW')
-                op.probe = 'output'
+                op.probe = 'probeable.output'
                 op.xlabel = 'Step'
                 op.ylabel = 'Output'
                 op.xlocator = 'IntegerLocator'
@@ -288,7 +291,7 @@ class NengoContextPanel(bpy.types.Panel):
                     op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d Weights',
                                       icon='ORIENTATION_VIEW')
                     """Weights are solved once. They are used to approximate function given in connection"""
-                    op.probe = 'weights'
+                    op.probe = 'probeable.weights'
                     op.xlabel = 'Step'
                     op.ylabel = 'Neuron Weight'
                     op.xlocator = 'IntegerLocator'
@@ -307,19 +310,6 @@ class NengoContextPanel(bpy.types.Panel):
                             item.label = f'Neuron {item.yindex_multi_dim}'
         else:
             layout.label(text='No actions available')
-
-        # chart = None
-        # for source, charts in share_data.charts.items():
-        #     for ax in charts:
-        #         if ax.root == obj:
-        #             chart = ax
-        # if chart:
-        #     layout.label(text=f'Plot: {obj.name}')
-        #     row = layout.row(align=True)
-        #     row.prop(obj.figure, 'simplify', text='')
-        #     col = row.column(align=True)
-        #     col.prop(obj.figure, 'threshold')
-        #     col.active = obj.figure.simplify
 
 
 class NengoInfoPanel(bpy.types.Panel):
@@ -380,23 +370,9 @@ class NengoInfoPanel(bpy.types.Panel):
                 if ax.root == obj:
                     chart = ax
         if chart:
-            layout.label(text=f'{obj.name}:  {chart.title_text}')
-            row = layout.row()
-            row.label(text='Parameter')
-            row.label(text=f'{chart.parameter}')
-            row = layout.row()
-            row.label(text='Legend:')
-            col = layout.box().column(align=True)
-            for line in chart.plot_lines:
-                row = col.row(align=True)
-                row.separator(factor=1.4)
-                row.label(text=line.label)
-                indices = share_data.plot_line_sources.get(line)
-                if not indices: continue
-                row.label(text=str(indices))
+            self.draw_info_chart(chart, layout, obj)
         elif node:
             layout.label(text=f'Node: {obj.name}')
-            layout.prop(obj.nengo_colors, 'color')
             col = layout.box().column(align=True)
             self._draw_expand(col, node)
         elif edge:
@@ -406,9 +382,35 @@ class NengoInfoPanel(bpy.types.Panel):
         else:
             layout.label(text=f'Not a network element')
 
+    @staticmethod
+    def draw_info_chart(ax: Axes, layout, obj: bpy.types.Object):
+        row = layout.row()
+        row.label(text=obj.name)
+        row.label(text=ax.title_text)
+        row = layout.row()
+        row.label(text='Parameter')
+        row.label(text=f'{ax.parameter}')
+        row = layout.row(align=True)
+        row.label(text='X range:')
+        row.label(text='{:.2f}'.format(ax.xlim_min))
+        row.label(text='{:.2f}'.format(ax.xlim_max))
+        row = layout.row(align=True)
+        row.label(text='Legend:')
+        col = layout.box().column(align=True)
+        for line in ax.plot_lines:
+            row = col.row(align=True)
+            row.separator(factor=1.4)
+            row.label(text=line.label)
+            row.prop(line._line.nengo_colors, 'color', text='')
+            indices = share_data.plot_line_sources.get(line)
+            if not indices: continue
+            row.label(text=str(indices))
+
     def _draw_expand(self, col, items: dict, tab=0):
         edge = items
         for param, value in sorted(edge.items()):
+            if param.startswith('_'):
+                continue
             if value is None: continue
             row = col.row()
             row.separator(factor=tab)
@@ -421,9 +423,9 @@ class NengoInfoPanel(bpy.types.Panel):
 
 
 def draw_enum(layout, nengo_3d):
-    col = layout.column(align=True)
-    col.prop(nengo_3d, 'node_initial_color')
-    col.prop(nengo_3d, 'node_color_shift')
+    row = layout.row(align=True)
+    row.prop(nengo_3d, 'node_initial_color')
+    row.prop(nengo_3d, 'node_color_shift', text='')
     box = layout.box()
     col = box.column()
     for name, data in sorted(nengo_3d.node_mapped_colors.items()):
@@ -467,9 +469,26 @@ class NengoNodeColorsPanel(bpy.types.Panel):
         layout = self.layout
         nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
         layout.active = bool(share_data.model_graph)
-        layout.prop(nengo_3d, 'node_attribute')
-        if nengo_3d.node_attribute == ':':
+        layout.prop(nengo_3d, 'node_color_source', expand=True)
+        layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
+
+        if nengo_3d.node_color_source == 'SINGLE':
+            nengo_3d.node_color_map = 'ENUM'
+            layout.prop(nengo_3d, 'node_color_single', text='')
+        elif nengo_3d.node_color_source == 'GRAPH':
             pass
+        elif nengo_3d.node_color_source == 'MODEL':
+            self.draw_model(layout, nengo_3d)
+        elif nengo_3d.node_color_source == 'MODEL_DYNAMIC':
+            pass
+        else:
+            assert False, nengo_3d.node_color_source
+
+    @staticmethod
+    def draw_model(layout, nengo_3d):
+        layout.prop(nengo_3d, 'node_attribute', text='')
+        if nengo_3d.node_attribute == ':':
+            return
         elif nengo_3d.node_attribute.endswith(':str'):
             nengo_3d.node_color_map = 'ENUM'
             draw_enum(layout, nengo_3d)

@@ -55,10 +55,8 @@ class NengoSimulationCachePanel(bpy.types.Panel):
 
         row = col.row()
         row.label(text=f'Key')
-        # row.label(text=f'Used indices')
         row.label(text=f'First value')
         for param, value in sorted(items.items()):
             row = col.row()
             row.label(text=f'{str(param)}, dim={len(value[0]) if value else "?"}, len={len(value)}')
-            # row.label(text=str([share_data.plot_line_sources[ax] for ax in share_data.charts[param[0], param[2]]]))
             row.label(text=f'{value[0]}, ...' if value else "?")

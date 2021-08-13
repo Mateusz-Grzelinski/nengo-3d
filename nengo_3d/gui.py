@@ -32,10 +32,30 @@ message = schemas.Message()
 class RequestedProbes(NamedTuple):
     probe: nengo.Probe
     """source object to probe"""
-    is_neuron: bool
-    """Does this param applies to neurons?"""
-    parameter: str
-    """Parameter to probe"""
+    access_path: str
+
+
+def get_value(source: dict, access_path: tuple['str']) -> Any:
+    value = source
+    try:
+        for path in access_path:
+            if isinstance(value, dict):
+                value = value.get(path)
+            else:
+                value = getattr(value, path)
+        return value
+    except (IndexError, AttributeError):
+        return None
+
+
+def get_path(source: dict, access_path: tuple['str']) -> Generator:
+    value = source
+    try:
+        for path in access_path:
+            value = value.get(path) or getattr(source, path)
+            yield value
+    except (IndexError, AttributeError):
+        return None
 
 
 class GuiConnection(Connection):
@@ -77,13 +97,13 @@ class GuiConnection(Connection):
     def handle_plot_lines(self, incoming_message):
         schema = schemas.PlotLines()
         plot_lines = schema.load(data=incoming_message['data'])
-        parameter = plot_lines['parameter']
+        access_path = plot_lines['access_path']
         plot_id = plot_lines['plot_id']
-        is_neuron = plot_lines['is_neuron']
+        # is_neuron = plot_lines['is_neuron']
         obj = self.name_finder.object(name=plot_lines['source'])
-        if parameter == 'tuning_curves':
+        if access_path == 'neurons.tuning_curves':
             inputs, activities = nengo.utils.ensemble.tuning_curves(ens=obj, sim=self.sim)
-        if parameter == 'response_curves':
+        elif access_path == 'neurons.response_curves':
             inputs, activities = nengo.utils.ensemble.response_curves(ens=obj, sim=self.sim)
         data_scheme = schemas.PlotLines()
         answer = message.dumps({'schema': schemas.PlotLines.__name__,
@@ -92,19 +112,28 @@ class GuiConnection(Connection):
                                     'x': inputs.tolist(),
                                     'y': activities.tolist()
                                 })})
-        logger.debug(f'Sending "{parameter}": {plot_id}: {str(answer)[:1000]}')
+        logger.debug(f'Sending "{access_path}": {plot_id}: {str(answer)[:1000]}')
         self.sendall(answer.encode('utf-8'))
 
     def handle_observe(self, incoming_message):
         schema = schemas.Observe()
         observe = schema.load(data=incoming_message['data'])
-        parameter = observe['parameter']
-        is_neuron = observe['neurons']
+        access_path = observe['access_path'].split('.')
         obj = self.name_finder.object(name=observe['source'])
-        to_probe = obj.neurons if is_neuron else obj
-        with self.model:
-            probe = nengo.Probe(to_probe, attr=parameter)
-        self.requested_probes[obj].append(RequestedProbes(probe, is_neuron, parameter))
+        if len(access_path) > 1 and access_path[-2] == 'probeable':
+            # special case is probeable values
+            to_probe = get_value(obj, access_path[:-2])
+            attr = access_path[-1]
+            if to_probe and attr in to_probe.probeable:
+                with self.model:
+                    probe = nengo.Probe(to_probe, attr=attr)
+                rp = RequestedProbes(probe, observe['access_path'])
+                logger.debug(f'Added to observation: {rp}')
+                self.requested_probes[obj].append(rp)
+        else:
+            # observe built in values
+            paths = list(get_path(obj, access_path))
+            assert len(paths) == len(access_path), (paths, access_path)
 
     def handle_simulation(self, incoming_message):
         schema = schemas.Simulation()

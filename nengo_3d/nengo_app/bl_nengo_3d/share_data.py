@@ -48,7 +48,7 @@ class _ShareData:
         # self.simulation_cache_step = list()
         self.simulation_cache = defaultdict(list)
         """
-        dict[(object, is_neurons, param), list[data]] ]
+        dict[(object, access_path), list[data]] ]
         """
         self.plot_line_sources = {}
         """chart/line -> (x,y,z)]
@@ -83,16 +83,13 @@ class _ShareData:
                 return _source, _end, e_attr
         return None, None, None
 
-    # def get_simulation_cache(self, object, is_neurons, param):
-    #     return self.simulation_cache[object, param, is_neurons]
+    def get_chart(self, source: str, access_path: str) -> list[Axes]:
+        return self.charts[source, access_path]
 
-    def get_chart(self, source: str, is_neurons: bool) -> list[Axes]:
-        return self.charts[source, is_neurons]
-
-    def register_chart(self, source: str, is_neurons: bool, ax: Axes):
+    def register_chart(self, source: str, access_path: str, ax: Axes):
         # if not self.charts[source.name].get(ax.parameter):
         #     self.charts[source.name][ax.parameter] = []
-        charts = self.charts[source, is_neurons]
+        charts = self.charts[source, access_path]
         if ax not in charts:
             charts.append(ax)
 
