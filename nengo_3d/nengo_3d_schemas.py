@@ -10,6 +10,8 @@ class Message(Schema):
 class Observe(Schema):
     source = fields.Str(required=True, allow_none=False)
     access_path = fields.Str(required=True)
+    sample_every = fields.Int(required=True)
+    dt = fields.Float(required=True)
 
 
 class PlotLines(Schema):
@@ -32,6 +34,7 @@ class SimulationSteps(Schema):
 class Simulation(Schema):
     action = fields.Str()
     until = fields.Int()
+    dt = fields.Float(default=0.001)
     # parameter: fields.Dict(keys=fields.Str(), values=fields.List)
 
 

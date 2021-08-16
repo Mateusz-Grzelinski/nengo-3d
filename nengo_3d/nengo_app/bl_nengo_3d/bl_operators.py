@@ -6,10 +6,11 @@ from functools import partial
 import bpy
 
 import bl_nengo_3d.schemas as schemas
+from bl_nengo_3d import frame_change_handler
 from bl_nengo_3d.bl_properties import Nengo3dProperties, node_color_single_update, \
     node_attributes_update
+from bl_nengo_3d.charts import Axes
 from bl_nengo_3d.connection_handler import handle_data, handle_network_model
-from bl_nengo_3d.frame_change_handler import frame_change_pre
 from bl_nengo_3d.share_data import share_data
 
 message = schemas.Message()
@@ -58,15 +59,19 @@ class ConnectOperator(bpy.types.Operator):
         share_data.sendall(mess.encode('utf-8'))
 
         data_scheme = schemas.Observe()
-        for source_name, params in share_data.charts.items():
-            for access_path, _axes in params.items():
+        for source_name, axes in share_data.charts.items():
+            for ax in axes:
+                ax: Axes
                 data = data_scheme.dump(
-                    obj={'source': source_name, 'access_path': access_path})
+                    obj={'source': source_name,
+                         'access_path': ax.parameter,
+                         'sample_every': context.window_manager.nengo_3d.sample_every,
+                         'dt': context.window_manager.nengo_3d.dt})
                 mess = message.dumps({'schema': schemas.Observe.__name__, 'data': data})
                 logging.debug(f'Sending: {mess}')
                 share_data.sendall(mess.encode('utf-8'))
 
-        bpy.app.handlers.frame_change_pre.append(frame_change_pre)
+        bpy.app.handlers.frame_change_pre.append(frame_change_handler.frame_change_pre)
         context.scene.frame_current = 0
 
         handle_data_function = partial(handle_data, nengo_3d=context.window_manager.nengo_3d)
@@ -88,7 +93,7 @@ class DisconnectOperator(bpy.types.Operator):
         return share_data.client is not None
 
     def execute(self, context):
-        bpy.app.handlers.frame_change_pre.remove(frame_change_pre)
+        bpy.app.handlers.frame_change_pre.remove(frame_change_handler.frame_change_pre)
         share_data.client.shutdown(socket.SHUT_RDWR)
         share_data.client.close()
         share_data.client = None
@@ -129,7 +134,6 @@ class NengoSimulateOperator(bpy.types.Operator):
     action: bpy.props.EnumProperty(
         items=[
             ('step', 'step', ''),
-            ('stepx10', 'step x10', ''),
             ('reset', 'reset', ''),
             ('continuous', 'continuous', ''),
         ], name='Action')
@@ -152,15 +156,12 @@ class NengoSimulateOperator(bpy.types.Operator):
             share_data.simulation_cache.clear()
             mess = message.dumps(
                 {'schema': schemas.Simulation.__name__,
-                 'data': simulation_scheme.dump({'action': 'reset'})
+                 'data': simulation_scheme.dump({'action': 'reset', 'dt': context.window_manager.nengo_3d.dt})
                  })
             share_data.sendall(mess.encode('utf-8'))
             return {'FINISHED'}
         elif self.action == 'step':
-            self.simulation_step(context, 1, 1)
-            return {'FINISHED'}
-        elif self.action == 'stepx10':
-            self.simulation_step(context, 10, 10)
+            self.simulation_step(context, context.window_manager.nengo_3d.step_n, prefetch=0)
             return {'FINISHED'}
         elif self.action == 'continuous':
             wm = context.window_manager
@@ -184,7 +185,8 @@ class NengoSimulateOperator(bpy.types.Operator):
             context.scene.frame_current += step_num
         else:
             data = {'action': 'step',
-                    'until': context.scene.frame_current + step_num + prefetch}
+                    'until': context.scene.frame_current + step_num + prefetch,
+                    'dt': context.window_manager.nengo_3d.dt}
             mess = message.dumps({'schema': schemas.Simulation.__name__,
                                   'data': simulation_scheme.dump(data)
                                   })
@@ -198,7 +200,10 @@ class NengoSimulateOperator(bpy.types.Operator):
 
         if event.type == 'TIMER':
             if share_data.current_step >= context.scene.frame_current:
-                self.simulation_step(context, step_num=1, prefetch=0)
+                speed = context.window_manager.nengo_3d.speed
+                frame_change_time = frame_change_handler.execution_times.average()
+                dropped_frames = frame_change_time * 24
+                self.simulation_step(context, step_num=int((1 + dropped_frames) * speed), prefetch=0)
             elif share_data.requested_steps_until <= context.scene.frame_current:
                 self.simulation_step(context, step_num=0, prefetch=2)
 

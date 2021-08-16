@@ -173,6 +173,8 @@ class Line:
             Z = normalize_precalculated(self.original_data_z.copy(), self.ax.zlim_min, self.ax.zlim_max)
 
         line_mesh = self._line.data
+        if not X:
+            return
         bm = bmesh.new()
         bm.from_mesh(line_mesh)
         bm.clear()
@@ -314,13 +316,19 @@ class Axes:
             if line.original_data_z:
                 zlim_max = max(zlim_max, max(line.original_data_z))
                 zlim_min = min(zlim_min, min(line.original_data_z))
-        self.xlim_max = xlim_max
-        self.xlim_min = xlim_min
-        self.ylim_max = ylim_max
-        self.ylim_min = ylim_min
+        self.xlim_max = 1 if xlim_max == -math.inf else xlim_max
+        self.xlim_min = 0 if xlim_min == math.inf else xlim_min
+        self.ylim_max = 1 if ylim_max == -math.inf else ylim_max
+        self.ylim_min = 0 if ylim_min == math.inf else ylim_min
+        assert self.xlim_min not in {math.inf, -math.inf}, (self.xlim_min, line.original_data_x)
+        assert self.xlim_max not in {math.inf, -math.inf}
+        assert self.ylim_min not in {math.inf, -math.inf}
+        assert self.ylim_max not in {math.inf, -math.inf}
         if any(line.original_data_z for line in self.plot_lines):
-            self.zlim_max = zlim_max
-            self.zlim_min = zlim_min
+            self.zlim_max = 1 if zlim_max == -math.inf else zlim_max
+            self.zlim_min = 0 if zlim_min == math.inf else zlim_min
+            assert self.zlim_min not in {math.inf, -math.inf}
+            assert self.zlim_max not in {math.inf, -math.inf}
 
     def _create_text(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False, ):
         mesh = bpy.data.curves.new(name, type='FONT')

@@ -21,26 +21,15 @@ def frame_change_pre(scene: bpy.types.Scene):
     frame_current = scene.frame_current
     nengo_3d: bl_properties.Nengo3dProperties = bpy.context.window_manager.nengo_3d
     if nengo_3d.is_realtime:
-        # make sure you have 1 second of cache
-        if not share_data.simulation_cache or frame_current + int(
-                scene.render.fps) > share_data.simulation_cache_steps():
-            until_step = frame_current + int(scene.render.fps)
-            if until_step > share_data.requested_steps_until:
+        if not share_data.simulation_cache or frame_current  > share_data.simulation_cache_steps():
+            if frame_current > share_data.requested_steps_until:
                 mess = message.dumps(
                     {'schema': schemas.Simulation.__name__,
-                     'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
+                     'data': simulation_scheme.dump({'action': 'step', 'until': frame_current, 'dt': nengo_3d.dt})
                      })
-                share_data.requested_steps_until = until_step
+                share_data.requested_steps_until = frame_current
                 share_data.sendall(mess.encode('utf-8'))
 
-        if not share_data.simulation_cache or frame_current > share_data.simulation_cache_steps():
-            # there is missing data in cache, wait for it to arrive
-            if bpy.context.screen.is_animation_playing:
-                bpy.ops.screen.animation_play()  # stop playback
-                share_data.resume_playback_on_steps = True
-            return
-
-    nengo_3d: Nengo3dProperties = bpy.context.window_manager.nengo_3d
     for (obj_name, access_path), data in share_data.simulation_cache.items():
         charts = share_data.get_chart(obj_name, access_path=access_path)
         for ax in charts:
@@ -57,7 +46,7 @@ def frame_change_pre(scene: bpy.types.Scene):
                     _data = data[start_entries:frame_current]
 
                     if indices.x_is_step:
-                        xdata = range(start_entries, frame_current)
+                        xdata = range(start_entries, len(_data)+start_entries)
                     else:
                         xdata = [row[indices.x] for row in _data]
 

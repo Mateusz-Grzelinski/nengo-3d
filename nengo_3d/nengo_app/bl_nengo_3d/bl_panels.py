@@ -56,23 +56,30 @@ class NengoSettingsPanel(bpy.types.Panel):
         row.prop(nengo_3d, 'collection')
 
         col = layout.column(align=True)
+        col.prop(nengo_3d, 'sample_every')
+        col.prop(nengo_3d, 'dt')
         col.active = connected()
         col = layout.column()
         col.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Reset',
                      icon='CANCEL').action = 'reset'
 
-        col = layout.column(align=True)
+        col = layout.column()
+        col.active = connected()
         row = col.row(align=True)
-        op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step', icon='FRAME_NEXT')
+        row.active = connected()
+        op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text=f'Step x{nengo_3d.step_n}',
+                          icon='FRAME_NEXT')
         op.action = 'step'
-        op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step x10', icon='FRAME_NEXT')
-        op.action = 'stepx10'
+        row.prop(nengo_3d, 'step_n', text='')
 
         row = col.row(align=True)
         if context.scene.is_simulation_playing:
-            op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Play', icon='PAUSE')
+            op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Stop',
+                              icon='PAUSE')
         else:
-            op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Play', icon='PLAY')
+            op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Play',
+                              icon='PLAY')
+        row.prop(nengo_3d, 'speed', text='')
         op.action = 'continuous'
         col.prop(nengo_3d, 'is_realtime')
         # col.prop(context.scene.render, 'fps')

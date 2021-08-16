@@ -20,6 +20,7 @@ class NengoDebugPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Nengo 3d'
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         layout = self.layout.column()
@@ -54,14 +55,17 @@ class NengoSimulationCachePanel(bpy.types.Panel):
         if share_data.simulation_cache:
             layout.label(text=f'Cached steps: {share_data.simulation_cache_steps()}')
         col = layout.box().column(align=True)
-        items = share_data.simulation_cache
-
         row = col.row()
         row.label(text=f'Key')
         row.label(text=f'First value')
-        for param, value in sorted(items.items()):
+        for param, value in sorted(share_data.simulation_cache.items()):
             row = col.row()
-            row.label(text=f'{str(param)}, dim={len(value[0]) if value else "?"}, len={len(value)}')
+            value: list
+            if len(value) > 0:
+                dim = value[0].shape
+            else:
+                dim = len(value[0])
+            row.label(text=f'{str(param)}, dim={dim if value else "?"}, len={len(value)}')
             row.label(text=f'{value[0]}, ...' if value else "?")
 
 

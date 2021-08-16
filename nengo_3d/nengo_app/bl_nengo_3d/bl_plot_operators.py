@@ -203,7 +203,9 @@ class PlotLineOperator(bpy.types.Operator):
         s = schemas.Message()
         data_scheme = schemas.Observe()
         data = data_scheme.dump(
-            obj={'source': node.name, 'access_path': self.probe}
+            obj={'source': node.name, 'access_path': self.probe,
+                 'sample_every': context.window_manager.nengo_3d.sample_every,
+                 'dt': context.window_manager.nengo_3d.dt}
         )
         message = s.dumps({'schema': schemas.Observe.__name__, 'data': data})
         logging.debug(f'Sending: {message}')

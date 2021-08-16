@@ -122,6 +122,8 @@ class GuiConnection(Connection):
         schema = schemas.Observe()
         observe = schema.load(data=incoming_message['data'])
         access_path = observe['access_path'].split('.')
+        sample_every = observe['sample_every']
+        dt = observe['dt']
         obj = self.name_finder.object(name=observe['source'])
         if len(access_path) > 1 and access_path[-2] == 'probeable':
             # special case is probeable values
@@ -129,7 +131,7 @@ class GuiConnection(Connection):
             attr = access_path[-1]
             if to_probe and attr in to_probe.probeable:
                 with self.model:
-                    probe = nengo.Probe(to_probe, attr=attr)
+                    probe = nengo.Probe(to_probe, attr=attr, sample_every=sample_every*dt)  # todo check data shape
                 rp = RequestedProbes(probe, observe['access_path'])
                 logger.debug(f'Added to observation: {rp}')
                 self.requested_probes[obj].append(rp)
@@ -148,7 +150,7 @@ class GuiConnection(Connection):
             logger.warning('Not implemented')
         elif sim['action'] == 'step':
             if not self.sim:
-                self.sim = nengo.Simulator(network=self.model)
+                self.sim = nengo.Simulator(network=self.model, dt=sim['dt'])
             steps = list(range(self.sim.n_steps, sim['until'] + 1))
             if not len(steps) >= 1:
                 logger.warning(f'Requested step: {sim["until"]}, but {self.sim.n_steps} is already computed')
