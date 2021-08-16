@@ -52,7 +52,10 @@ def get_path(source: dict, access_path: tuple['str']) -> Generator:
     value = source
     try:
         for path in access_path:
-            value = value.get(path) or getattr(source, path)
+            if isinstance(value, dict):
+                value = value.get(path)
+            else:
+                value = getattr(value, path)
             yield value
     except (IndexError, AttributeError):
         return None

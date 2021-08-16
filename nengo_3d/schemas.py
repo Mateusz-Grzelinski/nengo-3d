@@ -20,12 +20,11 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
         results = []
         try:
             for step in steps:
-                _result = {'step': step, 'parameters': {}, 'neurons_parameters': {}}
                 for obj, probes in requested_probes.items():
-                    _result['node_name'] = name_finder.name(obj)
+                    _result = {'step': step, 'parameters': {}, 'node_name': name_finder.name(obj)}
                     for probe, access_path in probes:
                         _result['parameters'][access_path] = sim_data[probe][step].tolist()
-                results.append(_result)
+                    results.append(_result)
         except KeyError as e:
             logging.error(f'No such key: {e}: {list(sim_data.keys())}')
         return results

@@ -86,19 +86,23 @@ class PlotLineOperator(bpy.types.Operator):
 
     def invoke(self, context, event):
         wm = context.window_manager
+        self.probe = ':'
+        self.probe_now = ':'
+        self.indices.clear()
         self.indices.add()  # todo make this list dynamic
         # https://sinestesia.co/blog/tutorials/using-uilists-in-blender/
-        return wm.invoke_props_dialog(self)
+        return wm.invoke_props_dialog(self, width=500)
 
     def draw(self, context):
         properties = self
         layout = self.layout
         col = layout.column()
         col.prop(properties, 'probe', text='Observe')
-        col.active = properties.probe_now == ':'
+        col.active = (properties.probe_now == ':')
         col = layout.column()
         col.prop(properties, 'probe_now', text='Draw now')
-        col.active = properties.probe == ':'
+        col.active = (properties.probe == ':')
+        col = layout.column()
         col.prop(properties, 'title')
         row = layout.row(align=True)
         row.prop(properties, 'xlabel', text='X')

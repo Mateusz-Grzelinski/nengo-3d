@@ -2,6 +2,7 @@ import logging
 import os
 import socket
 import struct
+import time
 from functools import partial
 
 import bmesh
@@ -14,16 +15,13 @@ import bl_nengo_3d.schemas as schemas
 from bl_nengo_3d import nx_layouts
 from bl_nengo_3d.bl_properties import Nengo3dProperties
 from bl_nengo_3d.share_data import share_data
+from bl_nengo_3d.time_utils import ExecutionTimes
 
 logger = logging.getLogger(__file__)
 
 update_interval = 0.1
 
-
-def redraw_all():
-    for window in bpy.context.window_manager.windows:
-        for area in window.screen.areas:
-            area.tag_redraw()
+execution_times = ExecutionTimes(max_items=10)
 
 
 def handle_data(nengo_3d: Nengo3dProperties):
@@ -51,7 +49,10 @@ def handle_data(nengo_3d: Nengo3dProperties):
     if data:
         message = data
         logger.debug(f'Incoming: {message[:1000]}')
+        start = time.time()
         handle_single_packet(message, nengo_3d)
+        end = time.time()
+        execution_times.append(end - start)
 
     return update_interval
 
@@ -92,7 +93,7 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
         if share_data.step_when_ready != 0 and not nengo_3d.is_realtime:
             bpy.context.scene.frame_current += share_data.step_when_ready
             share_data.step_when_ready = 0
-
+        # bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d)
     elif incoming_answer['schema'] == schemas.PlotLines.__name__:
         data_scheme = schemas.PlotLines()
         data = data_scheme.load(data=incoming_answer['data'])

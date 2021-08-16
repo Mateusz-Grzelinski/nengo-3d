@@ -5,6 +5,7 @@ import bpy
 from .addon_reload import ReloadAddonOperator
 from .charts import DebugPlotLine, DebugUpdatePlotLineOperator, DebugRasterPlotOperator
 from .connection import DebugConnectionOperator
+from .. import connection_handler
 
 
 def ranges(i):
@@ -23,6 +24,8 @@ class NengoDebugPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout.column()
         from bl_nengo_3d.share_data import share_data
+        layout.label(
+            text=f'Processing messages (last {connection_handler.execution_times.max_items} avg): {connection_handler.execution_times.average():.2}')
         if share_data.simulation_cache:
             layout.label(text=f'Cached steps: {share_data.simulation_cache_steps()}')
         col = layout.column(align=True)
@@ -42,11 +45,11 @@ class NengoSimulationCachePanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Nengo 3d'
-    bl_options = {"DEFAULT_CLOSED"}
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
-        layout = self.layout.column()
         from bl_nengo_3d.share_data import share_data
+        layout = self.layout.column()
 
         if share_data.simulation_cache:
             layout.label(text=f'Cached steps: {share_data.simulation_cache_steps()}')
@@ -60,3 +63,25 @@ class NengoSimulationCachePanel(bpy.types.Panel):
             row = col.row()
             row.label(text=f'{str(param)}, dim={len(value[0]) if value else "?"}, len={len(value)}')
             row.label(text=f'{value[0]}, ...' if value else "?")
+
+
+class NengoSimulationChartPanel(bpy.types.Panel):
+    bl_parent_id = 'NENGO_PT_debug'
+    bl_label = 'Registered Charts'
+    bl_idname = 'NENGO_PT_debug_chart'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Nengo 3d'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        from bl_nengo_3d.share_data import share_data
+        layout = self.layout.column()
+
+        col = layout.box().column(align=True)
+        # row = col.row()
+        # row.label(text=f'Key')
+        # row.label(text=f'First value')
+        for param, value in sorted(share_data.charts.items()):
+            row = col.row()
+            row.label(text=f'{str(param)}:{str(value)}')

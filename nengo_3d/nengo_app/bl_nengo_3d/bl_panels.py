@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+import time
 
 import bpy
 
-from bl_nengo_3d import bl_operators, bl_plot_operators
+from bl_nengo_3d import bl_operators, bl_plot_operators, frame_change_handler
 from bl_nengo_3d.bl_properties import Nengo3dProperties
 from bl_nengo_3d.charts import Axes
 from bl_nengo_3d.share_data import share_data
@@ -53,27 +54,36 @@ class NengoSettingsPanel(bpy.types.Panel):
         row = layout.row()
         row.active = not connected()
         row.prop(nengo_3d, 'collection')
-        screen = context.screen
-        col = layout.column(align=True)
-        col.active = connected()
-        col.prop(nengo_3d, 'is_realtime')
-        col.prop(context.scene.render, 'fps')
-        col.prop(context.scene, 'frame_end')
 
         col = layout.column(align=True)
-        row = col.row(align=True)
-        row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step', icon='FRAME_NEXT').action = 'step'
-        row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step x10',
-                     icon='FRAME_NEXT').action = 'stepx10'
+        col.active = connected()
+        col = layout.column()
         col.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Reset',
                      icon='CANCEL').action = 'reset'
 
+        col = layout.column(align=True)
+        row = col.row(align=True)
+        op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step', icon='FRAME_NEXT')
+        op.action = 'step'
+        op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Step x10', icon='FRAME_NEXT')
+        op.action = 'stepx10'
+
+        row = col.row(align=True)
+        if context.scene.is_simulation_playing:
+            op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Play', icon='PAUSE')
+        else:
+            op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Play', icon='PLAY')
+        op.action = 'continuous'
+        col.prop(nengo_3d, 'is_realtime')
+        # col.prop(context.scene.render, 'fps')
+        col.label(text=f'Switching frame took: {frame_change_handler.execution_times.average():.2} sec')
+        row = col.row()
+
         nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
-        col = layout.column()
         row = layout.row(align=True)
-        col = row.column()
+        col = row.column(align=True)
         col.prop(nengo_3d, 'show_whole_simulation', text='', invert_checkbox=True)
-        col = row.column()
+        col = row.column(align=True)
         col.active = not nengo_3d.show_whole_simulation
         col.prop(nengo_3d, 'show_n_last_steps', text=f'Show last {nengo_3d.show_n_last_steps} steps')
 

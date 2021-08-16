@@ -100,7 +100,7 @@ class IntegerLocator:
 class Line:
     def __init__(self, ax: 'Axes', name: str):
         self.ax = ax
-        self.label = name
+        self.label = str(name)
         self.original_data_x = []
         self.original_data_y = []
         self.original_data_z = None

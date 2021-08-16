@@ -6,10 +6,7 @@ import bpy
 from bl_nengo_3d import colors, charts
 from bl_nengo_3d.charts import locators
 from bl_nengo_3d.share_data import share_data
-
-
-# class Nengo3dLineProperties(bpy.types.PropertyGroup):
-#     color: bpy.props.FloatVectorProperty(subtype='COLOR', default=[1.0, 1.0, 1.0], update=color_update)
+from bl_nengo_3d.utils import get_from_path
 
 
 class Nengo3dChartProperties(bpy.types.PropertyGroup):
@@ -90,8 +87,7 @@ def node_attributes(self, context):
 
 
 def node_attributes_update(self: 'Nengo3dProperties', context):
-    from bl_nengo_3d.bl_operators import get_from_path
-    nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+    nengo_3d: Nengo3dProperties = self
     if nengo_3d.node_attribute == ':':
         return
     access_path, attr_type = nengo_3d.node_attribute.split(':')
@@ -150,7 +146,6 @@ def color_map_node_update(self: 'Nengo3dProperties', context):
 
 
 def color_update(self, context):
-    from bl_nengo_3d.bl_operators import get_from_path
     nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
     access_path, attr_type = nengo_3d.node_attribute.split(':')
     access_path = access_path.split('.')
@@ -166,9 +161,7 @@ def color_update(self, context):
 
 
 class Nengo3dMappedColor(bpy.types.PropertyGroup):
-    # id: bpy.props.StringProperty()
     color: bpy.props.FloatVectorProperty(subtype='COLOR', default=[1.0, 1.0, 1.0], update=color_update)
-    # tags: bpy.props.StringProperty()
 
 
 def node_color_single_update(self: 'Nengo3dProperties', context):
@@ -180,7 +173,7 @@ def node_color_single_update(self: 'Nengo3dProperties', context):
 
 class Nengo3dProperties(bpy.types.PropertyGroup):
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
-    show_n_last_steps: bpy.props.IntProperty(name='Show last n steps', default=100, min=0, soft_min=0)
+    show_n_last_steps: bpy.props.IntProperty(name='Show last n steps', default=500, min=0, soft_min=0)
     is_realtime: bpy.props.BoolProperty(name='Live simulate when playback')
     collection: bpy.props.StringProperty(name='Collection', default='Nengo Model')
     algorithm_dim: bpy.props.EnumProperty(
@@ -190,25 +183,25 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
         ], name='Algorithm 2d/3d', description='')
     layout_algorithm_2d: bpy.props.EnumProperty(
         items=[
-            ("HIERARCHICAL", "Hierarchical", ""),
-            ("BIPARTITE_LAYOUT", "Bipartite", "Position nodes in two straight lines"),
-            ("MULTIPARTITE_LAYOUT", "Multipartite", "Position nodes in layers of straight lines"),
-            ("CIRCULAR_LAYOUT", "Circular", "Position nodes on a circle"),
-            ("KAMADA_KAWAI_LAYOUT", "Kamada kawai", "Position nodes using Kamada-Kawai path-length cost-function"),
-            ("PLANAR_LAYOUT", "Planar", "Position nodes without edge intersections"),
-            ("RANDOM_LAYOUT", "Random", "Position nodes uniformly at random in the unit square"),
-            ("SHELL_LAYOUT", "Shell", "Position nodes in concentric circles"),
-            ("SPRING_LAYOUT", "Spring", "Position nodes using Fruchterman-Reingold force-directed algorithm"),
-            ("SPECTRAL_LAYOUT", "Spectral", "Position nodes using the eigenvectors of the graph Laplacian"),
-            ("SPIRAL_LAYOUT", "Spiral", "Position nodes in a spiral layout"),
+            ('HIERARCHICAL', 'Hierarchical', ''),
+            ('BIPARTITE_LAYOUT', 'Bipartite', 'Position nodes in two straight lines'),
+            ('MULTIPARTITE_LAYOUT', 'Multipartite', 'Position nodes in layers of straight lines'),
+            ('CIRCULAR_LAYOUT', 'Circular', 'Position nodes on a circle'),
+            ('KAMADA_KAWAI_LAYOUT', 'Kamada kawai', 'Position nodes using Kamada-Kawai path-length cost-function'),
+            ('PLANAR_LAYOUT', 'Planar', 'Position nodes without edge intersections'),
+            ('RANDOM_LAYOUT', 'Random', 'Position nodes uniformly at random in the unit square'),
+            ('SHELL_LAYOUT', 'Shell', 'Position nodes in concentric circles'),
+            ('SPRING_LAYOUT', 'Spring', 'Position nodes using Fruchterman-Reingold force-directed algorithm'),
+            ('SPECTRAL_LAYOUT', 'Spectral', 'Position nodes using the eigenvectors of the graph Laplacian'),
+            ('SPIRAL_LAYOUT', 'Spiral', 'Position nodes in a spiral layout'),
         ], name='Layout', description='', default='SPRING_LAYOUT')
     layout_algorithm_3d: bpy.props.EnumProperty(
         items=[
-            ("CIRCULAR_LAYOUT", "Circular", "Position nodes on a circle"),
-            ("KAMADA_KAWAI_LAYOUT", "Kamada kawai", "Position nodes using Kamada-Kawai path-length cost-function"),
-            ("RANDOM_LAYOUT", "Random", "Position nodes uniformly at random in the unit square"),
-            ("SPRING_LAYOUT", "Spring", "Position nodes using Fruchterman-Reingold force-directed algorithm"),
-            ("SPECTRAL_LAYOUT", "Spectral", "Position nodes using the eigenvectors of the graph Laplacian"),
+            ('CIRCULAR_LAYOUT', 'Circular', 'Position nodes on a circle'),
+            ('KAMADA_KAWAI_LAYOUT', 'Kamada kawai', 'Position nodes using Kamada-Kawai path-length cost-function'),
+            ('RANDOM_LAYOUT', 'Random', 'Position nodes uniformly at random in the unit square'),
+            ('SPRING_LAYOUT', 'Spring', 'Position nodes using Fruchterman-Reingold force-directed algorithm'),
+            ('SPECTRAL_LAYOUT', 'Spectral', 'Position nodes using the eigenvectors of the graph Laplacian'),
         ], name='Layout', description='', default='SPRING_LAYOUT')
     spacing: bpy.props.FloatProperty(name='spacing', description='', default=2, min=0)
 

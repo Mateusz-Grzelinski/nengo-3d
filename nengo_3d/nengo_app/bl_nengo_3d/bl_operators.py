@@ -1,87 +1,19 @@
-import itertools
 import logging
-import math
 import socket
+import time
 from functools import partial
-from typing import Any
 
 import bpy
-import numpy as np
 
 import bl_nengo_3d.schemas as schemas
-from bl_nengo_3d import bl_properties, colors
-from bl_nengo_3d.bl_properties import Nengo3dProperties, Nengo3dColors, Nengo3dMappedColor, node_color_single_update, node_attributes_update
-from bl_nengo_3d.charts import Axes
+from bl_nengo_3d.bl_properties import Nengo3dProperties, node_color_single_update, \
+    node_attributes_update
 from bl_nengo_3d.connection_handler import handle_data, handle_network_model
-from bl_nengo_3d.share_data import share_data, Indices
+from bl_nengo_3d.frame_change_handler import frame_change_pre
+from bl_nengo_3d.share_data import share_data
 
 message = schemas.Message()
 simulation_scheme = schemas.Simulation()
-
-
-def frame_change_pre(scene: bpy.types.Scene):
-    """Updates scene for running nenego simulation"""
-    # dict[frame / step, dict[object, dict[access_path, list[data]]]]
-
-    frame_current = scene.frame_current
-    nengo_3d: bl_properties.Nengo3dProperties = bpy.context.window_manager.nengo_3d
-    if nengo_3d.is_realtime:
-        # make sure you have 1 second of cache
-        if not share_data.simulation_cache or frame_current + int(
-                scene.render.fps) > share_data.simulation_cache_steps():
-            until_step = frame_current + int(scene.render.fps)
-            if until_step > share_data.requested_steps_until:
-                mess = message.dumps(
-                    {'schema': schemas.Simulation.__name__,
-                     'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
-                     })
-                share_data.requested_steps_until = until_step
-                share_data.sendall(mess.encode('utf-8'))
-
-        if not share_data.simulation_cache or frame_current > share_data.simulation_cache_steps():
-            # there is missing data in cache, wait for it to arrive
-            if bpy.context.screen.is_animation_playing:
-                bpy.ops.screen.animation_play()  # stop playback
-                share_data.resume_playback_on_steps = True
-            return
-
-    nengo_3d: Nengo3dProperties = bpy.context.window_manager.nengo_3d
-    for (obj_name, access_path), data in share_data.simulation_cache.items():
-        charts = share_data.get_chart(obj_name, access_path=access_path)
-        for ax in charts:
-            if ax.parameter != access_path:
-                continue
-            for line in ax.plot_lines:
-                # logging.debug(f'{ax.title_text}: {scene.frame_current}:{data}')
-                indices: Indices = share_data.plot_line_sources[line]
-                try:
-                    if nengo_3d.show_whole_simulation:
-                        start_entries = 0
-                    else:
-                        start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
-                    _data = data[start_entries:frame_current]
-
-                    if indices.x_is_step:
-                        xdata = range(start_entries, frame_current)
-                    else:
-                        xdata = [row[indices.x] for row in _data]
-
-                    if indices.y_multi_dim:
-                        ydata = [eval(f'row{indices.y_multi_dim}') for row in _data]
-                    else:
-                        ydata = [row[indices.y] for row in _data]
-                    if indices.z:
-                        if indices.z_is_step:
-                            zdata = range(start_entries, frame_current)
-                        else:
-                            zdata = [row[indices.z] for row in _data]
-                        line.set_data(X=xdata, Y=ydata, Z=zdata)
-                    else:
-                        line.set_data(X=xdata, Y=ydata)
-                except IndexError as e:
-                    logging.error(f'Invalid indexes for data: {indices} in {ax} of {(obj_name, access_path)}: {e}')
-                ax.relim()
-                ax.draw()
 
 
 class SimpleSelectOperator(bpy.types.Operator):
@@ -199,7 +131,11 @@ class NengoSimulateOperator(bpy.types.Operator):
             ('step', 'step', ''),
             ('stepx10', 'step x10', ''),
             ('reset', 'reset', ''),
-        ], name='Action', description='')
+            ('continuous', 'continuous', ''),
+        ], name='Action')
+
+    _timer = None
+    _end_now = False
 
     @classmethod
     def poll(cls, context):
@@ -207,10 +143,6 @@ class NengoSimulateOperator(bpy.types.Operator):
 
     def execute(self, context):
         if self.action == 'reset':
-            mess = message.dumps(
-                {'schema': schemas.Simulation.__name__,
-                 'data': simulation_scheme.dump({'action': 'reset'})
-                 })
             context.scene.frame_current = 0
             share_data.step_when_ready = 0
             share_data.requested_steps_until = -1
@@ -218,43 +150,65 @@ class NengoSimulateOperator(bpy.types.Operator):
             share_data.resume_playback_on_steps = False
             # share_data.simulation_cache_step.clear()
             share_data.simulation_cache.clear()
+            mess = message.dumps(
+                {'schema': schemas.Simulation.__name__,
+                 'data': simulation_scheme.dump({'action': 'reset'})
+                 })
             share_data.sendall(mess.encode('utf-8'))
             return {'FINISHED'}
         elif self.action == 'step':
-            cached_steps = share_data.simulation_cache_steps()
-            if cached_steps and context.scene.frame_current < cached_steps:
-                context.scene.frame_current += 1
-            else:
-                step_num = 1
-                mess = message.dumps(
-                    {'schema': schemas.Simulation.__name__,
-                     'data': simulation_scheme.dump({'action': 'step', 'until': context.scene.frame_current + 1})
-                     })
-                share_data.step_when_ready += step_num
-                share_data.sendall(mess.encode('utf-8'))
-                return {'FINISHED'}
+            self.simulation_step(context, 1, 1)
+            return {'FINISHED'}
         elif self.action == 'stepx10':
-            cached_steps = share_data.simulation_cache_steps()
-            if cached_steps and context.scene.frame_current + 10 < cached_steps:
-                context.scene.frame_current += 10
+            self.simulation_step(context, 10, 10)
+            return {'FINISHED'}
+        elif self.action == 'continuous':
+            wm = context.window_manager
+            if context.scene.is_simulation_playing:
+                context.scene.is_simulation_playing = False
+                return {'CANCELLED'}
             else:
-                step_num = 10
-
-                until_step = context.scene.frame_current + step_num
-
-                mess = message.dumps(
-                    {'schema': schemas.Simulation.__name__,
-                     'data': simulation_scheme.dump({'action': 'step', 'until': until_step})
-                     })
-                share_data.step_when_ready += step_num
-                share_data.sendall(mess.encode('utf-8'))
-                return {'FINISHED'}
+                context.scene.is_simulation_playing = True
+                self._timer = wm.event_timer_add(1 / 24, window=context.window)
+                wm.modal_handler_add(self)
+                return {'RUNNING_MODAL'}
         else:
             raise TypeError(self.action)
-        # context.area.tag_redraw()  # todo not needed here?
         return {'CANCELLED'}
 
+    @staticmethod
+    def simulation_step(context, step_num: int, prefetch: int = 0):
+        # cached_steps = share_data.simulation_cache_steps()
+        cached_steps = share_data.current_step
+        if cached_steps and context.scene.frame_current < cached_steps:
+            context.scene.frame_current += step_num
+        else:
+            data = {'action': 'step',
+                    'until': context.scene.frame_current + step_num + prefetch}
+            mess = message.dumps({'schema': schemas.Simulation.__name__,
+                                  'data': simulation_scheme.dump(data)
+                                  })
+            share_data.step_when_ready += step_num
+            share_data.sendall(mess.encode('utf-8'))
 
+    def modal(self, context, event):
+        if not context.scene.is_simulation_playing or event.type in {'RIGHTMOUSE', 'ESC'}:
+            self.cancel(context)
+            return {'CANCELLED'}
+
+        if event.type == 'TIMER':
+            if share_data.current_step >= context.scene.frame_current:
+                self.simulation_step(context, step_num=1, prefetch=0)
+            elif share_data.requested_steps_until <= context.scene.frame_current:
+                self.simulation_step(context, step_num=0, prefetch=2)
+
+        return {'PASS_THROUGH'}
+
+    def cancel(self, context):
+        context.scene.is_simulation_playing = False
+        wm = context.window_manager
+        wm.event_timer_remove(self._timer)
+        self._timer = None
 
 
 class NengoColorNodesOperator(bpy.types.Operator):
@@ -268,19 +222,18 @@ class NengoColorNodesOperator(bpy.types.Operator):
         return bool(share_data.model_graph)
 
     def execute(self, context):
-        self.recolor_nodes(context)
+        self.recolor_nodes(context.window_manager.nengo_3d)
         return {'FINISHED'}
 
     @staticmethod
-    def recolor_nodes(context):
-        nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+    def recolor_nodes(nengo_3d: Nengo3dProperties):
         # if nengo_3d.node_color_map == 'ENUM'
         if nengo_3d.node_color_source == 'SINGLE':
-            node_color_single_update(nengo_3d, context)
+            node_color_single_update(nengo_3d, None)
         elif nengo_3d.node_color_source == 'MODEL':
-            node_attributes_update(nengo_3d, context)
+            node_attributes_update(nengo_3d, None)
         elif nengo_3d.node_color_source == 'MODEL_DYNAMIC':
-            share_data.simulation_cache # todo
+            share_data.simulation_cache  # todo
         else:
             assert False, nengo_3d.node_color_source
 
@@ -298,10 +251,12 @@ register_factory, unregister_factory = bpy.utils.register_classes_factory(classe
 
 
 def register():
+    bpy.types.Scene.is_simulation_playing = bpy.props.BoolProperty()
     register_factory()
 
 
 def unregister():
+    del bpy.types.Scene.is_simulation_playing
     if share_data.handle_data and bpy.app.timers.is_registered(share_data.handle_data):
         bpy.app.timers.unregister(share_data.handle_data)
         share_data.handle_data = None
