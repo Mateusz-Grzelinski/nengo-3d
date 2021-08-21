@@ -6,7 +6,7 @@ import time
 import bpy
 
 from bl_nengo_3d import bl_operators, bl_plot_operators, frame_change_handler
-from bl_nengo_3d.bl_properties import Nengo3dProperties
+from bl_nengo_3d.bl_properties import Nengo3dProperties, Nengo3dShowNetwork
 from bl_nengo_3d.charts import Axes
 from bl_nengo_3d.share_data import share_data
 
@@ -23,10 +23,6 @@ class NengoSettingsPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Nengo 3d'
-
-    @classmethod
-    def poll(cls, context):
-        return True
 
     def draw_header_preset(self, context):
         layout = self.layout
@@ -95,6 +91,33 @@ class NengoSettingsPanel(bpy.types.Panel):
         col.prop(nengo_3d, 'show_n_last_steps', text=f'Show last {nengo_3d.show_n_last_steps} steps')
 
 
+class NengoSubnetworksPanel(bpy.types.Panel):
+    bl_label = 'Subnetworks'
+    bl_idname = 'NENGO_PT_subnetworks'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Nengo 3d'
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = 'NENGO_PT_algorithms'
+
+    def draw(self, context: bpy.types.Context):
+        layout = self.layout
+        box = layout.box()
+        if not connected():
+            layout.active = False
+            return
+        nengo_3d = context.window_manager.nengo_3d
+        box.label(text='Expand subnetworks')
+        col = box.column(align=True)
+        for net in sorted(nengo_3d.expand_subnetworks, key=lambda net: net.name):
+            if net.name == 'model':
+                continue
+            row = col.row(align=True)
+            net: Nengo3dShowNetwork
+            row.prop(net, 'expand', text='')
+            row.label(text=net.name)
+
+
 class NengoAlgorithmPanel(bpy.types.Panel):
     bl_label = 'Nengo Algorithms'
     bl_idname = 'NENGO_PT_algorithms'
@@ -112,7 +135,7 @@ class NengoAlgorithmPanel(bpy.types.Panel):
         win_man = context.window_manager
         nengo_3d = win_man.nengo_3d
 
-        layout.operator(bl_operators.NengoCalculateOperator.bl_idname)
+        layout.operator(bl_operators.NengoGraphOperator.bl_idname).regenerate = True
         layout.prop(nengo_3d, 'spacing')
         layout.use_property_split = False
         row = layout.row()
@@ -137,16 +160,19 @@ class NengoContextPanel(bpy.types.Panel):
             layout.label(text='No active object')
             return
 
-        obj_name = context.active_object.name
+        obj_name = obj.name
         if bl_plot_operators.PlotLineOperator.poll(context):
-            node = share_data.model_graph.nodes.get(obj_name)
+            node = share_data.model_graph.get_node_or_subnet_data(obj_name)
             e_source, e_target, edge = share_data.model_get_edge_by_name(obj_name)
-            op = layout.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d anything',
-                                 icon='FORCE_HARMONIC')
+            # layout.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d anything',
+            #                 icon='FORCE_HARMONIC')
 
             if node:
-                # op = layout.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d anything',
-                #                      icon='FORCE_HARMONIC')
+                if node['type'] in {'Ensemble', 'Node'}:
+                    op = layout.operator(bl_operators.NengoGraphOperator.bl_idname, text=f'Collapse {node["network"]}')
+                    op.regenerate = True
+                    op.collapse = node['network']
+
                 col = layout.column(align=True)
                 if node['type'] == 'Ensemble':
                     col.operator_context = 'EXEC_DEFAULT'
@@ -260,6 +286,12 @@ class NengoContextPanel(bpy.types.Panel):
                     item = op.indices.add()
                     item.x_is_step = True
                     item.yindex = 0
+                elif node['type'] == 'Network':
+                    # nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+                    # layout.prop(nengo_3d.expand_subnetworks[node['name']], 'expand', text=f'Expand {node["name"]}')
+                    op = layout.operator(bl_operators.NengoGraphOperator.bl_idname, text=f'Expand {node["name"]}')
+                    op.regenerate = True
+                    op.expand = node['name']
             if edge:
                 col = layout.column(align=True)
                 col.operator_context = 'EXEC_DEFAULT'
@@ -273,7 +305,7 @@ class NengoContextPanel(bpy.types.Panel):
                 op.yformat = '{:.2f}'
                 op.line_offset = -0.05
                 op.title = f'{e_source} -> {e_target}: input'
-                source_node = share_data.model_graph.nodes[e_source]
+                source_node = share_data.model_graph.get_node_data_from_subnets(e_source)
                 if source_node['type'] == 'Ensemble':
                     for i in range(source_node['neurons']['size_out']):
                         item = op.indices.add()
@@ -316,10 +348,15 @@ class NengoContextPanel(bpy.types.Panel):
                     op.yformat = '{:.4f}'
                     op.title = f'{e_source} -> {e_target}: weights'
                     op.line_offset = -0.05
-                    target_node = share_data.model_graph.nodes[e_target]
+                    target_node = share_data.model_graph.get_node_data_from_subnets(
+                        e_target)  # model_graph.nodes[e_target]
                     # dimension 1 weight [neuron1, neuron2, ...]
                     # dimension 2 weight [neuron1, neuron2, ...], ...
                     for d in range(target_node['size_in']):
+                        # todo connection to node can also have weights?
+                        if source_node['type'] == 'Node':
+                            logging.warning(f'Not implemented: {source_node}')
+                            break
                         for i in range(source_node['neurons']['size_out']):
                             item = op.indices.add()
                             item.x_is_step = True
@@ -336,10 +373,6 @@ class NengoInfoPanel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = 'Nengo 3d'
 
-    @classmethod
-    def poll(cls, context):
-        return True
-
     def draw_header_preset(self, context):
         layout = self.layout
         layout.emboss = 'NONE'
@@ -348,13 +381,13 @@ class NengoInfoPanel(bpy.types.Panel):
         if not obj:
             return
         if share_data.model_graph:
-            node = share_data.model_graph.nodes.get(obj.name)
+            node = share_data.model_graph.get_node_or_subnet_data(obj.name)
             if node:
-                row.label(text=f'Node: {obj.name}')
+                row.label(text=f'Node')  #: {obj.name}')
                 return
             e_source, _, _edge = share_data.model_get_edge_by_name(obj.name)
             if e_source:
-                row.label(text=f'Edge: {obj.name}')
+                row.label(text=f'Edge')  #: {obj.name}')
                 return
 
             chart = None
@@ -363,7 +396,7 @@ class NengoInfoPanel(bpy.types.Panel):
                     if ax.root == obj:
                         chart = ax
             if chart:
-                row.label(text=f'Plot: {obj.name}')
+                row.label(text=f'Plot')  #: {obj.name}')
 
     def draw(self, context):
         layout = self.layout.column()
@@ -375,7 +408,7 @@ class NengoInfoPanel(bpy.types.Panel):
         node = None
         edge = None
         if share_data.model_graph:
-            node = share_data.model_graph.nodes.get(obj.name)
+            node = share_data.model_graph.get_node_or_subnet_data(obj.name)
             e_source, e_target, edge = share_data.model_get_edge_by_name(obj.name)
         else:
             layout.label(text='No active model')
@@ -431,6 +464,7 @@ class NengoInfoPanel(bpy.types.Panel):
             if value is None: continue
             row = col.row()
             row.separator(factor=tab)
+            row = row.split(factor=0.25)
             if isinstance(value, dict):
                 row.label(text=param + ':')
                 self._draw_expand(col.box().column(align=True), value, tab + 1.4)
@@ -485,7 +519,8 @@ class NengoNodeColorsPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
-        layout.active = bool(share_data.model_graph)
+        layout.active = bool(share_data.model_graph) and context.area.type == 'VIEW_3D' and \
+                        context.space_data.shading.type in {'MATERIAL', 'RENDERED'}
         layout.prop(nengo_3d, 'node_color_source', expand=True)
         layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
 
@@ -533,6 +568,7 @@ classes = (
     NengoAlgorithmPanel,
     NengoColorsPanel,
     NengoNodeColorsPanel,
+    NengoSubnetworksPanel,
 )
 
 register, unregister = bpy.utils.register_classes_factory(classes)

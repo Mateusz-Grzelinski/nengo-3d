@@ -5,15 +5,16 @@ import struct
 import time
 from functools import partial
 
-import bmesh
 import bpy
 import networkx as nx
 import numpy as np
 from mathutils import Vector
 
 import bl_nengo_3d.schemas as schemas
-from bl_nengo_3d import nx_layouts
+from bl_nengo_3d import nx_layouts, bl_operators
+from bl_nengo_3d.bl_nengo_primitives import get_primitive_material, get_primitive
 from bl_nengo_3d.bl_properties import Nengo3dProperties
+from bl_nengo_3d.charts import normalize
 from bl_nengo_3d.share_data import share_data
 from bl_nengo_3d.time_utils import ExecutionTimes
 
@@ -58,12 +59,28 @@ def handle_data(nengo_3d: Nengo3dProperties):
 
 
 def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
+    from bl_nengo_3d.digraph_model import DiGraphModel
     answer_schema = schemas.Message()
     incoming_answer: dict = answer_schema.loads(message)  # json.loads(message)
     if incoming_answer['schema'] == schemas.NetworkSchema.__name__:
         data_scheme = schemas.NetworkSchema()
         g, data = data_scheme.load(data=incoming_answer['data'])
-        handle_network_model(g=g, nengo_3d=nengo_3d)
+        g: DiGraphModel
+        share_data.model_graph = g
+
+        item = nengo_3d.expand_subnetworks.add()
+        item.name = 'model'
+        item.network = 'model'
+        item.expand = True
+        for subnet in g.list_subnetworks():
+            item = nengo_3d.expand_subnetworks.add()
+            item.name = subnet.name
+            item.network = subnet.name
+            item.expand = False  # bool(g.networks.get(subnet.name))
+
+        share_data.model_graph_view = g.get_graph_view(nengo_3d)
+
+        handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d)
 
         file_path = data['file']
 
@@ -120,6 +137,43 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
         logger.error(f'Unknown schema: {incoming_answer["schema"]}')
 
 
+def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
+                         bounding_box: tuple[float, float, float] = None,
+                         center: tuple[float, float, float] = None):
+    # logger.debug((g, nengo_3d, bounding_box))
+    pos = calculate_layout(nengo_3d, g)
+    dim = 2 if nengo_3d.algorithm_dim == '2D' else 3
+    if bounding_box:
+        norm_pos_x, _, _ = normalize(list(i[0] for i in pos.values()))
+        norm_pos_y, _, _ = normalize(list(i[1] for i in pos.values()))
+        if dim == 3:
+            norm_pos_z, _, _ = normalize(list(i[2] for i in pos.values()))
+            for node_name, pos_x, pos_y, pos_z in zip(pos.keys(), norm_pos_x, norm_pos_y, norm_pos_z):
+                pos[node_name] = (pos_x * bounding_box[0], pos_y * bounding_box[1], pos_z * bounding_box[2])
+        else:
+            for node_name, pos_x, pos_y in zip(pos.keys(), norm_pos_x, norm_pos_y):
+                pos[node_name] = (pos_x * bounding_box[0], pos_y * bounding_box[1], 0.0)
+    else:
+        pos = nx.rescale_layout_dict(pos=pos, scale=nengo_3d.spacing)
+        if dim == 2:
+            for node_name, position in pos.items():
+                pos[node_name] = tuple((*position, 0.0))
+    if center:
+        for node_name, position in pos.items():
+            pos[node_name] = (position[0] + center[0], position[1] + center[1], position[2] + center[2])
+
+    collection = bpy.data.collections.get(nengo_3d.collection)
+    if not collection:
+        collection = bpy.data.collections.new(nengo_3d.collection)
+        bpy.context.scene.collection.children.link(collection)
+
+    # logger.debug(pos)
+    regenerate_nodes(g, nengo_3d, pos)
+    regenerate_edges(g, nengo_3d, pos)
+    bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d)
+
+
+# arrow encoded as geometry:
 verts = [(0, -0.125, 0), (0.5, -0.25, 0),
          (0, 0.125, 0), (0.5, 0.25, 0),
          (0.5, -0.125, 0), (0.5, 0.125, 0),
@@ -127,124 +181,17 @@ verts = [(0, -0.125, 0), (0.5, -0.25, 0),
 edges = [(2, 0), (3, 5), (5, 2), (0, 4), (4, 1), (4, 5), (6, 3), (1, 6), ]
 faces = [(0, 4, 5, 2), (1, 6, 3, 5, 4), ]
 
-_PRIMITIVES = {}
 
-
-def get_primitive(type_name: str) -> bpy.types.Object:
-    global _PRIMITIVES
-
-    if not _PRIMITIVES:
-        collection_name = 'Nengo primitives'
-        collection = bpy.data.collections.get(collection_name)
-
-        if not collection:
-            collection = bpy.data.collections.new(collection_name)
-            bpy.context.scene.collection.children.link(collection)
-            collection.hide_viewport = True
-            collection.hide_render = True
-
-        name = 'Node primitive'
-        if not _PRIMITIVES.get(name):
-            obj = bpy.data.objects.get(name)
-            if not obj:
-                primitive_mesh = bpy.data.meshes.get(name)
-                if not primitive_mesh:
-                    primitive_mesh = bpy.data.meshes.new(name)
-                    bm = bmesh.new()
-                    bmesh.ops.create_cube(bm, size=0.4)
-                    bm.to_mesh(primitive_mesh)
-                    bm.free()
-                obj = bpy.data.objects.new(name=name, object_data=primitive_mesh)
-            _PRIMITIVES[name] = obj
-            collection.objects.link(obj)
-
-        name = 'Ensemble primitive'
-        if not _PRIMITIVES.get(name):
-            obj = bpy.data.objects.get(name)
-            if not obj:
-                primitive_mesh = bpy.data.meshes.get(name)
-                if not primitive_mesh:
-                    primitive_mesh = bpy.data.meshes.new(name)
-                    bm = bmesh.new()
-                    bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=16, diameter=0.5)
-                    for f in bm.faces:
-                        f.smooth = True
-                    bm.to_mesh(primitive_mesh)
-                    bm.free()
-                obj = bpy.data.objects.new(name=name, object_data=primitive_mesh)
-            _PRIMITIVES[name] = obj
-            collection.objects.link(obj)
-
-    if obj := _PRIMITIVES.get(f'{type_name} primitive'):
-        return obj.copy()
-    else:
-        logger.error(f'Unknown type: {type_name}')
-        return None
-
-
-def get_primitive_material(mat_name):
-    material = bpy.data.materials.get(mat_name)
-    if not material:
-        material = bpy.data.materials.new(mat_name)
-        material.use_nodes = True
-        material.node_tree.nodes.remove(material.node_tree.nodes['Principled BSDF'])
-        material_output = material.node_tree.nodes.get('Material Output')
-        material_output.location = (0, 0)
-        diffuse = material.node_tree.nodes.new('ShaderNodeBsdfDiffuse')
-        diffuse.location = (-100 * 2, 0)
-        material.node_tree.links.new(material_output.inputs[0], diffuse.outputs[0])
-
-        attribute = material.node_tree.nodes.new('ShaderNodeAttribute')
-        attribute.location = (-400 * 2, 100 * 2)
-        attribute.attribute_type = 'OBJECT'
-        attribute.attribute_name = 'nengo_colors.weight'
-
-        color_ramp = material.node_tree.nodes.new('ShaderNodeValToRGB')
-        color_ramp.location = (-300 * 2, 0)
-        material.node_tree.links.new(color_ramp.inputs[0], attribute.outputs[0])
-
-        attribute = material.node_tree.nodes.new('ShaderNodeAttribute')
-        attribute.location = (-400 * 2, 0)
-        attribute.attribute_type = 'OBJECT'
-        attribute.attribute_name = 'nengo_colors.color'
-
-        mix_rgb = material.node_tree.nodes.new('ShaderNodeMixRGB')
-        mix_rgb.location = (-200 * 2, 0)
-        mix_rgb.inputs[0].default_value = 1  # ???
-        material.node_tree.links.new(mix_rgb.inputs[2], attribute.outputs[0])
-        material.node_tree.links.new(mix_rgb.inputs[1], color_ramp.outputs[0])
-        material.node_tree.links.new(diffuse.inputs[0], mix_rgb.outputs[0])
-
-    return material
-
-
-def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
-    pos = calculate_layout(nengo_3d, g)
-    pos = nx.rescale_layout_dict(pos=pos, scale=nengo_3d.spacing)
+def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[str, tuple[float, float, float]]):
     collection = bpy.data.collections.get(nengo_3d.collection)
-    if not collection:
-        collection = bpy.data.collections.new(nengo_3d.collection)
-        bpy.context.scene.collection.children.link(collection)
-
-    material = get_primitive_material('NengoNodeMaterial')
-
-    for node_name, position in pos.items():
-        node_obj = bpy.data.objects.get(node_name)
-        if not node_obj:
-            node_obj = get_primitive(g.nodes[node_name]['type']).copy()
-            node_obj.name = node_name
-            collection.objects.link(node_obj)
-        node_obj.active_material = material
-        node_obj.location = (position[0], position[1], 0.0 if nengo_3d.algorithm_dim == '2D' else position[2])
-        g.nodes[node_name]['_blender_object'] = node_obj
-
     material = get_primitive_material('NengoEdgeMaterial')
-    for node_source, node_target, edge_data in g.edges.data():
-        source_pos = pos[node_source]
-        target_pos = pos[node_target]
-        if nengo_3d.algorithm_dim == '2D':
-            source_pos = [source_pos[0], source_pos[1], 0.0]
-            target_pos = [target_pos[0], target_pos[1], 0.0]
+    for node_source, node_target, edge_data in g.edges.data():  # todo iterate pos, not edges?
+        source_pos = pos.get(node_source)
+        if not source_pos:
+            continue
+        target_pos = pos.get(node_target)
+        if not target_pos:
+            continue
         target_pos_vector = Vector(target_pos)
         source_pos_vector = Vector(source_pos)
         vector_difference: Vector = target_pos_vector - source_pos_vector
@@ -279,11 +226,33 @@ def handle_network_model(g: nx.DiGraph, nengo_3d: Nengo3dProperties) -> None:
             assert False, 'Object was deleted by hand, and mesh is still not deleted'
         else:
             assert False, 'Should never happen'
+        connection_obj.hide_viewport = False
         connection_obj.location = source_pos
+        connection_obj.nengo_colors.color = [0.011030, 0.011030, 0.011030]
         connection_obj.active_material = material
         connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
         g.edges[node_source, node_target]['_blender_object'] = connection_obj
-    share_data.model_graph = g
+
+
+def regenerate_nodes(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[str, tuple[float, float, float]]):
+    material = get_primitive_material('NengoNodeMaterial')
+    collection = bpy.data.collections.get(nengo_3d.collection)
+    for node_name, position in pos.items():
+        node_obj = bpy.data.objects.get(node_name)
+        node = share_data.model_graph.get_node_or_subnet_data(node_name)
+        if not node_obj:
+            # logger.debug((node_name, node, node['type']))
+            node_obj = get_primitive(type_name=node['type']).copy()
+            if node['type'] == 'Network':
+                mod = node_obj.modifiers.new('Wireframe', 'WIREFRAME')
+                mod.thickness = 0.05
+            node_obj.name = node_name
+            collection.objects.link(node_obj)
+            node_obj.active_material = material
+        node_obj.hide_viewport = False
+        node_obj.location = position
+        node['_blender_object'] = node_obj
+        g.nodes[node_name]['_blender_object'] = node_obj
 
 
 Positions = dict[str, tuple]  # node: (float, float[, float]), depending on dimension

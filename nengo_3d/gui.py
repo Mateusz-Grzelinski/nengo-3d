@@ -93,7 +93,7 @@ class GuiConnection(Connection):
 
     def handle_network(self, incoming_message):
         data_scheme = schemas.NetworkSchema(
-            context={'name_finder': self.name_finder, 'file': self.server.filename})
+            context={'name_finder': self.name_finder, 'file': self.server.filename, 'parent_network': ''})
         answer = message.dumps({'schema': schemas.NetworkSchema.__name__, 'data': data_scheme.dump(self.model)})
         self.sendall(answer.encode('utf-8'))
 
@@ -205,7 +205,7 @@ class GUI(Nengo3dServer):
                        blender_template,
                        ]
             # stdout=self.blender_log, stderr=self.blender_log,
-            logging.info(f'Launching: {" ".join(command)}')
+            logging.info(f'Staring GUI: {" ".join(command)}')
             self._blender_subprocess = subprocess.Popen(command, env=os.environ)
         self.run(connection_init_args={'model': self.model})
         if not skip_blender:

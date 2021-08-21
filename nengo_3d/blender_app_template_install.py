@@ -19,13 +19,17 @@ args = parser.parse_args(args=argv)
 nengo_app_possible_path = os.path.join(bpy.utils.resource_path('USER'),
                                        r'scripts\startup\bl_app_templates_user\nengo_app')
 
-assert nengo_app_possible_path in bpy.utils.app_template_paths()
+assert os.path.dirname(nengo_app_possible_path) in list(bpy.utils.app_template_paths()), \
+    (os.path.dirname(nengo_app_possible_path), list(bpy.utils.app_template_paths()))
 
 if args.force:
     import shutil
 
     if os.path.exists(nengo_app_possible_path):
-        shutil.rmtree(nengo_app_possible_path)
+        try:
+            shutil.rmtree(nengo_app_possible_path, ignore_errors=False)
+        except OSError:  # symbolic link?
+            os.remove(nengo_app_possible_path)
 
 if args.link_only:
     # better for development for live changes
@@ -33,7 +37,7 @@ if args.link_only:
         if os.path.exists(link_path):
             os.remove(link_path)
 
-        if sys.platform == "win32":
+        if sys.platform == 'win32':
             import _winapi
             _winapi.CreateJunction(str(directory), str(link_path))
         else:

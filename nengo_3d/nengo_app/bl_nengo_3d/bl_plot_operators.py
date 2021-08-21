@@ -137,6 +137,8 @@ class PlotLineOperator(bpy.types.Operator):
         if share_data.model_graph and obj:
             if share_data.model_graph.nodes.get(obj.name):
                 return True
+            if share_data.model_graph.get_subnetwork(obj.name):
+                return True
             _, _, edge = share_data.model_get_edge_by_name(obj.name)
             if edge:
                 return True

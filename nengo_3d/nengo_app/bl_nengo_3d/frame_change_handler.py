@@ -3,9 +3,7 @@ import time
 
 import bpy
 
-from bl_nengo_3d import bl_properties, schemas as schemas
-# from bl_nengo_3d.bl_operators import message, simulation_scheme
-from bl_nengo_3d.bl_properties import Nengo3dProperties
+from bl_nengo_3d import bl_properties, schemas
 from bl_nengo_3d.share_data import share_data, Indices
 from bl_nengo_3d.time_utils import ExecutionTimes
 
@@ -15,7 +13,7 @@ message = schemas.Message()
 simulation_scheme = schemas.Simulation()
 
 
-def frame_change_pre(scene: bpy.types.Scene):
+def frame_change_handler(scene: bpy.types.Scene):
     """Updates scene for running nenego simulation"""
     start = time.time()
     frame_current = scene.frame_current

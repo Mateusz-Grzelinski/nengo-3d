@@ -42,6 +42,8 @@ class ConnectionSchema(Schema):
     name = fields.Str()
     pre = fields.Str()
     post = fields.Str()
+    type = fields.Str(required=True)
+    class_type = fields.Str(required=True)
     label = fields.Str(allow_none=True)
     probeable = fields.List(fields.Str())
     size_in = fields.Int()
@@ -73,6 +75,8 @@ class Neurons(Schema):
 class NodeSchema(Schema):
     # name = fields.Str()
     type = fields.Str(required=True)
+    class_type = fields.Str(required=True)
+    network = fields.Str()
     probeable = fields.List(fields.Str())
     label = fields.Str(allow_none=True)
     size_in = fields.Int()
@@ -85,8 +89,11 @@ class NodeSchema(Schema):
 
 class NetworkSchema(Schema):
     file = fields.Str()
-    nodes = fields.Dict(keys=fields.Str(), values=fields.Nested(NodeSchema()))
-    # ensembles = fields.Dict(keys=fields.Str(), values=fields.Nested(NodeSchema()))
-    connections = fields.Dict(keys=fields.Str(), values=fields.Nested(ConnectionSchema()))
+    type = fields.Str(required=True)
+    name = fields.Str(default='model')
+    parent_network = fields.Str(required=True)
+    class_type = fields.Str(required=True)
     n_neurons = fields.Int()
-    # networks = fields.Dict(keys=fields.Str(), values=fields.Nested(ConnectionSchema()))
+    nodes = fields.Dict(keys=fields.Str(), values=fields.Nested(NodeSchema()))
+    connections = fields.Dict(keys=fields.Str(), values=fields.Nested(ConnectionSchema()))
+    networks = fields.Dict(keys=fields.Str(), values=fields.Nested(lambda: NetworkSchema(), exclude={'file'}))

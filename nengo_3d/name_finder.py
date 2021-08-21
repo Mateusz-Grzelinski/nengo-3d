@@ -60,6 +60,8 @@ class NameFinder:
     def name(self, obj: nengo.base.NengoObject) -> str:
         if isinstance(obj, nengo.base.ObjView):
             return self.known_name[obj.obj]
+        elif isinstance(obj, nengo.ensemble.Neurons):
+            return self.known_name[obj.ensemble]
         else:
             return self.known_name[obj]
 

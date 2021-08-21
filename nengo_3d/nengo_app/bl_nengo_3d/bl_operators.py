@@ -1,14 +1,16 @@
 import logging
 import socket
 import time
+import typing
 from functools import partial
 
 import bpy
 
 import bl_nengo_3d.schemas as schemas
-from bl_nengo_3d import frame_change_handler
+from bl_nengo_3d.bl_depsgraph_handler import graph_edges_recalculate_handler
+from bl_nengo_3d.frame_change_handler import frame_change_handler
 from bl_nengo_3d.bl_properties import Nengo3dProperties, node_color_single_update, \
-    node_attributes_update
+    node_attributes_update, Nengo3dShowNetwork
 from bl_nengo_3d.charts import Axes
 from bl_nengo_3d.connection_handler import handle_data, handle_network_model
 from bl_nengo_3d.share_data import share_data
@@ -71,7 +73,8 @@ class ConnectOperator(bpy.types.Operator):
                 logging.debug(f'Sending: {mess}')
                 share_data.sendall(mess.encode('utf-8'))
 
-        bpy.app.handlers.frame_change_pre.append(frame_change_handler.frame_change_pre)
+        bpy.app.handlers.frame_change_pre.append(frame_change_handler)
+        bpy.app.handlers.depsgraph_update_post.append(graph_edges_recalculate_handler)
         context.scene.frame_current = 0
 
         handle_data_function = partial(handle_data, nengo_3d=context.window_manager.nengo_3d)
@@ -93,7 +96,8 @@ class DisconnectOperator(bpy.types.Operator):
         return share_data.client is not None
 
     def execute(self, context):
-        bpy.app.handlers.frame_change_pre.remove(frame_change_handler.frame_change_pre)
+        bpy.app.handlers.frame_change_pre.remove(frame_change_handler)
+        bpy.app.handlers.depsgraph_update_post.remove(graph_edges_recalculate_handler)
         share_data.client.shutdown(socket.SHUT_RDWR)
         share_data.client.close()
         share_data.client = None
@@ -108,19 +112,47 @@ class DisconnectOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class NengoCalculateOperator(bpy.types.Operator):
+class NengoGraphOperator(bpy.types.Operator):
     """Calculate graph drawing"""
-    bl_idname = 'nengo_3d.calculate'
+    bl_idname = 'nengo_3d.draw_graph'
     bl_label = 'Recalculate'
     bl_options = {'REGISTER'}
+
+    regenerate: bpy.props.BoolProperty(default=False, options={'SKIP_SAVE'})
+    expand: bpy.props.StringProperty(default='', options={'SKIP_SAVE'})
+    collapse: bpy.props.StringProperty(default='', options={'SKIP_SAVE'})
 
     @classmethod
     def poll(cls, context):
         return share_data.model_graph
 
     def execute(self, context):
-        nengo_3d = context.window_manager.nengo_3d
-        handle_network_model(g=share_data.model_graph, nengo_3d=nengo_3d)
+        nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+        if self.expand:
+            # todo select new nodes when expanding
+            # obj = share_data.model_graph_view.nodes[self.expand]['_blender_object']
+            # handle_network_model(
+            #     g=share_data.model_graph.get_subnetwork(self.expand),
+            #     nengo_3d=nengo_3d,
+            #     bounding_box=tuple(obj.dimensions),
+            #     center=tuple(obj.location))
+            nengo_3d.expand_subnetworks[self.expand].expand = True
+        if self.collapse:
+            nengo_3d.expand_subnetworks[self.collapse].expand = False
+        if self.regenerate:
+            for node, node_data in share_data.model_graph_view.nodes(data=True):
+                node_data['_blender_object'].hide_viewport = True
+            for e_s, e_v, e_data in share_data.model_graph_view.edges(data=True):
+                e_data['_blender_object'].hide_viewport = True
+            share_data.model_graph_view = share_data.model_graph.get_graph_view(nengo_3d)
+        handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d)
+        NengoColorNodesOperator.recolor_nodes(nengo_3d)
+        for item in nengo_3d.expand_subnetworks:
+            item: Nengo3dShowNetwork
+            obj = bpy.data.objects.get(item.name)
+            if obj:
+                obj.hide_viewport = item.expand
+                obj.hide_render = item.expand
         context.area.tag_redraw()
         return {'FINISHED'}
 
@@ -199,20 +231,20 @@ class NengoSimulateOperator(bpy.types.Operator):
             return {'CANCELLED'}
 
         if event.type == 'TIMER':
+            speed = context.window_manager.nengo_3d.speed
             if share_data.current_step >= context.scene.frame_current:
-                speed = context.window_manager.nengo_3d.speed
-                frame_change_time = frame_change_handler.execution_times.average()
+                frame_change_time = execution_times.average()
                 dropped_frames = frame_change_time * 24
-                self.simulation_step(context, step_num=int((1 + dropped_frames) * speed), prefetch=0)
+                self.simulation_step(context, step_num=int((1 + dropped_frames) * speed), prefetch=24 * speed)
             elif share_data.requested_steps_until <= context.scene.frame_current:
-                self.simulation_step(context, step_num=0, prefetch=2)
+                self.simulation_step(context, step_num=0, prefetch=24 * speed)
 
         return {'PASS_THROUGH'}
 
     def cancel(self, context):
-        context.scene.is_simulation_playing = False
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
+        context.scene.is_simulation_playing = False
         self._timer = None
 
 
@@ -232,7 +264,6 @@ class NengoColorNodesOperator(bpy.types.Operator):
 
     @staticmethod
     def recolor_nodes(nengo_3d: Nengo3dProperties):
-        # if nengo_3d.node_color_map == 'ENUM'
         if nengo_3d.node_color_source == 'SINGLE':
             node_color_single_update(nengo_3d, None)
         elif nengo_3d.node_color_source == 'MODEL':
@@ -246,7 +277,7 @@ class NengoColorNodesOperator(bpy.types.Operator):
 classes = (
     ConnectOperator,
     DisconnectOperator,
-    NengoCalculateOperator,
+    NengoGraphOperator,
     NengoSimulateOperator,
     SimpleSelectOperator,
     NengoColorNodesOperator,

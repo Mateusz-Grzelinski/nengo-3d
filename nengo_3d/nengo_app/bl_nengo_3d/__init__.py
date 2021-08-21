@@ -26,6 +26,7 @@ try:
     from bl_nengo_3d import debug
     from bl_nengo_3d import bl_properties
     from bl_nengo_3d import bl_plot_operators
+    from bl_nengo_3d import bl_depsgraph_handler
 except ModuleNotFoundError as e:
     logging.error(f'Addon nengo3d did not start: {e}')
     OK = False
@@ -35,11 +36,11 @@ def register():
     if not OK:
         return
     bl_plot_operators.register()
+    bl_properties.register()
+    bl_depsgraph_handler.register()
     bl_operators.register()
     bl_panels.register()
-    bl_properties.register()
     debug.register()
-    # charts.register()
 
 
 def unregister():
@@ -48,6 +49,6 @@ def unregister():
     bl_plot_operators.unregister()
     bl_operators.unregister()
     bl_panels.unregister()
+    bl_depsgraph_handler.unregister()
     bl_properties.unregister()
     debug.unregister()
-    # charts.unregister()

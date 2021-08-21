@@ -335,8 +335,8 @@ class Axes:
         obj = bpy.data.objects.new(name=name, object_data=mesh)
         self.collection.objects.link(obj)
         if solidify:
-            bpy.ops.object.modifier_add({'object': obj}, type='SOLIDIFY')
-            obj.modifiers["Solidify"].thickness = solidify  # 0.04
+            mod = obj.modifiers.new('Solidify', 'SOLIDIFY')
+            mod.thickness = solidify
         obj.hide_select = not selectable
         obj.active_material = get_primitive_material()
         obj.nengo_colors.color = self.text_color

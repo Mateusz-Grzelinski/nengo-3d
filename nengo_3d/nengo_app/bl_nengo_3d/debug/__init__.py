@@ -2,7 +2,7 @@ import bpy
 
 from . import addon_reload
 from .addon_reload import ReloadAddonOperator
-from .bl_panels import NengoDebugPanel, NengoSimulationCachePanel, NengoSimulationChartPanel
+from .bl_panels import NengoDebugPanel, NengoSimulationCachePanel, NengoSimulationChartPanel, NengoSubnetsPanel
 from .charts import DebugUpdatePlotLineOperator, DebugPlotLine, DebugRasterPlotOperator
 from .connection import DebugConnectionOperator
 
@@ -17,6 +17,7 @@ classes = (
     DebugUpdatePlotLineOperator,
     DebugRasterPlotOperator,
     NengoSimulationChartPanel,
+    NengoSubnetsPanel,
 )
 
 register, unregister = bpy.utils.register_classes_factory(classes)

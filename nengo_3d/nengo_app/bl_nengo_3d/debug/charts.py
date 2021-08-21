@@ -27,10 +27,10 @@ class DebugRasterPlotOperator(bpy.types.Operator):
         ax.title(f'Test chart {self.dim}d')
         if self.dim == 3:
             ax.zlabel('z')
-            ax.plot(t, s, s)
+            ax.plot(t, s, s, label='1')
         else:
-            ax.plot(t, s)
-            ax.plot(t, [-i for i in s])
+            ax.plot(t, s, label='2')
+            ax.plot(t, [-i for i in s], label='3')
         # ax.grid()
         global debug_axes
         debug_axes.append(ax)
@@ -56,10 +56,10 @@ class DebugPlotLine(bpy.types.Operator):
         ax.title(f'Test chart {self.dim}d')
         if self.dim == 3:
             ax.zlabel('z')
-            ax.plot(t, s, s)
+            ax.plot(t, s, s, label='test')
         else:
-            ax.plot(t, s)
-            ax.plot(t, [-i for i in s])
+            ax.plot(t, s, label='test1')
+            ax.plot(t, [-i for i in s], label='test2')
         # ax.grid()
         global debug_axes
         debug_axes.append(ax)

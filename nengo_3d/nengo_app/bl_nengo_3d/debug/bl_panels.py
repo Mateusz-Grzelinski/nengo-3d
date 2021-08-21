@@ -2,6 +2,7 @@ import itertools
 
 import bpy
 
+import networkx as nx
 from .addon_reload import ReloadAddonOperator
 from .charts import DebugPlotLine, DebugUpdatePlotLineOperator, DebugRasterPlotOperator
 from .connection import DebugConnectionOperator
@@ -89,3 +90,39 @@ class NengoSimulationChartPanel(bpy.types.Panel):
         for param, value in sorted(share_data.charts.items()):
             row = col.row()
             row.label(text=f'{str(param)}:{str(value)}')
+
+
+class NengoSubnetsPanel(bpy.types.Panel):
+    bl_parent_id = 'NENGO_PT_debug'
+    bl_label = 'Subnets'
+    bl_idname = 'NENGO_PT_debug_subnets'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Nengo 3d'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        from bl_nengo_3d.share_data import share_data
+        layout = self.layout.column()
+        col = layout.box().column(align=True)
+        # col.separator()
+        if share_data.model_graph:
+            self.recurse_subnets(col, share_data.model_graph)
+
+    def recurse_subnets(self, layout, g: nx.DiGraph, separator: float = 0):
+        row = layout.row()
+        row.separator(factor=separator)
+        row.label(text=f'name: {g.name}')
+        for param, value in sorted(g.graph.items()):
+            if param in {'networks', 'name'}:
+                continue
+            row = layout.row()
+            row.separator(factor=separator)
+            row.label(text=f'{str(param)}: {str(value)}')
+
+        subnets = g.graph.get('networks') or {}
+        for g_name, g in sorted(subnets.items()):
+            row = layout.row()
+            row.separator(factor=separator)
+            row.label(text='networks["' + g_name + '"]:')
+            self.recurse_subnets(layout.box().column(align=True), g, separator + 1.4)

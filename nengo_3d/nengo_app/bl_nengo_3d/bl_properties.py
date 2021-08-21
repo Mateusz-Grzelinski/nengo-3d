@@ -3,9 +3,8 @@ import math
 
 import bpy
 
-from bl_nengo_3d import colors, charts
+from bl_nengo_3d import colors
 from bl_nengo_3d.charts import locators
-from bl_nengo_3d.share_data import share_data
 from bl_nengo_3d.utils import get_from_path
 
 
@@ -52,6 +51,7 @@ _node_anti_crash = None
 
 
 def node_attributes(self, context):
+    from bl_nengo_3d.share_data import share_data
     global _node_anti_crash
     g = share_data.model_graph
     if not g:
@@ -87,6 +87,7 @@ def node_attributes(self, context):
 
 
 def node_attributes_update(self: 'Nengo3dProperties', context):
+    from bl_nengo_3d.share_data import share_data
     nengo_3d: Nengo3dProperties = self
     if nengo_3d.node_attribute == ':':
         return
@@ -96,7 +97,7 @@ def node_attributes_update(self: 'Nengo3dProperties', context):
     share_data.color_gen = colors.cycle_color(nengo_3d.node_initial_color, shift_type=nengo_3d.node_color_shift)
     is_numerical = attr_type in {'int', 'float'}
     min, max = math.inf, -math.inf
-    for node, data in share_data.model_graph.nodes(data=True):
+    for node, data in share_data.model_graph_view.nodes(data=True):
         value = get_from_path(data, access_path)
         mapped_color = nengo_3d.node_mapped_colors.get(str(value))
         if not mapped_color:
@@ -113,12 +114,12 @@ def node_attributes_update(self: 'Nengo3dProperties', context):
         if min == max:
             min -= 1
             max += 1
-        assert min not in {math.inf, -max.inf}
-        assert max not in {math.inf, -max.inf}
+        assert min not in {math.inf, -math.inf}
+        assert max not in {math.inf, -math.inf}
         nengo_3d.node_attr_min = min
         nengo_3d.node_attr_max = max
 
-        for node, data in share_data.model_graph.nodes(data=True):
+        for node, data in share_data.model_graph_view.nodes(data=True):
             value = get_from_path(data, access_path)
             obj = data['_blender_object']
             if value is None:
@@ -148,10 +149,11 @@ def color_map_node_update(self: 'Nengo3dProperties', context):
 
 
 def color_update(self, context):
+    from bl_nengo_3d.share_data import share_data
     nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
     access_path, attr_type = nengo_3d.node_attribute.split(':')
     access_path = access_path.split('.')
-    for node, data in share_data.model_graph.nodes(data=True):
+    for node, data in share_data.model_graph_view.nodes(data=True):
         value = get_from_path(data, access_path)
         mapped_color = nengo_3d.node_mapped_colors.get(str(value))
         if not mapped_color:
@@ -167,14 +169,21 @@ class Nengo3dMappedColor(bpy.types.PropertyGroup):
 
 
 def node_color_single_update(self: 'Nengo3dProperties', context):
-    for node, data in share_data.model_graph.nodes(data=True):
+    from bl_nengo_3d.share_data import share_data
+    for node, data in share_data.model_graph_view.nodes(data=True):
         obj = data['_blender_object']
         obj.nengo_colors.color = self.node_color_single
         obj.update_tag()
 
 
+class Nengo3dShowNetwork(bpy.types.PropertyGroup):
+    network: bpy.props.StringProperty(name='Network')
+    expand: bpy.props.BoolProperty(default=False)
+
+
 class Nengo3dProperties(bpy.types.PropertyGroup):
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
+    expand_subnetworks: bpy.props.CollectionProperty(type=Nengo3dShowNetwork)
     show_n_last_steps: bpy.props.IntProperty(name='Show last n steps', default=500, min=0, soft_min=0)
     sample_every: bpy.props.IntProperty(name='Sample every', description='Collect data from every n-th step',
                                         default=1, min=1)
@@ -210,7 +219,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
             ('SPRING_LAYOUT', 'Spring', 'Position nodes using Fruchterman-Reingold force-directed algorithm'),
             ('SPECTRAL_LAYOUT', 'Spectral', 'Position nodes using the eigenvectors of the graph Laplacian'),
         ], name='Layout', description='', default='SPRING_LAYOUT')
-    spacing: bpy.props.FloatProperty(name='spacing', description='', default=2, min=0)
+    spacing: bpy.props.FloatProperty(name='spacing', description='', default=5, min=0)
 
     node_color_source: bpy.props.EnumProperty(items=[
         ('SINGLE', 'Single color', ''),
@@ -251,6 +260,7 @@ class Nengo3dColors(bpy.types.PropertyGroup):
 
 classes = (
     Nengo3dMappedColor,
+    Nengo3dShowNetwork,
     Nengo3dProperties,
     Nengo3dChartProperties,
     Nengo3dColors,

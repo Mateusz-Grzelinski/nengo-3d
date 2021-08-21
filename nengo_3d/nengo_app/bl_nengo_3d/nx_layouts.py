@@ -3,9 +3,9 @@ import random
 import networkx as nx
 
 
-def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5, seed=None):
+def hierarchy_pos(G, root=None, dx=0.1, vert_gap=0.1, vert_loc=0, xcenter=0.5, seed=None):
     """
-    Modified from Joel's answer at https://stackoverflow.com/a/29597209/2966723.
+    Heavily modified from Joel's answer at https://stackoverflow.com/a/29597209/2966723.
     Licensed under Creative Commons Attribution-Share Alike
 
     If the graph is a tree this will return the positions to plot this in a
@@ -29,9 +29,6 @@ def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5,
 
     xcenter: horizontal location of root
     """
-    if not nx.is_tree(G):
-        raise TypeError('cannot use hierarchy_pos on a graph that is not a tree')
-
     if root is None:
         if isinstance(G, nx.DiGraph):
             root = next(iter(nx.topological_sort(G)))  # allows back compatibility with nx version 1.11
@@ -40,7 +37,7 @@ def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5,
             root = random.choice(list(G.nodes))
     visited = set()
 
-    def _hierarchy_pos(G, root, width=1., vert_gap=0.2, vert_loc=0.0, xcenter=0.5, pos=None, parent=None):
+    def _hierarchy_pos(G, root, dx, vert_gap, vert_loc, xcenter, pos=None, parent=None):
         """
         see hierarchy_pos docstring for most arguments
 
@@ -52,19 +49,32 @@ def hierarchy_pos(G, root=None, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5,
         else:
             pos[root] = (xcenter, vert_loc)
         children = list(G.neighbors(root))
-        children.extend(G.predecessors(root))
-        # if not isinstance(G, nx.DiGraph) and parent is not None:
-        #     children.remove(parent)
+
         visited.add(root)
-        if len(children) != 0:
-            dx = width / len(children)
-            nextx = xcenter - width / 2 - dx / 2
-            for child in children:
-                nextx += dx
-                if child not in visited:
-                    pos = _hierarchy_pos(G, child, width=dx, vert_gap=vert_gap,
-                                         vert_loc=vert_loc - vert_gap, xcenter=nextx,
-                                         pos=pos, parent=root)
+
+        nextx = xcenter  # - width / 2 - dx / 2
+        for child in children:
+            if child in visited:
+                continue
+            pos = _hierarchy_pos(G, child,
+                                 dx=dx,
+                                 vert_gap=vert_gap,
+                                 vert_loc=vert_loc - vert_gap,
+                                 xcenter=nextx,
+                                 pos=pos, parent=root)
+            nextx += dx
+
+        children = list(G.predecessors(root))
+        for child in children:
+            if child in visited:
+                continue
+            pos = _hierarchy_pos(G, child,
+                                 dx=dx,
+                                 vert_gap=vert_gap,
+                                 vert_loc=vert_loc + vert_gap,
+                                 xcenter=nextx,
+                                 pos=pos, parent=root)
+            nextx += dx
         return pos
 
-    return _hierarchy_pos(G, root, width, vert_gap, vert_loc, xcenter)
+    return _hierarchy_pos(G, root, dx, vert_gap, vert_loc, xcenter)

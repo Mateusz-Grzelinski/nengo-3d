@@ -27,6 +27,7 @@ class _ShareData:
     """
 
     def __init__(self):
+        from bl_nengo_3d.digraph_model import DiGraphModel
         # self.run_id = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         # self.session_id = 0  # For logging and debug
         self.client: Optional[socket.socket] = None
@@ -39,12 +40,10 @@ class _ShareData:
 
         # caching and small dependency graph
         # self.model: dict[str, bpy.types.Object] = {}
-        self.model_graph: nx.DiGraph = None
-        """Cached model, key=unique name, object=blender object representation"""
+        self.model_graph: Optional[DiGraphModel] = None
+        self.model_graph_view: Optional[DiGraphModel] = None
         self.charts = defaultdict(list)
-        """
-        Cached chart 
-        """
+        """dict[(source, access_path), list[Axes]]"""
         # self.simulation_cache_step = list()
         self.simulation_cache = defaultdict(list)
         """

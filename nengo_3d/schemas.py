@@ -33,6 +33,7 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
 class ConnectionSchema(nengo_3d_schemas.ConnectionSchema):
     @pre_dump
     def process_connection(self, data: nengo.Connection, **kwargs):
+        assert isinstance(data, nengo.Connection), data
         name_finder = self.context['name_finder']
         result = {'probeable': data.probeable, 'name': name_finder.name(data)}
         for param in data.params:
@@ -47,13 +48,18 @@ class ConnectionSchema(nengo_3d_schemas.ConnectionSchema):
         result['solver'] = str(data.solver)
         result['synapse'] = str(data.synapse)
         result['transform'] = str(data.transform)
+
+        result.update({'type': 'Connection',
+                       'class_type': type(data).__name__})
         return result
 
 
 class NodeSchema(nengo_3d_schemas.NodeSchema):
     @pre_dump
     def process_node(self, data: nengo.Node, **kwargs):
-        result = {'probeable': data.probeable}
+        result = {'probeable': data.probeable,
+                  'class_type': type(data).__name__,
+                  'network': self.context['network']}
         for param in data.params:
             result[param] = getattr(data, param)
         if isinstance(data, nengo.Node):
@@ -83,13 +89,35 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
     @pre_dump
     def process_network(self, data: nengo.Network, **kwargs):
         """Give name to network"""
-        file = self.context['file']
-        result = {'nodes': {}, 'connections': {}, 'file': file, 'n_neurons': data.n_neurons}
+        file = self.context.get('file')
         name_finder = self.context['name_finder']
-        s = NodeSchema()
-        for obj in chain(data.ensembles, data.nodes):
+        parent_network = self.context['parent_network']
+        network_name = name_finder.name(data)
+        result = {
+            'nodes': {},
+            'connections': {},
+            'networks': {},
+            'file': file,
+            'name': network_name,
+            'parent_network': parent_network,
+            'n_neurons': data.n_neurons,
+            'type': 'Network',
+            'class_type': type(data).__name__
+        }
+
+        s = NodeSchema(context={'network': network_name})
+        for obj in chain(data.all_ensembles, data.all_nodes):
             result['nodes'][name_finder.name(obj)] = s.dump(obj)
+
+        for obj in data.networks:
+            obj: nengo.Network
+            subnet_name = name_finder.name(obj)
+            context = self.context.copy()
+            context['parent_network'] = network_name
+            s = NetworkSchema(context=context)
+            result['networks'][subnet_name] = s.dump(obj)
+
         s = ConnectionSchema(context={'name_finder': name_finder})
-        for obj in data.connections:
+        for obj in data.all_connections:
             result['connections'][name_finder.name(obj)] = s.dump(obj)
         return result
