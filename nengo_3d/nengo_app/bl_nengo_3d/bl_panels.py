@@ -584,8 +584,8 @@ class NengoStylePanel(bpy.types.Panel):
         col = layout.column(align=True)
         col.prop(nengo_3d, 'arrow_length')
         col.prop(nengo_3d, 'arrow_back_length')
-        layout.prop(nengo_3d, 'arrow_radius')
-        layout.prop(nengo_3d, 'arrow_width')
+        col.prop(nengo_3d, 'arrow_width')
+        layout.prop(nengo_3d, 'edge_width')
 
 
 classes = (

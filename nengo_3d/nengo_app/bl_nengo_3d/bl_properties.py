@@ -226,15 +226,13 @@ def recalculate_edges(self: 'Nengo3dProperties', context):
     from bl_nengo_3d.share_data import share_data
     if not share_data.model_graph_view:
         return
-    from bl_nengo_3d.connection_handler import Arrow, regenerate_edge_mesh
+    from bl_nengo_3d.connection_handler import regenerate_edges
 
-    for node_source, node_target, edge_data in share_data.model_graph_view.edges.data():
-        edge_obj = edge_data['_blender_object']
-        logging.debug((edge_obj.dimensions.x, Arrow.original_len))
-        regenerate_edge_mesh(
-            connection_primitive=edge_obj.data,
-            length=edge_obj.dimensions.x - Arrow.original_len
-        )
+    regenerate_edges(
+        g=share_data.model_graph_view,
+        nengo_3d=context.window_manager.nengo_3d,
+        pos={node: n_data['_blender_object'].location for node, n_data in share_data.model_graph_view.nodes(data=True)})
+    return
 
 
 class Nengo3dProperties(bpy.types.PropertyGroup):
@@ -244,10 +242,10 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
                                           update=recalculate_edges)
     arrow_back_length: bpy.props.FloatProperty(name='Arrow back length', default=0, precision=2, step=1,
                                                update=recalculate_edges)
-    arrow_radius: bpy.props.FloatProperty(name='Arrow radius', default=0.6, min=0.0, precision=2, step=1,
-                                          update=recalculate_edges)
-    arrow_width: bpy.props.FloatProperty(name='Arrow width', default=0.5, min=0.0, precision=2, step=1,
+    arrow_width: bpy.props.FloatProperty(name='Arrow width', default=0.6, min=0.0, precision=2, step=1,
                                          update=recalculate_edges)
+    edge_width: bpy.props.FloatProperty(name='Edge width', default=0.5, min=0.0, precision=2, step=1,
+                                        update=recalculate_edges)
     expand_subnetworks: bpy.props.CollectionProperty(type=Nengo3dShowNetwork)
     show_n_last_steps: bpy.props.IntProperty(name='Show last n steps', default=500, min=0, soft_min=0)
     sample_every: bpy.props.IntProperty(name='Sample every', description='Collect data from every n-th step',

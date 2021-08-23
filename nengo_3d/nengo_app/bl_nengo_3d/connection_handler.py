@@ -175,10 +175,11 @@ def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
 
 class Arrow:
     """Flat arrow encoded as geometry"""
+
     @classmethod
     @property
-    def arrow_radius(cls) -> float:
-        return bpy.context.window_manager.nengo_3d.arrow_radius
+    def arrow_width(cls) -> float:
+        return bpy.context.window_manager.nengo_3d.arrow_width
 
     @classmethod
     @property
@@ -192,8 +193,8 @@ class Arrow:
 
     @classmethod
     @property
-    def arrow_width(cls) -> float:
-        return bpy.context.window_manager.nengo_3d.arrow_width
+    def edge_width(cls) -> float:
+        return bpy.context.window_manager.nengo_3d.edge_width
 
     @classmethod
     @property
@@ -204,12 +205,12 @@ class Arrow:
     @property
     def verts(cls) -> list[tuple[float, float, float]]:
         _verts = [
-            (0, -0.125 * cls.arrow_width, 0),
-            (cls.arrow_length + cls.arrow_back_length, -0.25 * cls.arrow_radius, 0),
-            (0, 0.125 * cls.arrow_width, 0),
-            (cls.arrow_length + cls.arrow_back_length, 0.25 * cls.arrow_radius, 0),
-            (cls.arrow_length, -0.125 * cls.arrow_width, 0),
-            (cls.arrow_length, 0.125 * cls.arrow_width, 0),
+            (0, -0.125 * cls.edge_width, 0),
+            (cls.arrow_length + cls.arrow_back_length, -0.25 * cls.arrow_width, 0),
+            (0, 0.125 * cls.edge_width, 0),
+            (cls.arrow_length + cls.arrow_back_length, 0.25 * cls.arrow_width, 0),
+            (cls.arrow_length, -0.125 * cls.edge_width, 0),
+            (cls.arrow_length, 0.125 * cls.edge_width, 0),
             (1, 0, 0),
         ]
         return _verts
@@ -251,6 +252,7 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
         connection_primitive = bpy.data.meshes.get(connection_name)
         if connection_obj and connection_primitive:
             regenerate_edge_mesh(connection_primitive,
+                                 offset=src_dim,
                                  length=vector_difference.length - Arrow.original_len - target_dim)
         elif connection_obj and not connection_primitive:
             assert False
@@ -258,6 +260,7 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
             connection_primitive = bpy.data.meshes.new(connection_name)
             # make arrow longer
             regenerate_edge_mesh(connection_primitive,
+                                 offset=src_dim,
                                  length=vector_difference.length - Arrow.original_len - target_dim)
             connection_obj = bpy.data.objects.new(name=connection_name, object_data=connection_primitive)
             connection_obj.rotation_mode = 'QUATERNION'
@@ -276,15 +279,15 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
         g.edges[node_source, node_target]['_blender_object'] = connection_obj
 
 
-def regenerate_edge_mesh(connection_primitive: bpy.types.Mesh, length: float):
+def regenerate_edge_mesh(connection_primitive: bpy.types.Mesh, offset: float, length: float):
     connection_primitive.clear_geometry()
-    _verts = Arrow.verts
+    _verts = Arrow.verts.copy()
     for i in range(len(Arrow.verts)):
         # skip vert 0 and 2 - they are the base of arrow
         if i in {0, 2}:
-            continue
-        x = Arrow.verts[i][0] + length
-        """x = original x position - node size - initial arrow length"""
+            x = Arrow.verts[i][0] + offset
+        else:
+            x = Arrow.verts[i][0] + length
         _verts[i] = (x, Arrow.verts[i][1], Arrow.verts[i][2])
     connection_primitive.from_pydata(_verts, Arrow.edges, Arrow.faces)
 
