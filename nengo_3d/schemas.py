@@ -59,7 +59,7 @@ class NodeSchema(nengo_3d_schemas.NodeSchema):
     def process_node(self, data: nengo.Node, **kwargs):
         result = {'probeable': data.probeable,
                   'class_type': type(data).__name__,
-                  'network': self.context['network']}
+                  'network_name': self.context['network_name']}
         for param in data.params:
             result[param] = getattr(data, param)
         if isinstance(data, nengo.Node):
@@ -98,15 +98,15 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
             'connections': {},
             'networks': {},
             'file': file,
-            'name': network_name,
+            'network_name': network_name,
             'parent_network': parent_network,
             'n_neurons': data.n_neurons,
             'type': 'Network',
             'class_type': type(data).__name__
         }
 
-        s = NodeSchema(context={'network': network_name})
-        for obj in chain(data.all_ensembles, data.all_nodes):
+        s = NodeSchema(context={'network_name': network_name})
+        for obj in chain(data.ensembles, data.nodes):
             result['nodes'][name_finder.name(obj)] = s.dump(obj)
 
         for obj in data.networks:
@@ -118,6 +118,6 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
             result['networks'][subnet_name] = s.dump(obj)
 
         s = ConnectionSchema(context={'name_finder': name_finder})
-        for obj in data.all_connections:
+        for obj in data.all_connections:  # connections between networks are only in "all_connections"
             result['connections'][name_finder.name(obj)] = s.dump(obj)
         return result

@@ -7,6 +7,7 @@ from .addon_reload import ReloadAddonOperator
 from .charts import DebugPlotLine, DebugUpdatePlotLineOperator, DebugRasterPlotOperator
 from .connection import DebugConnectionOperator
 from .. import connection_handler
+from ..digraph_model import DiGraphModel
 
 
 def ranges(i):
@@ -105,14 +106,20 @@ class NengoSubnetsPanel(bpy.types.Panel):
         from bl_nengo_3d.share_data import share_data
         layout = self.layout.column()
         col = layout.box().column(align=True)
-        # col.separator()
-        if share_data.model_graph:
-            self.recurse_subnets(col, share_data.model_graph)
+        if share_data.model_graph is None:
+            return
+        self.recurse_subnets(col, share_data.model_graph)
 
-    def recurse_subnets(self, layout, g: nx.DiGraph, separator: float = 0):
+    def recurse_subnets(self, layout, g: DiGraphModel, separator: float = 0):
         row = layout.row()
         row.separator(factor=separator)
         row.label(text=f'name: {g.name}')
+        row = layout.row()
+        row.separator(factor=separator)
+        row.label(text=f'number of nodes: {len(g.nodes)}')
+        row = layout.row()
+        row.separator(factor=separator)
+        row.label(text=f'number of edges: {len(g.edges)}')
         for param, value in sorted(g.graph.items()):
             if param in {'networks', 'name'}:
                 continue
@@ -126,3 +133,30 @@ class NengoSubnetsPanel(bpy.types.Panel):
             row.separator(factor=separator)
             row.label(text='networks["' + g_name + '"]:')
             self.recurse_subnets(layout.box().column(align=True), g, separator + 1.4)
+
+
+class NengoNodesPanel(bpy.types.Panel):
+    bl_parent_id = 'NENGO_PT_debug'
+    bl_label = 'Nodes'
+    bl_idname = 'NENGO_PT_debug_nodes'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Nengo 3d'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        from bl_nengo_3d.share_data import share_data
+        layout = self.layout.column()
+        if share_data.model_graph is None:
+            return
+        layout.label(text=str(share_data.model_graph))
+        col = layout.box().column(align=True)
+        for node, data in share_data.model_graph.nodes(data=True):
+            col.label(text=str(node))
+            col.label(text=str(data))
+        for subnet in share_data.model_graph.list_subnetworks():
+            layout.label(text=str(subnet))
+            col = layout.box().column(align=True)
+            for node, data in subnet.nodes(data=True):
+                col.label(text=str(node))
+                col.label(text=str(data))

@@ -76,7 +76,7 @@ class NodeSchema(Schema):
     # name = fields.Str()
     type = fields.Str(required=True)
     class_type = fields.Str(required=True)
-    network = fields.Str()
+    network_name = fields.Str(required=True)
     probeable = fields.List(fields.Str())
     label = fields.Str(allow_none=True)
     size_in = fields.Int()
@@ -90,7 +90,7 @@ class NodeSchema(Schema):
 class NetworkSchema(Schema):
     file = fields.Str()
     type = fields.Str(required=True)
-    name = fields.Str(default='model')
+    network_name = fields.Str(required=True)
     parent_network = fields.Str(required=True)
     class_type = fields.Str(required=True)
     n_neurons = fields.Int()

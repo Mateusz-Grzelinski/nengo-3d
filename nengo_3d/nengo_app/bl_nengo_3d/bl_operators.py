@@ -124,7 +124,7 @@ class NengoGraphOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return share_data.model_graph
+        return share_data.model_graph is not None
 
     def execute(self, context):
         nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
@@ -145,14 +145,17 @@ class NengoGraphOperator(bpy.types.Operator):
             for e_s, e_v, e_data in share_data.model_graph_view.edges(data=True):
                 e_data['_blender_object'].hide_viewport = True
             share_data.model_graph_view = share_data.model_graph.get_graph_view(nengo_3d)
-        handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d)
-        NengoColorNodesOperator.recolor_nodes(nengo_3d)
-        for item in nengo_3d.expand_subnetworks:
-            item: Nengo3dShowNetwork
-            obj = bpy.data.objects.get(item.name)
-            if obj:
-                obj.hide_viewport = item.expand
-                obj.hide_render = item.expand
+
+        # logging.debug(share_data.model_graph_view.nodes(data=False))
+        # logging.debug(share_data.model_graph_view.nodes['model.cortical'])
+        handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d, select=True)
+
+        # for item in nengo_3d.expand_subnetworks:
+        #     item: Nengo3dShowNetwork
+        #     obj = bpy.data.objects.get(item.name)
+        #     if obj:
+        #         obj.hide_viewport = item.expand
+        #         obj.hide_render = item.expand
         context.area.tag_redraw()
         return {'FINISHED'}
 

@@ -18,4 +18,5 @@ def cycle_color(initial_rgb: tuple[float, float, float], step=0.1, shift_type: s
             if col[shift_type] > 1:
                 col[shift_type] -= 1
                 i += 1
+                # todo introduce limit to colors to avoid overflow error (2**i)
                 col[shift_type] += step / 2 ** i

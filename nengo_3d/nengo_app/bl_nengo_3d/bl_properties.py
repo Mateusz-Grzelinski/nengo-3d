@@ -181,8 +181,23 @@ class Nengo3dShowNetwork(bpy.types.PropertyGroup):
     expand: bpy.props.BoolProperty(default=False)
 
 
+def select_edges_update(self: 'Nengo3dProperties', context):
+    from bl_nengo_3d.share_data import share_data
+    for e_s, e_dst, e_data in share_data.model_graph_view.edges(data=True):
+        obj = e_data.get('_blender_object')
+        if not obj:
+            continue
+        obj.hide_select = not self.select_edges
+    for e_s, e_dst, e_data in share_data.model_graph.edges(data=True):
+        obj = e_data.get('_blender_object')
+        if not obj:
+            continue
+        obj.hide_select = not self.select_edges
+
+
 class Nengo3dProperties(bpy.types.PropertyGroup):
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
+    select_edges: bpy.props.BoolProperty(name='Select edges', default=False, update=select_edges_update)
     expand_subnetworks: bpy.props.CollectionProperty(type=Nengo3dShowNetwork)
     show_n_last_steps: bpy.props.IntProperty(name='Show last n steps', default=500, min=0, soft_min=0)
     sample_every: bpy.props.IntProperty(name='Sample every', description='Collect data from every n-th step',

@@ -23,35 +23,45 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
     @post_load
     def make_user(self, data: dict, **kwargs) -> 'bl_nengo_3d.digraph_model.DiGraphModel':
         from bl_nengo_3d.digraph_model import DiGraphModel
-        g = DiGraphModel(name=data['name'], networks={}, type=data['type'], class_type=data['class_type'],
-                         n_neurons=data['n_neurons'], parent_network=str(data['parent_network']))
+        g = DiGraphModel(
+            name=data['network_name'], network_name=data['network_name'], networks={}, type=data['type'],
+            class_type=data['class_type'], n_neurons=data['n_neurons'], parent_network=str(data['parent_network'])
+        )
 
-        nodes = data.pop('nodes')
+        nodes = data['nodes']
         for node_name, attributes in nodes.items():
-            # logging.debug(f'Loading node/ensemble: {node_name}, {attributes}')
+            # logging.debug(f'Loading node/ensemble: {g}: {node_name}, {attributes}')
             g.add_node(node_name)
             for attr_name, attr in attributes.items():
                 g.nodes[node_name][attr_name] = attr
 
-        networks = data.pop('networks')
+        networks = data['networks']
         s = NetworkSchema()
         for net_name, attributes in networks.items():
             # logging.debug(f'Loading subnet: {g.name}: {net_name}, {attributes}')
             _g, _data = s.load(attributes)
+            # logging.debug(f'Subnet {_g}:{_g.nodes(data=True)}')
+            # for node, attr in _g.nodes(data=True):
+            #     attr['network_name'] = attributes['network_name']
             g.graph['networks'][net_name] = _g
-            # todo this makes all nodes flat, it is wastefull but easier to implement
-            for node, attr in _g.nodes(data=True):
-                attr['network'] = net_name
-                g.add_node(node, **attr)
 
         connections = data.pop('connections')
         for conn_name, attributes in connections.items():
             # logging.debug((g, conn_name))
-            # assert g.nodes.get(attributes['pre']) is not None, attributes['pre']
-            # assert g.nodes.get(attributes['post']) is not None, attributes['post']
-            if g.nodes.get(attributes['post']) is None or g.nodes.get(attributes['pre']) is None:
+            # at this point, all nodes should be known ...
+            if g.get_node_or_subnet_data(attributes['post']) is None:
                 logging.warning(f'Unknown node: {attributes["post"]}')
+            if g.get_node_or_subnet_data(attributes['pre']) is None:
+                logging.warning(f'Unknown node: {attributes["pre"]}')
             g.add_edge(attributes['pre'], attributes['post'])
             for attr_name, attr in attributes.items():
                 g.edges[attributes['pre'], attributes['post']][attr_name] = attr
+            # ... but they are probably nested inside subnets
+            node_pre = g.nodes[attributes['pre']]
+            if not node_pre:
+                node_pre['dummy'] = True
+            node_post = g.nodes[attributes['post']]
+            if not node_post:
+                node_post['dummy'] = True
+        # logging.debug(f'{g}:{g.nodes(data=True)}')
         return g, data

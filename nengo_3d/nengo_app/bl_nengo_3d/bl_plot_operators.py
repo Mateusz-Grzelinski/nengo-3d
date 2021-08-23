@@ -28,10 +28,11 @@ def probeable(self, context):
     yield ':', '--Choose--', ''
     item = None
     obj = context.active_object
-    if share_data.model_graph and obj:
-        if node := share_data.model_graph.nodes.get(obj.name):
+    if share_data.model_graph_view is not None and obj:
+        # todo update to omit dummy nodes
+        if node := share_data.model_graph.get_node_or_subnet_data(obj.name):
             item = node
-        _, _, edge = share_data.model_get_edge_by_name(obj.name)
+        _, _, edge = share_data.model_graph.get_edge_by_name(obj.name)
         if edge:
             item = edge
     else:
@@ -134,12 +135,12 @@ class PlotLineOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         obj = context.active_object
-        if share_data.model_graph and obj:
+        if share_data.model_graph is not None and obj:
             if share_data.model_graph.nodes.get(obj.name):
                 return True
             if share_data.model_graph.get_subnetwork(obj.name):
                 return True
-            _, _, edge = share_data.model_get_edge_by_name(obj.name)
+            _, _, edge = share_data.model_graph.get_edge_by_name(obj.name)
             if edge:
                 return True
         return False

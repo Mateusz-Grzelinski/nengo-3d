@@ -12,6 +12,8 @@ def graph_edges_recalculate_handler(scene: bpy.types.Scene):
     nodes_to_update = []
     g_view = share_data.model_graph_view
     for obj in bpy.context.selected_objects:
+        if not share_data.model_graph_view.nodes.get(obj.name):
+            continue
         data = share_data.model_graph.get_node_or_subnet_data(obj.name)
         # must be element of network
         if not data:

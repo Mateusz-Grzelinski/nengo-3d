@@ -88,7 +88,8 @@ class NengoSettingsPanel(bpy.types.Panel):
         col.prop(nengo_3d, 'show_whole_simulation', text='', invert_checkbox=True)
         col = row.column(align=True)
         col.active = not nengo_3d.show_whole_simulation
-        col.prop(nengo_3d, 'show_n_last_steps', text=f'Show last {nengo_3d.show_n_last_steps} steps')
+        col.prop(nengo_3d, 'show_n_last_steps', text=f'Show n last steps')
+        layout.prop(nengo_3d, 'select_edges')
 
 
 class NengoSubnetworksPanel(bpy.types.Panel):
@@ -110,8 +111,6 @@ class NengoSubnetworksPanel(bpy.types.Panel):
         box.label(text='Expand subnetworks')
         col = box.column(align=True)
         for net in sorted(nengo_3d.expand_subnetworks, key=lambda net: net.name):
-            if net.name == 'model':
-                continue
             row = col.row(align=True)
             net: Nengo3dShowNetwork
             row.prop(net, 'expand', text='')
@@ -163,15 +162,21 @@ class NengoContextPanel(bpy.types.Panel):
         obj_name = obj.name
         if bl_plot_operators.PlotLineOperator.poll(context):
             node = share_data.model_graph.get_node_or_subnet_data(obj_name)
-            e_source, e_target, edge = share_data.model_get_edge_by_name(obj_name)
+            e_source, e_target, edge = share_data.model_graph.get_edge_by_name(obj_name)
             # layout.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d anything',
             #                 icon='FORCE_HARMONIC')
 
             if node:
-                if node['type'] in {'Ensemble', 'Node'}:
-                    op = layout.operator(bl_operators.NengoGraphOperator.bl_idname, text=f'Collapse {node["network"]}')
+                if node['type'] in {'Ensemble', 'Node'} and node['network_name'] != 'model':
+                    op = layout.operator(bl_operators.NengoGraphOperator.bl_idname,
+                                         text=f'Collapse {node["network_name"]}')
                     op.regenerate = True
-                    op.collapse = node['network']
+                    op.collapse = node['network_name']
+                if node['type'] == 'Network' and node.get('parent_network'):
+                    op = layout.operator(bl_operators.NengoGraphOperator.bl_idname,
+                                         text=f'Collapse {node["parent_network"]}')
+                    op.regenerate = True
+                    op.collapse = node['parent_network']
 
                 col = layout.column(align=True)
                 if node['type'] == 'Ensemble':
@@ -305,7 +310,7 @@ class NengoContextPanel(bpy.types.Panel):
                 op.yformat = '{:.2f}'
                 op.line_offset = -0.05
                 op.title = f'{e_source} -> {e_target}: input'
-                source_node = share_data.model_graph.get_node_data_from_subnets(e_source)
+                source_node = share_data.model_graph.get_node_data(e_source)
                 if source_node['type'] == 'Ensemble':
                     for i in range(source_node['neurons']['size_out']):
                         item = op.indices.add()
@@ -348,7 +353,7 @@ class NengoContextPanel(bpy.types.Panel):
                     op.yformat = '{:.4f}'
                     op.title = f'{e_source} -> {e_target}: weights'
                     op.line_offset = -0.05
-                    target_node = share_data.model_graph.get_node_data_from_subnets(
+                    target_node = share_data.model_graph.get_node_data(
                         e_target)  # model_graph.nodes[e_target]
                     # dimension 1 weight [neuron1, neuron2, ...]
                     # dimension 2 weight [neuron1, neuron2, ...], ...
@@ -380,12 +385,12 @@ class NengoInfoPanel(bpy.types.Panel):
         obj: bpy.types.Object = context.active_object
         if not obj:
             return
-        if share_data.model_graph:
+        if share_data.model_graph is not None:
             node = share_data.model_graph.get_node_or_subnet_data(obj.name)
             if node:
-                row.label(text=f'Node')  #: {obj.name}')
+                row.label(text=node['type'])  #: {obj.name}')
                 return
-            e_source, _, _edge = share_data.model_get_edge_by_name(obj.name)
+            e_source, _, _edge = share_data.model_graph.get_edge_by_name(obj.name)
             if e_source:
                 row.label(text=f'Edge')  #: {obj.name}')
                 return
@@ -405,14 +410,12 @@ class NengoInfoPanel(bpy.types.Panel):
             layout.label(text='No active object')
             return
 
-        node = None
-        edge = None
-        if share_data.model_graph:
-            node = share_data.model_graph.get_node_or_subnet_data(obj.name)
-            e_source, e_target, edge = share_data.model_get_edge_by_name(obj.name)
-        else:
+        if share_data.model_graph is None:
             layout.label(text='No active model')
             return
+
+        node = share_data.model_graph.get_node_or_subnet_data(obj.name)
+        e_source, e_target, edge = share_data.model_graph.get_edge_by_name(obj.name)
 
         chart = None
         for source, charts in share_data.charts.items():
@@ -456,18 +459,22 @@ class NengoInfoPanel(bpy.types.Panel):
             if not indices: continue
             row.label(text=str(indices))
 
-    def _draw_expand(self, col, items: dict, tab=0):
-        edge = items
-        for param, value in sorted(edge.items()):
+    def _draw_expand(self, col, item: dict, tab=0):
+        for param, value in sorted(item.items()):
             if param.startswith('_'):
                 continue
             if value is None: continue
             row = col.row()
-            row.separator(factor=tab)
+            if tab:
+                row.separator(factor=tab)
             row = row.split(factor=0.25)
             if isinstance(value, dict):
-                row.label(text=param + ':')
-                self._draw_expand(col.box().column(align=True), value, tab + 1.4)
+                if value:
+                    row.label(text=param + ':')
+                    self._draw_expand(col.box().column(align=True), value, tab + 1.4)
+                else:
+                    row.label(text=param + ':')
+                    row.label(text=str(value))
             else:
                 row.label(text=param)
                 row.label(text=str(value))

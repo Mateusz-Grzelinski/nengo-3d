@@ -1,5 +1,5 @@
 import logging
-from typing import Generator, Optional, Union, AbstractSet, Tuple
+from typing import Generator, Optional, Union, AbstractSet, Tuple, Any
 
 import networkx as nx
 from bl_nengo_3d.bl_properties import Nengo3dProperties, Nengo3dShowNetwork
@@ -31,24 +31,29 @@ class DiGraphModel(nx.DiGraph):
         return []
 
     def get_subnetwork_by_node(self, node_name: str) -> Optional['DiGraphModel']:
-        # todo this is misleading in current flat graph
         value = self.nodes.get(node_name)
-        if value:
+        if value and not value.get('dummy'):
             return self
         else:
-            val = None
             for sub_graph in self.networks.values():
-                val = sub_graph.get_subnetwork_by_node(node_name)
-                if val:
-                    return sub_graph
+                sub = sub_graph.get_subnetwork_by_node(node_name)
+                if sub:
+                    return sub
         return None
 
     def list_subnetworks(self) -> Generator['DiGraphModel', None, None]:
+        yield self
         for net in self.networks.values():
-            yield net
             yield from net.list_subnetworks()
 
-    def get_node_data_from_subnets(self, node_name: str) -> Optional[dict]:
+    def list_nodes(self) -> Generator[tuple[str, dict[str, Any]], None, None]:
+        for subnet in self.list_subnetworks():
+            for node_name, node_data in subnet.nodes(data=True):
+                if node_data.get('dummy'):
+                    continue
+                yield node_name, node_data
+
+    def get_node_data(self, node_name: str) -> Optional[dict]:
         """Return node data from any subnetwork. Return None if node does not exist"""
         sub = self.get_subnetwork_by_node(node_name)
         if sub is None:
@@ -57,20 +62,31 @@ class DiGraphModel(nx.DiGraph):
 
     def get_subnetwork(self, subnet_name: str) -> 'DiGraphModel':
         """Return subnetwork with name subnet_name from graph"""
+        if self.network_name == subnet_name:
+            return self
+
         sub = self.networks.get(subnet_name)
-        if sub:
+        if sub is not None:
             return sub
         else:
-            sub = None
             for net in self.networks.values():
                 sub = net.get_subnetwork(subnet_name)
                 if sub:
                     return sub
 
+    def get_subnetwork_data(self, subnet_name: str) -> dict:
+        sub = self.get_subnetwork(subnet_name)
+        if sub is not None:
+            return sub.graph
+
     def get_subnetwork_path(self, subnet_name: str, _result=None) -> list['DiGraphModel']:
         """Return list of subnetworks that lead to subnet_name"""
         if _result is None:
-            _result = [self]
+            _result = []
+        _result.append(self)
+
+        if self.network_name == subnet_name:
+            return _result
 
         sub = self.networks.get(subnet_name)
         if sub:
@@ -78,62 +94,62 @@ class DiGraphModel(nx.DiGraph):
             return _result
         else:
             for net in self.networks.values():
-                sub = net.get_subnetwork_path(subnet_name, _result=_result)
-                logging.debug(sub)
+                sub = net.get_subnetwork_path(subnet_name, _result=[])
                 if sub:
-                    _result.append(sub)
-                    logging.debug(_result)
+                    _result.extend(sub)
                     return _result
-
-    # def get_node_or_subnet(self, key: str) -> Optional[Union['DiGraphModel', dict]]:
-    #     subnet = self.get_subnetwork(key)
-    #     if subnet:
-    #         return subnet
-    #     node = self.get_node_data_from_subnets(key)
-    #     return node
 
     def get_node_or_subnet_data(self, key: str) -> Optional[dict]:
         subnet = self.get_subnetwork(key)
-        if subnet:
+        # logging.debug((key, subnet))
+        if subnet is not None:
             return subnet.graph
-        node = self.get_node_data_from_subnets(key)
-        return node
+        return self.get_node_data(key)
+
+    def get_edge_by_name(self, name):
+        for _source, _end, e_attr in self.edges.data():
+            if e_attr['name'] == name:
+                return _source, _end, e_attr
+        return None, None, None
 
     def get_graph_view(self, nengo_3d: Nengo3dProperties):
         """Get sub graph ready for drawing"""
         g = DiGraphModel()
 
         for e_src, e_dst, e_data in self.edges(data=True):
-            node_src = self.get_node_data_from_subnets(e_src)
-            # logging.debug(node_src)
-            # net_src = self.get_subnetwork(node_src['network'])
-            subnets = self.get_subnetwork_path(node_src['network'])
+            node_src = self.get_node_or_subnet_data(e_src)
             edge_view_src = e_src
-            for subnet in subnets:
-                # logging.debug((subnet, e_src, node_src['network'],
-                #                nengo_3d.expand_subnetworks[node_src['network']].expand))
+            for subnet in self.get_subnetwork_path(node_src['network_name']):
                 if not nengo_3d.expand_subnetworks[subnet.name].expand:
                     edge_view_src = subnet.name
                     break
 
-            node_dst = self.get_node_data_from_subnets(e_dst)
-            subnets = self.get_subnetwork_path(node_dst['network'])
+            node_dst = self.get_node_data(e_dst)
             edge_view_dst = e_dst
-            for subnet in subnets:
+            for subnet in self.get_subnetwork_path(node_dst['network_name']):
                 if not nengo_3d.expand_subnetworks[subnet.name].expand:
                     edge_view_dst = subnet.name
                     break
 
             if edge_view_src == edge_view_dst:
-                continue
-            g.add_edge(edge_view_src, edge_view_dst, **e_data)
+                g.add_node(edge_view_src, **node_src)
+            else:
+                g.add_edge(edge_view_src, edge_view_dst, **e_data)
 
-        for node_name, node_data in g.nodes(data=True):
-            data_from_subnets = self.get_node_or_subnet_data(node_name)
-            node_data.update(data_from_subnets)
-        # logging.debug(list(g.nodes(data=True)))
-        # logging.debug(list(g.edges(data=True)))
+
+        # for node_name, node_data in self.list_nodes():
+        #     if nengo_3d.expand_subnetworks[node_data['network_name']].expand:
+        #         g.add_node(node_name, **node_data)
+
         return g
+
+    @property
+    def network_name(self):
+        return self.graph.get('network_name')
+
+    @property
+    def name(self):
+        return self.graph.get('network_name')
 
     @property
     def networks(self) -> dict[str, 'DiGraphModel']:
@@ -156,7 +172,6 @@ class DiGraphModel(nx.DiGraph):
 
     def __repr__(self):
         return str(self)
-
 
 # class NodeViewModel(NodeView):
 #     def __init__(self, graph, nengo_3d: Nengo3dProperties = None):

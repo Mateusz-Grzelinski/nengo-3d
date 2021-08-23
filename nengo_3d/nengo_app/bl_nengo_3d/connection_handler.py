@@ -68,11 +68,9 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
         g: DiGraphModel
         share_data.model_graph = g
 
-        item = nengo_3d.expand_subnetworks.add()
-        item.name = 'model'
-        item.network = 'model'
-        item.expand = True
+        # nengo_3d.expand_subnetworks.clear()
         for subnet in g.list_subnetworks():
+            # logger.debug(subnet)
             item = nengo_3d.expand_subnetworks.add()
             item.name = subnet.name
             item.network = subnet.name
@@ -139,7 +137,8 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
 
 def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
                          bounding_box: tuple[float, float, float] = None,
-                         center: tuple[float, float, float] = None):
+                         center: tuple[float, float, float] = None,
+                         select: bool = False):
     # logger.debug((g, nengo_3d, bounding_box))
     pos = calculate_layout(nengo_3d, g)
     dim = 2 if nengo_3d.algorithm_dim == '2D' else 3
@@ -168,8 +167,8 @@ def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
         bpy.context.scene.collection.children.link(collection)
 
     # logger.debug(pos)
-    regenerate_nodes(g, nengo_3d, pos)
-    regenerate_edges(g, nengo_3d, pos)
+    regenerate_nodes(g, nengo_3d, pos, select=select)
+    regenerate_edges(g, nengo_3d, pos, select=select)
     bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d)
 
 
@@ -182,7 +181,8 @@ edges = [(2, 0), (3, 5), (5, 2), (0, 4), (4, 1), (4, 5), (6, 3), (1, 6), ]
 faces = [(0, 4, 5, 2), (1, 6, 3, 5, 4), ]
 
 
-def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[str, tuple[float, float, float]]):
+def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[str, tuple[float, float, float]],
+                     select: bool = False):
     collection = bpy.data.collections.get(nengo_3d.collection)
     material = get_primitive_material('NengoEdgeMaterial')
     for node_source, node_target, edge_data in g.edges.data():  # todo iterate pos, not edges?
@@ -196,6 +196,9 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
         source_pos_vector = Vector(source_pos)
         vector_difference: Vector = target_pos_vector - source_pos_vector
 
+        target_dim = max(g.nodes[node_target]['_blender_object'].dimensions) / 2
+        arrow_height = 1  # 0.5
+
         connection_name = edge_data['name']
         connection_obj = bpy.data.objects.get(connection_name)
         connection_primitive = bpy.data.meshes.get(connection_name)
@@ -203,7 +206,7 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
             for i, v in enumerate(connection_obj.data.vertices):
                 if i in {0, 2}: continue
                 # logger.debug(f'{connection_name}: {verts[i][0]} + {vector_difference.length}')
-                x = verts[i][0] + vector_difference.length - 0.5 - 1
+                x = verts[i][0] + vector_difference.length - arrow_height - target_dim
                 v.co.x = x
         elif connection_obj and not connection_primitive:
             assert False
@@ -215,7 +218,7 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
                 # skip vert 0 and 2 - they are the base of arrow
                 if i in {0, 2}: continue
                 # logger.debug(f'{connection_name}: {verts[i][0]} + {vector_difference.length}')
-                x = verts[i][0] + vector_difference.length - 0.5 - 1
+                x = verts[i][0] + vector_difference.length - arrow_height - target_dim
                 """x = original x position - node size - initial arrow length"""
                 _verts[i] = (x, verts[i][1], verts[i][2])
             connection_primitive.from_pydata(_verts, edges, faces)
@@ -226,7 +229,9 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
             assert False, 'Object was deleted by hand, and mesh is still not deleted'
         else:
             assert False, 'Should never happen'
+        connection_obj.select_set(select)
         connection_obj.hide_viewport = False
+        connection_obj.hide_select = not nengo_3d.select_edges
         connection_obj.location = source_pos
         connection_obj.nengo_colors.color = [0.011030, 0.011030, 0.011030]
         connection_obj.active_material = material
@@ -234,21 +239,24 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
         g.edges[node_source, node_target]['_blender_object'] = connection_obj
 
 
-def regenerate_nodes(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[str, tuple[float, float, float]]):
+def regenerate_nodes(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[str, tuple[float, float, float]],
+                     select: bool = False):
     material = get_primitive_material('NengoNodeMaterial')
     collection = bpy.data.collections.get(nengo_3d.collection)
     for node_name, position in pos.items():
         node_obj = bpy.data.objects.get(node_name)
         node = share_data.model_graph.get_node_or_subnet_data(node_name)
         if not node_obj:
-            # logger.debug((node_name, node, node['type']))
-            node_obj = get_primitive(type_name=node['type']).copy()
-            if node['type'] == 'Network':
+            # logger.debug((node_name, node, node['type'] if node else '?'))
+            node_type = node['type']
+            node_obj = get_primitive(type_name=node_type).copy()
+            if node_type == 'Network':
                 mod = node_obj.modifiers.new('Wireframe', 'WIREFRAME')
                 mod.thickness = 0.05
             node_obj.name = node_name
             collection.objects.link(node_obj)
             node_obj.active_material = material
+            node_obj.select_set(select)
         node_obj.hide_viewport = False
         node_obj.location = position
         node['_blender_object'] = node_obj

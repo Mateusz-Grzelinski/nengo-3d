@@ -76,12 +76,6 @@ class _ShareData:
             return cached_steps
         return None
 
-    def model_get_edge_by_name(self, name):
-        for _source, _end, e_attr in self.model_graph.edges.data():
-            if e_attr['name'] == name:
-                return _source, _end, e_attr
-        return None, None, None
-
     def get_chart(self, source: str, access_path: str) -> list[Axes]:
         return self.charts[source, access_path]
 
