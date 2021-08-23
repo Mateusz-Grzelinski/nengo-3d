@@ -114,6 +114,7 @@ class NengoSubnetworksPanel(bpy.types.Panel):
             row = col.row(align=True)
             net: Nengo3dShowNetwork
             row.prop(net, 'expand', text='')
+            # row.prop(net, 'draw_bounded', text='')
             row.label(text=net.name)
 
 

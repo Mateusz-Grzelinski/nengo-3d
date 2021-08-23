@@ -132,11 +132,13 @@ class NengoGraphOperator(bpy.types.Operator):
             # todo select new nodes when expanding
             # obj = share_data.model_graph_view.nodes[self.expand]['_blender_object']
             # handle_network_model(
-            #     g=share_data.model_graph.get_subnetwork(self.expand),
+            #     g=share_data.model_graph.get_subnetwork(self.expand).get_graph_view(nengo_3d),
             #     nengo_3d=nengo_3d,
-            #     bounding_box=tuple(obj.dimensions),
-            #     center=tuple(obj.location))
+            #     bounding_box=tuple((i/2 for i in obj.dimensions)),
+            #     center=tuple(obj.location),
+            #     select=True)
             nengo_3d.expand_subnetworks[self.expand].expand = True
+            # return {'FINISHED'}
         if self.collapse:
             nengo_3d.expand_subnetworks[self.collapse].expand = False
         if self.regenerate:
@@ -149,13 +151,8 @@ class NengoGraphOperator(bpy.types.Operator):
         # logging.debug(share_data.model_graph_view.nodes(data=False))
         # logging.debug(share_data.model_graph_view.nodes['model.cortical'])
         handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d, select=True)
+        bpy.ops.view3d.view_selected()
 
-        # for item in nengo_3d.expand_subnetworks:
-        #     item: Nengo3dShowNetwork
-        #     obj = bpy.data.objects.get(item.name)
-        #     if obj:
-        #         obj.hide_viewport = item.expand
-        #         obj.hide_render = item.expand
         context.area.tag_redraw()
         return {'FINISHED'}
 

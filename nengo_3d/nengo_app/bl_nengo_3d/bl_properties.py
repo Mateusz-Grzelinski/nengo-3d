@@ -206,6 +206,7 @@ def node_color_single_update(self: 'Nengo3dProperties', context):
 class Nengo3dShowNetwork(bpy.types.PropertyGroup):
     network: bpy.props.StringProperty(name='Network')
     expand: bpy.props.BoolProperty(default=False)
+    # draw_bounded: bpy.props.BoolProperty(default=True)
 
 
 def select_edges_update(self: 'Nengo3dProperties', context):

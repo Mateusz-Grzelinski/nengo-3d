@@ -132,15 +132,10 @@ class DiGraphModel(nx.DiGraph):
                     break
 
             if edge_view_src == edge_view_dst:
+                # if nengo_3d.expand_subnetworks[edge_view_dst].draw_bounded
                 g.add_node(edge_view_src, **node_src)
             else:
-                g.add_edge(edge_view_src, edge_view_dst, **e_data)
-
-
-        # for node_name, node_data in self.list_nodes():
-        #     if nengo_3d.expand_subnetworks[node_data['network_name']].expand:
-        #         g.add_node(node_name, **node_data)
-
+                g.add_edge(edge_view_src, edge_view_dst, **e_data, _hide=True)
         return g
 
     @property
