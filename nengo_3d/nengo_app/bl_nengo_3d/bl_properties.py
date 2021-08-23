@@ -114,7 +114,7 @@ def node_attributes_update(self: 'Nengo3dProperties', context):
     access_path = access_path.split('.')
     share_data.color_gen = colors.cycle_color(nengo_3d.node_initial_color, shift_type=nengo_3d.node_color_shift)
     is_numerical = attr_type in {'int', 'float'}
-    min, max = math.inf, -math.inf
+    minimum, maximum = math.inf, -math.inf
     for node, data in share_data.model_graph_view.nodes(data=True):
         data = share_data.model_graph.get_node_or_subnet_data(node)
         value = get_from_path(data, access_path)
@@ -124,32 +124,35 @@ def node_attributes_update(self: 'Nengo3dProperties', context):
             mapped_color.name = str(value)
             mapped_color.color = next(share_data.color_gen)
         if is_numerical and value is not None:
-            if min > value:
-                min = value
-            elif max < value:
-                max = value
+            if minimum > value:
+                minimum = value
+            elif maximum < value:
+                maximum = value
 
     if is_numerical:
-        if min == max:
-            min -= 1
-            max += 1
-        if min == math.inf:
-            min = 0
-        if max == -math.inf:
-            max = 1
-        assert min not in {math.inf, -math.inf}
-        assert max not in {math.inf, -math.inf}
-        nengo_3d.node_attr_min = min
-        nengo_3d.node_attr_max = max
+        if minimum == maximum:
+            minimum -= 1
+            maximum += 1
+        if minimum == math.inf:
+            minimum = 0
+        if maximum == -math.inf:
+            maximum = 1
+        assert minimum not in {math.inf, -math.inf}
+        assert maximum not in {math.inf, -math.inf}
+        nengo_3d.node_attr_min = minimum
+        nengo_3d.node_attr_max = maximum
 
         for node, data in share_data.model_graph_view.nodes(data=True):
+            data = share_data.model_graph.get_node_or_subnet_data(node)
             value = get_from_path(data, access_path)
             obj = data['_blender_object']
             if value is None:
                 obj.nengo_colors.weight = 0
             else:
                 # must be normalized for color ramp to work
-                obj.nengo_colors.weight = float(value) - min / (max - min)
+                obj.nengo_colors.weight = (float(value) - minimum) / (maximum - minimum)
+                logging.debug((node, value, obj.nengo_colors.weight))
+                assert 1 >= obj.nengo_colors.weight >= 0, (node, obj.nengo_colors.weight)
 
 
 color_map_items = [
@@ -227,6 +230,7 @@ def recalculate_edges(self: 'Nengo3dProperties', context):
 
     for node_source, node_target, edge_data in share_data.model_graph_view.edges.data():
         edge_obj = edge_data['_blender_object']
+        logging.debug((edge_obj.dimensions.x, Arrow.original_len))
         regenerate_edge_mesh(
             connection_primitive=edge_obj.data,
             length=edge_obj.dimensions.x - Arrow.original_len
@@ -236,13 +240,13 @@ def recalculate_edges(self: 'Nengo3dProperties', context):
 class Nengo3dProperties(bpy.types.PropertyGroup):
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
     select_edges: bpy.props.BoolProperty(name='Selectable edges', default=False, update=select_edges_update)
-    arrow_length: bpy.props.FloatProperty(name='Arrow length', default=0.5, precision=2, step=1,
+    arrow_length: bpy.props.FloatProperty(name='Arrow length', default=0.5, min=0, max=1, precision=2, step=1,
                                           update=recalculate_edges)
     arrow_back_length: bpy.props.FloatProperty(name='Arrow back length', default=0, precision=2, step=1,
                                                update=recalculate_edges)
-    arrow_radius: bpy.props.FloatProperty(name='Arrow Radius', default=1, min=0.0, precision=2, step=1,
+    arrow_radius: bpy.props.FloatProperty(name='Arrow radius', default=0.6, min=0.0, precision=2, step=1,
                                           update=recalculate_edges)
-    arrow_width: bpy.props.FloatProperty(name='Arrow width', default=1, min=0.0, precision=2, step=1,
+    arrow_width: bpy.props.FloatProperty(name='Arrow width', default=0.5, min=0.0, precision=2, step=1,
                                          update=recalculate_edges)
     expand_subnetworks: bpy.props.CollectionProperty(type=Nengo3dShowNetwork)
     show_n_last_steps: bpy.props.IntProperty(name='Show last n steps', default=500, min=0, soft_min=0)
@@ -300,7 +304,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
     node_color_map: bpy.props.EnumProperty(items=color_map_items, update=color_map_node_update)
     node_mapped_colors: bpy.props.CollectionProperty(type=Nengo3dMappedColor)
     node_initial_color: bpy.props.FloatVectorProperty(name='Initial color', subtype='COLOR',
-                                                      default=[0.099202, 1.000000, 0.217183])
+                                                      default=[0.021821, 1.000000, 0.149937])
     node_color_shift: bpy.props.EnumProperty(name='Shift type', items=[
         ('H', 'Shift hue', ''),
         ('S', 'Shift saturation', ''),

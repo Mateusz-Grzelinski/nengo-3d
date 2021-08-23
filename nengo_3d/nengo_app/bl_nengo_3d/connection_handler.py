@@ -175,7 +175,6 @@ def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
 
 class Arrow:
     """Flat arrow encoded as geometry"""
-
     @classmethod
     @property
     def arrow_radius(cls) -> float:
