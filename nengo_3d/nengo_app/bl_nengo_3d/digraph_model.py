@@ -153,7 +153,7 @@ class DiGraphModel(nx.DiGraph):
 
     @property
     def networks(self) -> dict[str, 'DiGraphModel']:
-        return self.graph['networks']
+        return self.graph['_networks']
 
     @property
     def type(self) -> str:

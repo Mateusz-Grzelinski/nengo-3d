@@ -24,7 +24,7 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
     def make_user(self, data: dict, **kwargs) -> 'bl_nengo_3d.digraph_model.DiGraphModel':
         from bl_nengo_3d.digraph_model import DiGraphModel
         g = DiGraphModel(
-            name=data['network_name'], network_name=data['network_name'], networks={}, type=data['type'],
+            name=data['network_name'], network_name=data['network_name'], _networks={}, type=data['type'],
             class_type=data['class_type'], n_neurons=data['n_neurons'], parent_network=str(data['parent_network'])
         )
 
@@ -43,7 +43,7 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
             # logging.debug(f'Subnet {_g}:{_g.nodes(data=True)}')
             # for node, attr in _g.nodes(data=True):
             #     attr['network_name'] = attributes['network_name']
-            g.graph['networks'][net_name] = _g
+            g.graph['_networks'][net_name] = _g
 
         connections = data.pop('connections')
         for conn_name, attributes in connections.items():

@@ -121,13 +121,13 @@ class NengoSubnetsPanel(bpy.types.Panel):
         row.separator(factor=separator)
         row.label(text=f'number of edges: {len(g.edges)}')
         for param, value in sorted(g.graph.items()):
-            if param in {'networks', 'name'}:
+            if param in {'_networks', 'name'}:
                 continue
             row = layout.row()
             row.separator(factor=separator)
             row.label(text=f'{str(param)}: {str(value)}')
 
-        subnets = g.graph.get('networks') or {}
+        subnets = g.networks or {}
         for g_name, g in sorted(subnets.items()):
             row = layout.row()
             row.separator(factor=separator)

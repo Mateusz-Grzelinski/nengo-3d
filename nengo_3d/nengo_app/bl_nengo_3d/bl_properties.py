@@ -235,7 +235,7 @@ def recalculate_edges(self: 'Nengo3dProperties', context):
 
 class Nengo3dProperties(bpy.types.PropertyGroup):
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
-    select_edges: bpy.props.BoolProperty(name='Select edges', default=False, update=select_edges_update)
+    select_edges: bpy.props.BoolProperty(name='Selectable edges', default=False, update=select_edges_update)
     arrow_length: bpy.props.FloatProperty(name='Arrow length', default=0.5, precision=2, step=1,
                                           update=recalculate_edges)
     arrow_back_length: bpy.props.FloatProperty(name='Arrow back length', default=0, precision=2, step=1,
