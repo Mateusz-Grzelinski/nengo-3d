@@ -79,7 +79,7 @@ class NengoSettingsPanel(bpy.types.Panel):
         op.action = 'continuous'
         col.prop(nengo_3d, 'is_realtime')
         # col.prop(context.scene.render, 'fps')
-        col.label(text=f'Switching frame took: {frame_change_handler.execution_times.average():.2} sec')
+        col.label(text=f'Switching frame took: {frame_change_handler.execution_times.average():.2f} sec')
         row = col.row()
 
         nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
@@ -429,7 +429,8 @@ class NengoInfoPanel(bpy.types.Panel):
             col = layout.box().column(align=True)
             self._draw_expand(col, node)
         elif edge:
-            layout.label(text=f'Edge: {obj.name}, {e_source} -> {e_target}')
+            layout.label(text=f'Edge: {obj.name}')
+            layout.label(text=f'{e_source} -> {e_target}')
             col = layout.box().column(align=True)
             self._draw_expand(col, edge)
         else:
@@ -529,7 +530,6 @@ class NengoNodeColorsPanel(bpy.types.Panel):
         layout.active = bool(share_data.model_graph) and context.area.type == 'VIEW_3D' and \
                         context.space_data.shading.type in {'MATERIAL', 'RENDERED'}
         layout.prop(nengo_3d, 'node_color_source', expand=True)
-        layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
 
         if nengo_3d.node_color_source == 'SINGLE':
             nengo_3d.node_color_map = 'ENUM'
@@ -548,7 +548,8 @@ class NengoNodeColorsPanel(bpy.types.Panel):
         layout.prop(nengo_3d, 'node_attribute', text='')
         if nengo_3d.node_attribute == ':':
             return
-        elif nengo_3d.node_attribute.endswith(':str'):
+        layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
+        if nengo_3d.node_attribute.endswith(':str'):
             nengo_3d.node_color_map = 'ENUM'
             draw_enum(layout, nengo_3d)
         elif nengo_3d.node_attribute.endswith(':int'):
@@ -568,6 +569,25 @@ class NengoNodeColorsPanel(bpy.types.Panel):
             logging.error(f'Unknown type: "{nengo_3d.node_attribute}"')
 
 
+class NengoStylePanel(bpy.types.Panel):
+    bl_label = 'Arrow Style'
+    bl_idname = 'NENGO_PT_style'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Nengo 3d'
+    bl_parent_id = 'NENGO_PT_settings'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context: bpy.types.Context):
+        layout = self.layout
+        nengo_3d = context.window_manager.nengo_3d
+        col = layout.column(align=True)
+        col.prop(nengo_3d, 'arrow_length')
+        col.prop(nengo_3d, 'arrow_back_length')
+        layout.prop(nengo_3d, 'arrow_radius')
+        layout.prop(nengo_3d, 'arrow_width')
+
+
 classes = (
     NengoSettingsPanel,
     NengoContextPanel,
@@ -576,6 +596,7 @@ classes = (
     NengoColorsPanel,
     NengoNodeColorsPanel,
     NengoSubnetworksPanel,
+    NengoStylePanel,
 )
 
 register, unregister = bpy.utils.register_classes_factory(classes)

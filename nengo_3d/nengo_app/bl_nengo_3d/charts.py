@@ -112,27 +112,6 @@ class Line:
     def set_label(self, text):
         self.label = text
 
-    def make_line(self, X: list, Y: list, width: float = 0.01, depth: float = 0.04):
-        vers_pos = []
-        faces = []
-        for i, (x, y) in enumerate(zip(X, Y)):
-            vers_pos.append((x, y, 0.0))
-            # rotate vector 90 degrees to make line uniformly thick
-            # todo problems with edge cases
-            tangent_x = -(y - Y[i - 1])
-            tangent_y = x - X[i - 1]
-            # logger.debug(f'{x}: {(y - Y[i - 1], x - X[i - 1])}, {(tangent_x, tangent_y)}')
-            tangent_len = math.sqrt(tangent_x * tangent_x + tangent_y * tangent_y)
-            vers_pos.append((x + (tangent_x / tangent_len) * width,
-                             y + tangent_y / tangent_len * width,
-                             0.0))
-            if i >= 2:
-                i = 2 * i
-                faces.append((i - 4, i - 3, i - 1, i - 2))
-                assert len(vers_pos) == i + 2, i
-        faces.append((i - 2, i - 1, i - 1, i))  # last face
-        return vers_pos, [(0, 1)], faces
-
     def set_data(self, X, Y, Z=None):
         self.original_data_x = list(X)
         self.original_data_y = list(Y)
@@ -410,7 +389,7 @@ class Axes:
 
             if self.zlabel_text:
                 if not self._zlabel:
-                    self._zlabel = self._create_text('zlabel', solidify=0.01, parent=self._chart)
+                    self._zlabel = self._create_text('zlabel', parent=self._chart)
                 zlabel = self._zlabel.data
                 zlabel.body = self.zlabel_text
                 zlabel.size = 0.1
@@ -431,7 +410,7 @@ class Axes:
 
         if self.xlabel_text:
             if not self._xlabel:
-                self._xlabel = self._create_text('xlabel', solidify=0.01, parent=self._chart)
+                self._xlabel = self._create_text('xlabel', parent=self._chart)
             xlabel = self._xlabel.data
             xlabel.body = self.xlabel_text
             xlabel.size = 0.1
@@ -442,7 +421,7 @@ class Axes:
 
         if self.ylabel_text:
             if not self._ylabel:
-                self._ylabel = self._create_text('ylabel', solidify=0.01, parent=self._chart)
+                self._ylabel = self._create_text('ylabel', parent=self._chart)
             ylabel = self._ylabel.data
             ylabel.body = self.ylabel_text
             ylabel.size = 0.1
@@ -454,7 +433,7 @@ class Axes:
 
         if self.title_text:
             if not self._title:
-                self._title = self._create_text('Title', solidify=0.01, parent=self._chart)
+                self._title = self._create_text('Title', parent=self._chart)
             title = self._title.data
             title.body = self.title_text
             title.size = 0.15
@@ -484,7 +463,7 @@ class Axes:
 
         while len(self._tick_text_x) < len(ticks):
             self._tick_text_x.append(self._create_text(f'Tick x {len(self._tick_text_x)}',
-                                                       solidify=0.01, parent=self._chart))
+                                                       parent=self._chart))
         while len(self._tick_text_x) > len(ticks):
             obj = self._tick_text_x.pop()
             bpy.ops.object.delete({'selected_objects': [obj]})
@@ -548,7 +527,7 @@ class Axes:
 
         while len(self._tick_text_z) < len(ticks):
             self._tick_text_z.append(self._create_text(f'Tick z {len(self._tick_text_z)}',
-                                                       solidify=0.01, parent=self._chart))
+                                                       parent=self._chart))
         while len(self._tick_text_z) > len(ticks):
             obj = self._tick_text_z.pop()
             bpy.ops.object.delete({'selected_objects': [obj]})

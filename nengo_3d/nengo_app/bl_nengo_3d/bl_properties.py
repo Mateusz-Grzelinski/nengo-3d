@@ -8,16 +8,24 @@ from bl_nengo_3d.charts import locators
 from bl_nengo_3d.utils import get_from_path
 
 
-class Nengo3dChartProperties(bpy.types.PropertyGroup):
-    # parent: bpy.props.StringProperty(name='')
-    access_path: bpy.props.StringProperty(name='')
-    # auto_range: bpy.props.BoolProperty(default=True)
-    x_min: bpy.props.FloatProperty()
-    x_max: bpy.props.FloatProperty()
-    y_min: bpy.props.FloatProperty()
-    y_max: bpy.props.FloatProperty()
-    z_min: bpy.props.FloatProperty()
-    z_max: bpy.props.FloatProperty()
+class LinesProperties(bpy.types.PropertyGroup):
+    axes_obj: bpy.props.StringProperty()
+    source: bpy.props.StringProperty()
+    update: bpy.props.BoolProperty()
+    hide_viewport: bpy.props.BoolProperty()
+    label: bpy.props.StringProperty()
+    line_color: bpy.props.FloatVectorProperty(name='Color', subtype='COLOR', default=[0.099202, 1.000000, 0.217183])
+
+
+class AxesProperties(bpy.types.PropertyGroup):
+    treat_as_node: bpy.props.BoolProperty(description='Treat axes as part of graph')
+    auto_range: bpy.props.BoolProperty(default=True)
+    x_min: bpy.props.FloatProperty(default=0)
+    x_max: bpy.props.FloatProperty(default=1)
+    y_min: bpy.props.FloatProperty(default=0)
+    y_max: bpy.props.FloatProperty(default=1)
+    z_min: bpy.props.FloatProperty(default=0)
+    z_max: bpy.props.FloatProperty(default=1)
 
     title: bpy.props.StringProperty(name='Title', default='')
     numticks: bpy.props.IntProperty(default=8)
@@ -30,6 +38,10 @@ class Nengo3dChartProperties(bpy.types.PropertyGroup):
     xformat: bpy.props.StringProperty(default='{:.2f}')
     yformat: bpy.props.StringProperty(default='{:.2f}')
     zformat: bpy.props.StringProperty(default='{:.2f}')
+
+    line_initial_color: bpy.props.FloatVectorProperty(name='Color', subtype='COLOR', default=[0.099, 1.0, 0.217183])
+    select_lines: bpy.props.BoolProperty()
+    lines: bpy.props.CollectionProperty(type=LinesProperties)
 
     # lines: bpy.props.CollectionProperty(type=Nengo3dLineProperties)
 
@@ -48,16 +60,22 @@ def recurse_dict(prefix: str, value: dict):
 
 
 _node_anti_crash = None
+_node_attributes_cache = None
 
 
 def node_attributes(self, context):
     from bl_nengo_3d.share_data import share_data
-    global _node_anti_crash
-    g = share_data.model_graph
+    global _node_anti_crash, _node_attributes_cache
+    g = share_data.model_graph_view
+    if _node_attributes_cache == g:
+        return _node_anti_crash
+    else:
+        _node_attributes_cache = g
     if not g:
         return [(':', '--no data--', '')]
     used = {}
-    for _node, data in g.nodes(data=True):
+    for node, data in g.nodes(data=True):
+        data = share_data.model_graph.get_node_or_subnet_data(node)
         for k, v in data.items():
             if k.startswith('_'):
                 continue
@@ -89,7 +107,7 @@ def node_attributes(self, context):
 def node_attributes_update(self: 'Nengo3dProperties', context):
     from bl_nengo_3d.share_data import share_data
     nengo_3d: Nengo3dProperties = self
-    if nengo_3d.node_attribute == ':':
+    if nengo_3d.node_attribute == ':' or not nengo_3d.node_attribute:
         return
     access_path, attr_type = nengo_3d.node_attribute.split(':')
     nengo_3d.node_mapped_colors.clear()
@@ -98,6 +116,7 @@ def node_attributes_update(self: 'Nengo3dProperties', context):
     is_numerical = attr_type in {'int', 'float'}
     min, max = math.inf, -math.inf
     for node, data in share_data.model_graph_view.nodes(data=True):
+        data = share_data.model_graph.get_node_or_subnet_data(node)
         value = get_from_path(data, access_path)
         mapped_color = nengo_3d.node_mapped_colors.get(str(value))
         if not mapped_color:
@@ -114,6 +133,10 @@ def node_attributes_update(self: 'Nengo3dProperties', context):
         if min == max:
             min -= 1
             max += 1
+        if min == math.inf:
+            min = 0
+        if max == -math.inf:
+            max = 1
         assert min not in {math.inf, -math.inf}
         assert max not in {math.inf, -math.inf}
         nengo_3d.node_attr_min = min
@@ -148,12 +171,13 @@ def color_map_node_update(self: 'Nengo3dProperties', context):
         logging.error(f'Unknown value: {self.node_color_map}')
 
 
-def color_update(self, context):
+def color_update(self: 'Nengo3dMappedColor', context):
     from bl_nengo_3d.share_data import share_data
     nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
     access_path, attr_type = nengo_3d.node_attribute.split(':')
     access_path = access_path.split('.')
     for node, data in share_data.model_graph_view.nodes(data=True):
+        data = share_data.model_graph.get_node_or_subnet_data(node)
         value = get_from_path(data, access_path)
         mapped_color = nengo_3d.node_mapped_colors.get(str(value))
         if not mapped_color:
@@ -195,9 +219,31 @@ def select_edges_update(self: 'Nengo3dProperties', context):
         obj.hide_select = not self.select_edges
 
 
+def recalculate_edges(self: 'Nengo3dProperties', context):
+    from bl_nengo_3d.share_data import share_data
+    if not share_data.model_graph_view:
+        return
+    from bl_nengo_3d.connection_handler import Arrow, regenerate_edge_mesh
+
+    for node_source, node_target, edge_data in share_data.model_graph_view.edges.data():
+        edge_obj = edge_data['_blender_object']
+        regenerate_edge_mesh(
+            connection_primitive=edge_obj.data,
+            length=edge_obj.dimensions.x - Arrow.original_len
+        )
+
+
 class Nengo3dProperties(bpy.types.PropertyGroup):
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
     select_edges: bpy.props.BoolProperty(name='Select edges', default=False, update=select_edges_update)
+    arrow_length: bpy.props.FloatProperty(name='Arrow length', default=0.5, precision=2, step=1,
+                                          update=recalculate_edges)
+    arrow_back_length: bpy.props.FloatProperty(name='Arrow back length', default=0, precision=2, step=1,
+                                               update=recalculate_edges)
+    arrow_radius: bpy.props.FloatProperty(name='Arrow Radius', default=1, min=0.0, precision=2, step=1,
+                                          update=recalculate_edges)
+    arrow_width: bpy.props.FloatProperty(name='Arrow width', default=1, min=0.0, precision=2, step=1,
+                                         update=recalculate_edges)
     expand_subnetworks: bpy.props.CollectionProperty(type=Nengo3dShowNetwork)
     show_n_last_steps: bpy.props.IntProperty(name='Show last n steps', default=500, min=0, soft_min=0)
     sample_every: bpy.props.IntProperty(name='Sample every', description='Collect data from every n-th step',
@@ -274,10 +320,11 @@ class Nengo3dColors(bpy.types.PropertyGroup):
 
 
 classes = (
+    LinesProperties,
+    AxesProperties,
     Nengo3dMappedColor,
     Nengo3dShowNetwork,
     Nengo3dProperties,
-    Nengo3dChartProperties,
     Nengo3dColors,
 )
 
@@ -287,12 +334,12 @@ register_factory, unregister_factory = bpy.utils.register_classes_factory(classe
 def register():
     register_factory()
     bpy.types.WindowManager.nengo_3d = bpy.props.PointerProperty(type=Nengo3dProperties)
-    bpy.types.Object.charts = bpy.props.CollectionProperty(type=Nengo3dChartProperties)
+    bpy.types.Object.nengo_axes = AxesProperties
     bpy.types.Object.nengo_colors = bpy.props.PointerProperty(type=Nengo3dColors)
 
 
 def unregister():
     del bpy.types.WindowManager.nengo_3d
-    del bpy.types.Object.charts
+    del bpy.types.Object.nengo_axes
     del bpy.types.Object.nengo_colors
     unregister_factory()

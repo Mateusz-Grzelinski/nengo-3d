@@ -8,7 +8,7 @@ import bpy
 
 import bl_nengo_3d.schemas as schemas
 from bl_nengo_3d.bl_depsgraph_handler import graph_edges_recalculate_handler
-from bl_nengo_3d.frame_change_handler import frame_change_handler
+from bl_nengo_3d.frame_change_handler import frame_change_handler, execution_times
 from bl_nengo_3d.bl_properties import Nengo3dProperties, node_color_single_update, \
     node_attributes_update, Nengo3dShowNetwork
 from bl_nengo_3d.charts import Axes
