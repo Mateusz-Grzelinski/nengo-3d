@@ -211,6 +211,8 @@ class Nengo3dShowNetwork(bpy.types.PropertyGroup):
 
 def select_edges_update(self: 'Nengo3dProperties', context):
     from bl_nengo_3d.share_data import share_data
+    if share_data.model_graph is None:
+        return
     for e_s, e_dst, e_data in share_data.model_graph_view.edges(data=True):
         obj = e_data.get('_blender_object')
         if not obj:
@@ -225,7 +227,7 @@ def select_edges_update(self: 'Nengo3dProperties', context):
 
 def recalculate_edges(self: 'Nengo3dProperties', context):
     from bl_nengo_3d.share_data import share_data
-    if not share_data.model_graph_view:
+    if share_data.model_graph_view is None:
         return
     from bl_nengo_3d.connection_handler import regenerate_edges
 
@@ -236,8 +238,22 @@ def recalculate_edges(self: 'Nengo3dProperties', context):
     return
 
 
+def draw_edges_update(self: 'Nengo3dProperties', context):
+    from bl_nengo_3d.share_data import share_data
+    if share_data.model_graph_view is None:
+        return
+    from bl_nengo_3d.connection_handler import regenerate_labels
+
+    regenerate_labels(
+        g=share_data.model_graph_view,
+        nengo_3d=context.window_manager.nengo_3d
+    )
+    return
+
+
 class Nengo3dProperties(bpy.types.PropertyGroup):
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
+    draw_labels: bpy.props.BoolProperty(name='Draw labels', default=False, update=draw_edges_update)
     select_edges: bpy.props.BoolProperty(name='Selectable edges', default=False, update=select_edges_update)
     arrow_length: bpy.props.FloatProperty(name='Arrow length', default=0.5, min=0, max=1, precision=2, step=1,
                                           update=recalculate_edges)

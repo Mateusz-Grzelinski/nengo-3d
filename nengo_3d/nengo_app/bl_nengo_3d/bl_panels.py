@@ -90,6 +90,7 @@ class NengoSettingsPanel(bpy.types.Panel):
         col.active = not nengo_3d.show_whole_simulation
         col.prop(nengo_3d, 'show_n_last_steps', text=f'Show n last steps')
         layout.prop(nengo_3d, 'select_edges')
+        layout.prop(nengo_3d, 'draw_labels')
 
 
 class NengoSubnetworksPanel(bpy.types.Panel):

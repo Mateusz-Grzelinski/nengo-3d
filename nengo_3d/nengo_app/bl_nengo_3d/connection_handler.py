@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import socket
 import struct
@@ -136,6 +137,54 @@ def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
         logger.error(f'Unknown schema: {incoming_answer["schema"]}')
 
 
+def _get_text_label_material() -> bpy.types.Material:
+    mat_name = 'TextLabelMaterial'
+    material = bpy.data.materials.get(mat_name)
+    if not material:
+        material = bpy.data.materials.new(mat_name)
+        material.use_nodes = True
+        bsdf = material.node_tree.nodes['Principled BSDF']
+        bsdf.inputs[0].default_value = [0.021090, 0.021090, 0.021090, 1.0]
+    return material
+
+
+def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
+    material = _get_text_label_material()
+    col_name = nengo_3d.collection + ' Labels'
+    nengo_collection = bpy.data.collections.get(nengo_3d.collection)
+    collection = bpy.data.collections.get(col_name)
+    if not collection:
+        collection = bpy.data.collections.new(col_name)
+        nengo_collection.children.link(collection)
+        # collection.hide_viewport = True
+        # collection.hide_render = True
+    for item in collection.objects:
+        item.hide_viewport = True
+        item.hide_render = True
+    if not nengo_3d.draw_labels:
+        return
+    for node, node_data in g.nodes(data=True):
+        obj = node_data['_blender_object']
+        name = node + '_label'
+        label_obj = bpy.data.objects.get(name)
+        if not label_obj:
+            mesh = bpy.data.curves.new(name, type='FONT')
+            label_obj = bpy.data.objects.new(name=name, object_data=mesh)
+            collection.objects.link(label_obj)
+            label_obj.hide_select = True
+            label_obj.active_material = material
+            label_obj.data.align_x = 'CENTER'
+            label_obj.rotation_euler.x += math.pi / 2
+            label_obj.data.size = 0.3
+            # obj.nengo_colors.color = self.text_color
+            label_obj.data.body = obj.name
+            label_obj.parent = obj
+        label_obj.hide_viewport = False
+        label_obj.hide_render = False
+        # label_obj.location = obj.location
+        label_obj.location.z = obj.dimensions.z / 2
+
+
 def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
                          bounding_box: tuple[float, float, float] = None,
                          center: tuple[float, float, float] = None,
@@ -170,6 +219,7 @@ def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
     # logger.debug(pos)
     regenerate_nodes(g, nengo_3d, pos, select=select)
     regenerate_edges(g, nengo_3d, pos, select=select)
+    regenerate_labels(g, nengo_3d)
     bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d)
 
 
@@ -271,6 +321,7 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
             assert False, 'Should never happen'
         connection_obj.select_set(select)
         connection_obj.hide_viewport = False
+        connection_obj.hide_render = False
         connection_obj.hide_select = not nengo_3d.select_edges
         connection_obj.location = source_pos
         connection_obj.nengo_colors.color = [0.011030, 0.011030, 0.011030]
@@ -311,6 +362,7 @@ def regenerate_nodes(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
             node_obj.active_material = material
             node_obj.select_set(select)
         node_obj.hide_viewport = False
+        node_obj.hide_render = False
         node_obj.location = position
         node['_blender_object'] = node_obj
         g.nodes[node_name]['_blender_object'] = node_obj

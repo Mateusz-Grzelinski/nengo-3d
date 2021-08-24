@@ -144,8 +144,10 @@ class NengoGraphOperator(bpy.types.Operator):
         if self.regenerate:
             for node, node_data in share_data.model_graph_view.nodes(data=True):
                 node_data['_blender_object'].hide_viewport = True
+                node_data['_blender_object'].hide_render = True
             for e_s, e_v, e_data in share_data.model_graph_view.edges(data=True):
                 e_data['_blender_object'].hide_viewport = True
+                e_data['_blender_object'].hide_render = True
             share_data.model_graph_view = share_data.model_graph.get_graph_view(nengo_3d)
 
         # logging.debug(share_data.model_graph_view.nodes(data=False))
