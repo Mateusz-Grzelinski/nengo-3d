@@ -462,8 +462,7 @@ class Axes:
         bm.free()
 
         while len(self._tick_text_x) < len(ticks):
-            self._tick_text_x.append(self._create_text(f'Tick x {len(self._tick_text_x)}',
-                                                       parent=self._chart))
+            self._tick_text_x.append(self._create_text(f'Tick x {len(self._tick_text_x)}', parent=self._chart))
         while len(self._tick_text_x) > len(ticks):
             obj = self._tick_text_x.pop()
             bpy.ops.object.delete({'selected_objects': [obj]})
@@ -494,8 +493,7 @@ class Axes:
         bm.free()
 
         while len(self._tick_text_y) < len(ticks):
-            self._tick_text_y.append(self._create_text(f'Tick y {len(self._tick_text_y)}',
-                                                       solidify=0.01, parent=self._chart))
+            self._tick_text_y.append(self._create_text(f'Tick y {len(self._tick_text_y)}', parent=self._chart))
         while len(self._tick_text_y) > len(ticks):
             obj = self._tick_text_y.pop()
             bpy.ops.object.delete({'selected_objects': [obj]})

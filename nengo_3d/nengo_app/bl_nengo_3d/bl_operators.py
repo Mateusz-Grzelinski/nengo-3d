@@ -180,7 +180,11 @@ class NengoSimulateOperator(bpy.types.Operator):
         return share_data.client is not None
 
     def execute(self, context):
+        nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+        if nengo_3d.requires_reset and self.action != 'reset':
+            return {'CANCELLED'}
         if self.action == 'reset':
+            nengo_3d.requires_reset = False
             context.scene.frame_current = 0
             share_data.step_when_ready = 0
             share_data.requested_steps_until = -1
@@ -188,14 +192,15 @@ class NengoSimulateOperator(bpy.types.Operator):
             share_data.resume_playback_on_steps = False
             # share_data.simulation_cache_step.clear()
             share_data.simulation_cache.clear()
-            mess = message.dumps(
-                {'schema': schemas.Simulation.__name__,
-                 'data': simulation_scheme.dump({'action': 'reset', 'dt': context.window_manager.nengo_3d.dt})
-                 })
-            share_data.sendall(mess.encode('utf-8'))
+            self.simulation_step(context.scene, action='reset', step_num=nengo_3d.step_n,
+                                 sample_every=nengo_3d.sample_every,
+                                 dt=nengo_3d.dt, prefetch=0)
             return {'FINISHED'}
         elif self.action == 'step':
-            self.simulation_step(context, context.window_manager.nengo_3d.step_n, prefetch=0)
+            # context.window_manager.nengo_3d.step_n
+            self.simulation_step(context.scene, action='step', step_num=nengo_3d.step_n,
+                                 sample_every=nengo_3d.sample_every,
+                                 dt=nengo_3d.dt, prefetch=0)
             return {'FINISHED'}
         elif self.action == 'continuous':
             wm = context.window_manager
@@ -212,15 +217,16 @@ class NengoSimulateOperator(bpy.types.Operator):
         return {'CANCELLED'}
 
     @staticmethod
-    def simulation_step(context, step_num: int, prefetch: int = 0):
+    def simulation_step(scene, action: str, step_num: int, sample_every: int, dt: float, prefetch: int = 0):
         # cached_steps = share_data.simulation_cache_steps()
         cached_steps = share_data.current_step
-        if cached_steps and context.scene.frame_current < cached_steps:
-            context.scene.frame_current += step_num
+        if cached_steps and scene.frame_current < cached_steps:
+            scene.frame_current += step_num
         else:
-            data = {'action': 'step',
-                    'until': context.scene.frame_current + step_num + prefetch,
-                    'dt': context.window_manager.nengo_3d.dt}
+            data = {'action': action,
+                    'until': scene.frame_current + step_num + prefetch,
+                    'dt': dt,
+                    'sample_every': sample_every}
             mess = message.dumps({'schema': schemas.Simulation.__name__,
                                   'data': simulation_scheme.dump(data)
                                   })
@@ -233,13 +239,22 @@ class NengoSimulateOperator(bpy.types.Operator):
             return {'CANCELLED'}
 
         if event.type == 'TIMER':
-            speed = context.window_manager.nengo_3d.speed
+            nengo_3d = context.window_manager.nengo_3d
+            speed = nengo_3d.speed
             if share_data.current_step >= context.scene.frame_current:
                 frame_change_time = execution_times.average()
                 dropped_frames = frame_change_time * 24
-                self.simulation_step(context, step_num=int((1 + dropped_frames) * speed), prefetch=24 * speed)
+                self.simulation_step(context.scene,
+                                     action='step', sample_every=nengo_3d.sample_every,
+                                     dt=nengo_3d.dt,
+                                     step_num=int((1 + dropped_frames) * speed),
+                                     prefetch=min(24 * speed, 24))
             elif share_data.requested_steps_until <= context.scene.frame_current:
-                self.simulation_step(context, step_num=0, prefetch=24 * speed)
+                self.simulation_step(context.scene,
+                                     action='step', sample_every=nengo_3d.sample_every,
+                                     dt=nengo_3d.dt,
+                                     step_num=0,
+                                     prefetch=min(24 * speed, 24))
 
         return {'PASS_THROUGH'}
 

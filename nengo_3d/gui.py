@@ -131,7 +131,7 @@ class GuiConnection(Connection):
             attr = access_path[-1]
             if to_probe and attr in to_probe.probeable:
                 with self.model:
-                    probe = nengo.Probe(to_probe, attr=attr, sample_every=sample_every*dt)  # todo check data shape
+                    probe = nengo.Probe(to_probe, attr=attr, sample_every=sample_every * dt)  # todo check data shape
                 rp = RequestedProbes(probe, observe['access_path'])
                 logger.debug(f'Added to observation: {rp}')
                 self.requested_probes[obj].append(rp)
@@ -157,11 +157,17 @@ class GuiConnection(Connection):
                 return
             for _ in steps:
                 self.sim.step()  # this can be done async
+            assert sim['sample_every'] > 0, sim
+            if sim['sample_every'] != 1:
+                recorded_steps = steps[::sim['sample_every']]
+            else:
+                recorded_steps = steps
             data_scheme = schemas.SimulationSteps(
                 many=True,
                 context={'sim': self.sim,
                          'name_finder': self.name_finder,
-                         'steps': steps,
+                         'recorded_steps': recorded_steps,
+                         # 'sample_every': self.sim.,
                          'requested_probes': self.requested_probes,
                          })
             answer = message.dumps({'schema': schemas.SimulationSteps.__name__,

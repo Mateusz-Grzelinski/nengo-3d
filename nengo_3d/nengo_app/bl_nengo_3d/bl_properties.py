@@ -251,6 +251,17 @@ def draw_edges_update(self: 'Nengo3dProperties', context):
     return
 
 
+def sample_every_update(self: 'Nengo3dProperties', context):
+    from bl_nengo_3d.share_data import share_data
+    if share_data.model_graph is not None:
+        self.requires_reset = True
+
+
+def requires_reset_update(self: 'Nengo3dProperties', context):
+    if self.requires_reset is True:
+        context.scene.is_simulation_playing = False
+
+
 class Nengo3dProperties(bpy.types.PropertyGroup):
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
     draw_labels: bpy.props.BoolProperty(name='Draw labels', default=False, update=draw_edges_update)
@@ -266,8 +277,9 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
     expand_subnetworks: bpy.props.CollectionProperty(type=Nengo3dShowNetwork)
     show_n_last_steps: bpy.props.IntProperty(name='Show last n steps', default=500, min=0, soft_min=0)
     sample_every: bpy.props.IntProperty(name='Sample every', description='Collect data from every n-th step',
-                                        default=1, min=1)
-    dt: bpy.props.FloatProperty(default=0.001, min=0.0, precision=3, step=1)
+                                        default=1, min=1, update=sample_every_update)
+    requires_reset: bpy.props.BoolProperty(update=requires_reset_update)
+    dt: bpy.props.FloatProperty(default=0.001, min=0.0, precision=3, step=1, update=sample_every_update)
     step_n: bpy.props.IntProperty(name='Step N', default=1, min=1)
     speed: bpy.props.FloatProperty(default=1.0, min=0.01, description='Default simulation rate is 24 steps per second')
     is_realtime: bpy.props.BoolProperty(name='Live simulate when playback')

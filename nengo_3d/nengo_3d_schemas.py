@@ -35,6 +35,7 @@ class Simulation(Schema):
     action = fields.Str()
     until = fields.Int()
     dt = fields.Float(default=0.001)
+    sample_every = fields.Int(required=True)
     # parameter: fields.Dict(keys=fields.Str(), values=fields.List)
 
 

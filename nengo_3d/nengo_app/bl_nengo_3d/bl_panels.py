@@ -47,22 +47,20 @@ class NengoSettingsPanel(bpy.types.Panel):
         win_man = context.window_manager
 
         nengo_3d = win_man.nengo_3d
-        row = layout.row()
-        row.active = not connected()
-        row.prop(nengo_3d, 'collection')
-
         col = layout.column(align=True)
         col.prop(nengo_3d, 'sample_every')
         col.prop(nengo_3d, 'dt')
-        col.active = connected()
+
+        row = layout.row()
+        row.active = not connected()
         col = layout.column()
-        col.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Reset',
+        col.operator(bl_operators.NengoSimulateOperator.bl_idname,
+                     text='!Reset!' if nengo_3d.requires_reset else 'Reset',
                      icon='CANCEL').action = 'reset'
 
         col = layout.column()
-        col.active = connected()
+        col.active = connected() and not nengo_3d.requires_reset
         row = col.row(align=True)
-        row.active = connected()
         op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text=f'Step x{nengo_3d.step_n}',
                           icon='FRAME_NEXT')
         op.action = 'step'
@@ -77,12 +75,10 @@ class NengoSettingsPanel(bpy.types.Panel):
                               icon='PLAY')
         row.prop(nengo_3d, 'speed', text='')
         op.action = 'continuous'
-        col.prop(nengo_3d, 'is_realtime')
-        # col.prop(context.scene.render, 'fps')
-        col.label(text=f'Switching frame took: {frame_change_handler.execution_times.average():.2f} sec')
-        row = col.row()
 
         nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+        layout.prop(nengo_3d, 'is_realtime')
+        layout.label(text=f'Switching frame took: {frame_change_handler.execution_times.average():.2f} sec')
         row = layout.row(align=True)
         col = row.column(align=True)
         col.prop(nengo_3d, 'show_whole_simulation', text='', invert_checkbox=True)
