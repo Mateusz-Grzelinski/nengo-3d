@@ -1,13 +1,8 @@
-import copy
 import json
 import logging
-import signal
 import socket
 import struct
-import time
 from collections import defaultdict
-from dataclasses import dataclass
-import sys
 import subprocess
 import os
 from typing import *
@@ -16,11 +11,13 @@ import nengo
 import nengo.utils.progress
 import nengo.ensemble
 import nengo.utils
-# from components import EnhancedJSONEncoder, NengoObjectType, NengoObject, Network
 
+import numpy as np
+from nengo_3d.utils import ranges_str
 from nengo_3d.gui_backend import Nengo3dServer, Connection
 from nengo_3d.name_finder import NameFinder
 import nengo_3d.schemas as schemas
+from nengo_3d.utils import get_value, get_path
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -29,42 +26,26 @@ logger = logging.getLogger(__name__)
 message = schemas.Message()
 
 
+class ScheduledPlot(NamedTuple):
+    source: str
+    access_path: str
+    step: int
+    to_plot: nengo.base.NengoObject
+
+
 class RequestedProbes(NamedTuple):
     probe: nengo.Probe
     """source object to probe"""
     access_path: str
-
-
-def get_value(source: dict, access_path: tuple['str']) -> Any:
-    value = source
-    try:
-        for path in access_path:
-            if isinstance(value, dict):
-                value = value.get(path)
-            else:
-                value = getattr(value, path)
-        return value
-    except (IndexError, AttributeError):
-        return None
-
-
-def get_path(source: dict, access_path: tuple['str']) -> Generator:
-    value = source
-    try:
-        for path in access_path:
-            if isinstance(value, dict):
-                value = value.get(path)
-            else:
-                value = getattr(value, path)
-            yield value
-    except (IndexError, AttributeError):
-        return None
+    to_probe: Any
+    attribute: str
 
 
 class GuiConnection(Connection):
     def __init__(self, client_socket: socket.socket, addr, server: 'GUI', model: nengo.Network):
         super().__init__(client_socket, addr, server)
         self.server: GUI
+        self.scheduled_plots: dict[int, list[ScheduledPlot]] = defaultdict(list)
         self.requested_probes: dict[nengo.base.NengoObject, list[RequestedProbes]] = defaultdict(list)
         self.model = model
         self.name_finder = NameFinder(terms=self.server.locals, net=model)
@@ -76,14 +57,15 @@ class GuiConnection(Connection):
         self.server: GUI
         try:
             incoming_message: dict = message.loads(msg)
+            data = incoming_message.get('data') or {}
             if incoming_message['schema'] == schemas.NetworkSchema.__name__:
-                self.handle_network(incoming_message)
+                self.handle_network(data)
             elif incoming_message['schema'] == schemas.Observe.__name__:
-                self.handle_observe(incoming_message)
+                self.handle_observe(data)
             elif incoming_message['schema'] == schemas.Simulation.__name__:
-                self.handle_simulation(incoming_message)
+                self.handle_simulation(data)
             elif incoming_message['schema'] == schemas.PlotLines.__name__:
-                self.handle_plot_lines(incoming_message)
+                self.handle_plot_lines(data)
             else:
                 logger.error(f'Unknown schema: {incoming_message["schema"]}')
         except json.JSONDecodeError:
@@ -97,69 +79,77 @@ class GuiConnection(Connection):
         answer = message.dumps({'schema': schemas.NetworkSchema.__name__, 'data': data_scheme.dump(self.model)})
         self.sendall(answer.encode('utf-8'))
 
-    def handle_plot_lines(self, incoming_message):
+    def handle_plot_lines(self, incoming_message: dict):
         schema = schemas.PlotLines()
-        plot_lines = schema.load(data=incoming_message['data'])
+        plot_lines = schema.load(data=incoming_message)
         access_path = plot_lines['access_path']
-        plot_id = plot_lines['plot_id']
-        # is_neuron = plot_lines['is_neuron']
-        obj = self.name_finder.object(name=plot_lines['source'])
-        if access_path == 'neurons.tuning_curves':
-            inputs, activities = nengo.utils.ensemble.tuning_curves(ens=obj, sim=self.sim)
-        elif access_path == 'neurons.response_curves':
-            inputs, activities = nengo.utils.ensemble.response_curves(ens=obj, sim=self.sim)
-        data_scheme = schemas.PlotLines()
-        answer = message.dumps({'schema': schemas.PlotLines.__name__,
-                                'data': data_scheme.dump({
-                                    **plot_lines,
-                                    'x': inputs.tolist(),
-                                    'y': activities.tolist()
-                                })})
-        logger.debug(f'Sending "{access_path}": {plot_id}: {str(answer)[:1000]}')
-        self.sendall(answer.encode('utf-8'))
+        step = plot_lines['step']
+        source = plot_lines['source']
+        obj = self.name_finder.object(name=source)
+        self.scheduled_plots[step].append(ScheduledPlot(source, access_path, step, obj))
 
     def handle_observe(self, incoming_message):
         schema = schemas.Observe()
-        observe = schema.load(data=incoming_message['data'])
+        observe = schema.load(data=incoming_message)
         access_path = observe['access_path'].split('.')
         sample_every = observe['sample_every']
         dt = observe['dt']
         obj = self.name_finder.object(name=observe['source'])
+        # todo avoid duplicated probes
         if len(access_path) > 1 and access_path[-2] == 'probeable':
             # special case is probeable values
             to_probe = get_value(obj, access_path[:-2])
             attr = access_path[-1]
             if to_probe and attr in to_probe.probeable:
+                # Ensemble, Neurons, Node, or Connection
+                if not isinstance(to_probe, (nengo.Ensemble, nengo.Node, nengo.Connection, nengo.ensemble.Neurons)):
+                    logger.error(f'Incompatible type {to_probe}: {type(to_probe)}')
+                    return
                 with self.model:
                     probe = nengo.Probe(to_probe, attr=attr, sample_every=sample_every * dt)  # todo check data shape
-                rp = RequestedProbes(probe, observe['access_path'])
+                rp = RequestedProbes(probe, observe['access_path'], to_probe, attr)
                 logger.debug(f'Added to observation: {rp}')
                 self.requested_probes[obj].append(rp)
         else:
-            # observe built in values
-            paths = list(get_path(obj, access_path))
-            assert len(paths) == len(access_path), (paths, access_path)
+            # todo observe built in values
+            # paths = list(get_path(obj, access_path))
+            # assert len(paths) == len(access_path), (paths, access_path)
+            logger.warning('Not supported yet')
 
     def handle_simulation(self, incoming_message):
         schema = schemas.Simulation()
-        sim = schema.load(data=incoming_message['data'])
+        sim = schema.load(data=incoming_message)
+        dt = sim['dt']
         if sim['action'] == 'reset':
             del self.sim
             self.sim = None
+            observes = sim['observe']
+            for probes in self.requested_probes.values():
+                for probe in probes:
+                    self.model.all_probes.remove(probe.probe)
+            self.requested_probes.clear()
+            for observe in observes:
+                self.handle_observe(observe)
+            plot_lines = sim['plot_lines']
+            self.scheduled_plots.clear()
+            for plot in plot_lines:
+                self.handle_plot_lines(plot)
         elif sim['action'] == 'stop':
             logger.warning('Not implemented')
         elif sim['action'] == 'step':
             if not self.sim:
-                self.sim = nengo.Simulator(network=self.model, dt=sim['dt'])
-            steps = list(range(self.sim.n_steps, sim['until'] + 1))
+                self.sim = nengo.Simulator(network=self.model, dt=dt)
+            steps = list(range(self.sim.n_steps, sim['until']))
             if not len(steps) >= 1:
                 logger.warning(f'Requested step: {sim["until"]}, but {self.sim.n_steps} is already computed')
                 return
-            for _ in steps:
+            for s in steps:
+                self._handle_scheduled_plots(s)
                 self.sim.step()  # this can be done async
-            assert sim['sample_every'] > 0, sim
-            if sim['sample_every'] != 1:
-                recorded_steps = steps[::sim['sample_every']]
+            sample_every = sim['sample_every']
+            assert sample_every > 0, sim
+            if sample_every != 1:
+                recorded_steps = steps[::sample_every]
             else:
                 recorded_steps = steps
             data_scheme = schemas.SimulationSteps(
@@ -167,15 +157,42 @@ class GuiConnection(Connection):
                 context={'sim': self.sim,
                          'name_finder': self.name_finder,
                          'recorded_steps': recorded_steps,
-                         # 'sample_every': self.sim.,
                          'requested_probes': self.requested_probes,
                          })
             answer = message.dumps({'schema': schemas.SimulationSteps.__name__,
                                     'data': data_scheme.dump(self.sim.data)})
-            logger.debug(f'Sending step {steps}: {str(answer)[:1000]}')
+            logger.debug(f'Sending step {list(ranges_str(steps))}: {str(answer)[:1000]}')
             self.sendall(answer.encode('utf-8'))
         else:
             logger.warning('Unknown field value')
+
+    def _handle_scheduled_plots(self, step):
+        plots = self.scheduled_plots.get(step)
+        if not plots:
+            return
+        for plot in plots:
+            access_path = plot.access_path
+            if access_path == 'neurons.tuning_curves':
+                inputs, activities = nengo.utils.ensemble.tuning_curves(ens=plot.to_plot, sim=self.sim)
+            elif access_path == 'neurons.response_curves':
+                inputs, activities = nengo.utils.ensemble.response_curves(ens=plot.to_plot, sim=self.sim)
+            else:
+                logger.error('This should not happen')
+                continue
+            data_scheme = schemas.PlotLines()
+            data = {
+                'source': plot.source,
+                'access_path': plot.access_path,
+                'step': plot.step,
+                'data': np.append(np.reshape(inputs, newshape=(len(inputs), 1)), activities, axis=1).tolist(),
+                # np.append(inputs, activities).tolist()
+                # 'x': inputs.tolist(),
+                # 'y': activities.tolist()
+            }
+            answer = message.dumps({'schema': schemas.PlotLines.__name__,
+                                    'data': data_scheme.dump(data)})
+            logger.debug(f'Sending "{access_path}": {plot.source} at {plot.step}: {str(answer)[:1000]}')
+            self.sendall(answer.encode('utf-8'))
 
     def sendall(self, msg: bytes):
         self._socket.sendall(struct.pack("i", len(msg)) + msg)

@@ -8,9 +8,9 @@ import bpy
 
 import bl_nengo_3d.schemas as schemas
 from bl_nengo_3d.bl_depsgraph_handler import graph_edges_recalculate_handler
-from bl_nengo_3d.frame_change_handler import frame_change_handler, execution_times
+from bl_nengo_3d.frame_change_handler import frame_change_handler, execution_times, recolor_dynamic_node_attributes
 from bl_nengo_3d.bl_properties import Nengo3dProperties, node_color_single_update, \
-    node_attributes_update, Nengo3dShowNetwork
+    node_attribute_with_types_update, Nengo3dShowNetwork
 from bl_nengo_3d.charts import Axes
 from bl_nengo_3d.connection_handler import handle_data, handle_network_model
 from bl_nengo_3d.share_data import share_data
@@ -192,15 +192,16 @@ class NengoSimulateOperator(bpy.types.Operator):
             share_data.resume_playback_on_steps = False
             # share_data.simulation_cache_step.clear()
             share_data.simulation_cache.clear()
+
+            observe, plot = share_data.get_all_sources(nengo_3d)
+
             self.simulation_step(context.scene, action='reset', step_num=nengo_3d.step_n,
                                  sample_every=nengo_3d.sample_every,
-                                 dt=nengo_3d.dt, prefetch=0)
+                                 dt=nengo_3d.dt, prefetch=0, observe=observe, plot=plot)
             return {'FINISHED'}
         elif self.action == 'step':
-            # context.window_manager.nengo_3d.step_n
             self.simulation_step(context.scene, action='step', step_num=nengo_3d.step_n,
-                                 sample_every=nengo_3d.sample_every,
-                                 dt=nengo_3d.dt, prefetch=0)
+                                 sample_every=nengo_3d.sample_every, dt=nengo_3d.dt, prefetch=0)
             return {'FINISHED'}
         elif self.action == 'continuous':
             wm = context.window_manager
@@ -217,8 +218,24 @@ class NengoSimulateOperator(bpy.types.Operator):
         return {'CANCELLED'}
 
     @staticmethod
-    def simulation_step(scene, action: str, step_num: int, sample_every: int, dt: float, prefetch: int = 0):
-        # cached_steps = share_data.simulation_cache_steps()
+    def simulation_step(scene, action: str, step_num: int, sample_every: int, dt: float, prefetch: int = 0,
+                        observe: list = None, plot: list = None):
+        observe = observe or []
+        plot = plot or []
+        observables = []
+        plotable = []
+        for i in observe:
+            observables.append({'source': i[0],
+                                'access_path': i[1],
+                                'sample_every': sample_every,
+                                'dt': dt})
+        for i in plot:
+            plotable.append({
+                'source': i[0],
+                'access_path': i[1],
+                'step': i[2],
+            })
+
         cached_steps = share_data.current_step
         if cached_steps and scene.frame_current < cached_steps:
             scene.frame_current += step_num
@@ -226,7 +243,9 @@ class NengoSimulateOperator(bpy.types.Operator):
             data = {'action': action,
                     'until': scene.frame_current + step_num + prefetch,
                     'dt': dt,
-                    'sample_every': sample_every}
+                    'sample_every': sample_every,
+                    'observe': observables,
+                    'plot_lines': plotable}
             mess = message.dumps({'schema': schemas.Simulation.__name__,
                                   'data': simulation_scheme.dump(data)
                                   })
@@ -244,18 +263,11 @@ class NengoSimulateOperator(bpy.types.Operator):
             if share_data.current_step >= context.scene.frame_current:
                 frame_change_time = execution_times.average()
                 dropped_frames = frame_change_time * 24
-                self.simulation_step(context.scene,
-                                     action='step', sample_every=nengo_3d.sample_every,
-                                     dt=nengo_3d.dt,
-                                     step_num=int((1 + dropped_frames) * speed),
-                                     prefetch=min(24 * speed, 24))
+                self.simulation_step(context.scene, action='step', step_num=int((1 + dropped_frames) * speed),
+                                     sample_every=nengo_3d.sample_every, dt=nengo_3d.dt, prefetch=min(24 * speed, 24))
             elif share_data.requested_steps_until <= context.scene.frame_current:
-                self.simulation_step(context.scene,
-                                     action='step', sample_every=nengo_3d.sample_every,
-                                     dt=nengo_3d.dt,
-                                     step_num=0,
-                                     prefetch=min(24 * speed, 24))
-
+                self.simulation_step(context.scene, action='step', step_num=0, sample_every=nengo_3d.sample_every,
+                                     dt=nengo_3d.dt, prefetch=min(24 * speed, 24))
         return {'PASS_THROUGH'}
 
     def cancel(self, context):
@@ -276,19 +288,20 @@ class NengoColorNodesOperator(bpy.types.Operator):
         return bool(share_data.model_graph)
 
     def execute(self, context):
-        self.recolor_nodes(context.window_manager.nengo_3d)
+        self.recolor_nodes(context.window_manager.nengo_3d, context.scene.frame_current)
         return {'FINISHED'}
 
     @staticmethod
-    def recolor_nodes(nengo_3d: Nengo3dProperties):
-        if nengo_3d.node_color_source == 'SINGLE':
+    def recolor_nodes(nengo_3d: Nengo3dProperties, frame_current):
+        if nengo_3d.node_color == 'SINGLE':
             node_color_single_update(nengo_3d, None)
-        elif nengo_3d.node_color_source == 'MODEL':
-            node_attributes_update(nengo_3d, None)
-        elif nengo_3d.node_color_source == 'MODEL_DYNAMIC':
-            share_data.simulation_cache  # todo
+        elif nengo_3d.node_color == 'MODEL':
+            node_attribute_with_types_update(nengo_3d, None)
+        elif nengo_3d.node_color == 'MODEL_DYNAMIC':
+            recolor_dynamic_node_attributes(nengo_3d, int(frame_current / nengo_3d.sample_every))
+            # share_data.simulation_cache  # todo
         else:
-            assert False, nengo_3d.node_color_source
+            assert False, nengo_3d.node_color
 
 
 classes = (

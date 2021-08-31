@@ -50,19 +50,19 @@ class DebugPlotLine(bpy.types.Operator):
         from bl_nengo_3d.charts import Axes
         t = np.arange(0.0, 2.0, 0.01)
         s = 1 + np.sin(2 * np.pi * t)
-        ax = Axes(context=context)
-        ax.xlabel('x')
-        ax.ylabel('y')
-        ax.title(f'Test chart {self.dim}d')
-        if self.dim == 3:
-            ax.zlabel('z')
-            ax.plot(t, s, s, label='test')
-        else:
-            ax.plot(t, s, label='test1')
-            ax.plot(t, [-i for i in s], label='test2')
-        # ax.grid()
-        global debug_axes
-        debug_axes.append(ax)
+        # ax = Axes(context=context)
+        # ax.xlabel('x')
+        # ax.ylabel('y')
+        # ax.title(f'Test chart {self.dim}d')
+        # if self.dim == 3:
+        #     ax.zlabel('z')
+        #     ax.plot(t, s, s, label='test')
+        # else:
+        #     ax.plot(t, s, label='test1')
+        #     ax.plot(t, [-i for i in s], label='test2')
+        # # ax.grid()
+        # global debug_axes
+        # debug_axes.append(ax)
         return {'FINISHED'}
 
     # box, bar, barh, pie, hist, hist2d (heat map), scatter, axhline, axvline, table, polar, log
@@ -89,7 +89,7 @@ class DebugUpdatePlotLineOperator(bpy.types.Operator):
         iterator += 5
         s = 1 + np.sin(2 * np.pi * t)
         for ax in debug_axes:
-            for line in ax.plot_lines:
+            for line in ax._plot_lines:
                 if line.dim == 2:
                     line.set_data(t, s)
                 else:

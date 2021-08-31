@@ -15,12 +15,10 @@ class Observe(Schema):
 
 
 class PlotLines(Schema):
-    plot_id = fields.Str(required=True)
     source = fields.Str(required=True)
     access_path = fields.Str(required=True)
-    x = fields.List(fields.Field())
-    y = fields.List(fields.Field())
-    z = fields.List(fields.Field(), allow_none=True)
+    step = fields.Int(required=True)
+    data = fields.List(fields.Field())
 
 
 class SimulationSteps(Schema):
@@ -28,7 +26,6 @@ class SimulationSteps(Schema):
     node_name = fields.Str()
     parameters = fields.Dict(keys=fields.Str(),
                              values=fields.List(fields.Field()), default=None)
-    """dict[step, dict[access_path, values]]"""
 
 
 class Simulation(Schema):
@@ -36,7 +33,8 @@ class Simulation(Schema):
     until = fields.Int()
     dt = fields.Float(default=0.001)
     sample_every = fields.Int(required=True)
-    # parameter: fields.Dict(keys=fields.Str(), values=fields.List)
+    observe = fields.List(fields.Nested(Observe))
+    plot_lines = fields.List(fields.Nested(PlotLines))
 
 
 class ConnectionSchema(Schema):

@@ -1,12 +1,4 @@
-from typing import Generator, Any
-
-import bpy
-
-
-def redraw_all():
-    for window in bpy.context.window_manager.windows:
-        for area in window.screen.areas:
-            area.tag_redraw()
+from typing import Any
 
 
 def get_from_path(source: dict, access_path: tuple['str']) -> Any:
@@ -20,3 +12,16 @@ def get_from_path(source: dict, access_path: tuple['str']) -> Any:
         return value
     except (IndexError, AttributeError):
         return None
+
+
+def recurse_dict(prefix: str, value: dict):
+    for k, v in value.items():
+        if k.startswith('_'):
+            continue
+        elif isinstance(v, list):
+            continue
+        elif isinstance(v, tuple):
+            continue
+        elif isinstance(v, dict):
+            yield from recurse_dict(prefix=k, value=v)
+        yield prefix + '.' + k, v

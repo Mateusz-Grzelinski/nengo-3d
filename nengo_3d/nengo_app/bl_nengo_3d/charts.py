@@ -1,8 +1,7 @@
-import collections
 import logging
 import math
-import types
 from collections import Sequence
+from typing import Iterable, Mapping, Union
 
 import bmesh
 import bpy.utils
@@ -59,7 +58,15 @@ def denormalize(x: list[float], min_x: float, max_x: float):
     return x
 
 
-class LinearLocator:
+class Locator:
+    def __init__(self, numticks: int = None):
+        self.numticks = numticks
+
+    def tick_values(self, vmin, vmax):
+        raise NotImplemented
+
+
+class LinearLocator(Locator):
     """
     Determine the tick locations
 
@@ -69,9 +76,6 @@ class LinearLocator:
     be nice
 
     """
-
-    def __init__(self, numticks=None):
-        self.numticks = numticks
 
     def tick_values(self, vmin, vmax):
         if vmax < vmin:
@@ -83,10 +87,7 @@ class LinearLocator:
         return ticklocs
 
 
-class IntegerLocator:
-    def __init__(self, numticks=None):
-        self.numticks = numticks
-
+class IntegerLocator(Locator):
     def tick_values(self, vmin, vmax):
         if vmax < vmin:
             vmin, vmax = vmax, vmin
@@ -97,20 +98,28 @@ class IntegerLocator:
         return list(set(ticklocs))
 
 
+_locators = {
+    LinearLocator.__name__: LinearLocator,
+    IntegerLocator.__name__: IntegerLocator,
+}
+
+locators = [(loc, loc, '') for loc in _locators.keys()]
+
+
 class Line:
-    def __init__(self, ax: 'Axes', name: str):
+    def __init__(self, ax: 'Axes', line: 'LineProperties'):
         self.ax = ax
-        self.label = str(name)
         self.original_data_x = []
         self.original_data_y = []
         self.original_data_z = None
 
         self._line = ax._create_object('Line', solidify=None, parent=ax.root)
-        if not self.label:
-            self.label = self._line.name
-
-    def set_label(self, text):
-        self.label = text
+        line.name = self._line.name
+    #     if not self.label:
+    #         self.label = self._line.name
+    #
+    # def set_label(self, text):
+    #     self.label = text
 
     def set_data(self, X, Y, Z=None):
         self.original_data_x = list(X)
@@ -144,12 +153,12 @@ class Line:
         self.set_data(self.original_data_x, self.original_data_y, Z=self.original_data_z)
 
     def draw_line(self):
-        X = normalize_precalculated(self.original_data_x.copy(), self.ax.xlim_min, self.ax.xlim_max)
-        Y = normalize_precalculated(self.original_data_y.copy(), self.ax.ylim_min, self.ax.ylim_max)
+        X = normalize_precalculated(self.original_data_x.copy(), self.ax.x_min, self.ax.x_max)
+        Y = normalize_precalculated(self.original_data_y.copy(), self.ax.y_min, self.ax.y_max)
         if not self.original_data_z:
             Z = [0 for _i in X]
         else:
-            Z = normalize_precalculated(self.original_data_z.copy(), self.ax.zlim_min, self.ax.zlim_max)
+            Z = normalize_precalculated(self.original_data_z.copy(), self.ax.z_min, self.ax.z_max)
 
         line_mesh = self._line.data
         if not X:
@@ -176,7 +185,150 @@ class Line:
         return 3 if self.original_data_z else 2
 
 
-class Axes:
+class AxesAccessors:
+    def __init__(self, nengo_axes: 'AxesProperties') -> None:
+        from bl_nengo_3d.bl_properties import AxesProperties
+        self._nengo_axes: AxesProperties = nengo_axes
+        self._xlocator = None
+        self._ylocator = None
+        self._zlocator = None
+
+    @property
+    def auto_range(self) -> float:
+        return self._nengo_axes.auto_range
+
+    @property
+    def x_min(self) -> float:
+        return self._nengo_axes.x_min
+
+    @x_min.setter
+    def x_min(self, value):
+        self._nengo_axes.x_min = value
+
+    @property
+    def x_max(self) -> float:
+        return self._nengo_axes.x_max
+
+    @x_max.setter
+    def x_max(self, value):
+        self._nengo_axes.x_max = value
+
+    @property
+    def y_min(self) -> float:
+        return self._nengo_axes.y_min
+
+    @y_min.setter
+    def y_min(self, value):
+        self._nengo_axes.y_min = value
+
+    @property
+    def y_max(self) -> float:
+        return self._nengo_axes.y_max
+
+    @y_max.setter
+    def y_max(self, value):
+        self._nengo_axes.y_max = value
+
+    @property
+    def z_min(self) -> float:
+        return self._nengo_axes.z_min
+
+    @z_min.setter
+    def z_min(self, value):
+        self._nengo_axes.z_min = value
+
+    @property
+    def z_max(self) -> float:
+        return self._nengo_axes.z_max
+
+    @z_max.setter
+    def z_max(self, value: float):
+        self._nengo_axes.z_max = value
+
+    @property
+    def xlabel(self) -> str:
+        return self._nengo_axes.xlabel
+
+    @xlabel.setter
+    def xlabel(self, value: str):
+        self._nengo_axes.xlabel = value
+
+    @property
+    def ylabel(self) -> str:
+        return self._nengo_axes.ylabel
+
+    @ylabel.setter
+    def ylabel(self, value: str):
+        self._nengo_axes.ylabel = value
+
+    @property
+    def zlabel(self) -> str:
+        return self._nengo_axes.zlabel
+
+    @zlabel.setter
+    def zlabel(self, value: str):
+        self._nengo_axes.zlabel = value
+
+    @property
+    def title(self) -> str:
+        return self._nengo_axes.title
+
+    @title.setter
+    def title(self, value: str):
+        self._nengo_axes.title = value
+
+    @staticmethod
+    def _create_locator(locator: str, numticks: int) -> Locator:
+        cls = _locators.get(locator)
+        return cls(numticks=numticks)
+
+    @property
+    def xlocator(self) -> Locator:
+        if not self._xlocator or self._xlocator.numticks != self._nengo_axes.xnumticks:
+            self._xlocator = self._create_locator(locator=self._nengo_axes.xlocator,
+                                                  numticks=self._nengo_axes.xnumticks)
+        return self._xlocator
+
+    @property
+    def ylocator(self) -> Locator:
+        if not self._ylocator or self._ylocator.numticks != self._nengo_axes.ynumticks:
+            self._ylocator = self._create_locator(locator=self._nengo_axes.ylocator,
+                                                  numticks=self._nengo_axes.ynumticks)
+        return self._ylocator
+
+    @property
+    def zlocator(self) -> Locator:
+        if not self._zlocator or self._zlocator.numticks != self._nengo_axes.znumticks:
+            self._zlocator = self._create_locator(locator=self._nengo_axes.zlocator,
+                                                  numticks=self._nengo_axes.znumticks)
+        return self._zlocator
+
+    @property
+    def xformat(self) -> str:
+        return self._nengo_axes.xformat
+
+    @property
+    def yformat(self) -> str:
+        return self._nengo_axes.yformat
+
+    @property
+    def zformat(self) -> str:
+        return self._nengo_axes.zformat
+
+    @property
+    def line_initial_color(self) -> tuple:
+        return self._nengo_axes.line_initial_color
+
+    @property
+    def line_max_colors(self) -> int:
+        return self._nengo_axes.line_max_colors
+
+    @property
+    def lines(self) -> Mapping[Union[str, int], 'LineProperties']:
+        return self._nengo_axes.lines
+
+
+class Axes(AxesAccessors):
     # todo handle graph removal
     """Contains most of chart
     2 or 3 Axis
@@ -186,25 +338,11 @@ class Axes:
     color, color bar
     """
 
-    def __init__(self, context: bpy.types.Context, parameter: str = None):
+    def __init__(self, context: bpy.types.Context, nengo_axes: 'AxesProperties' = None):
         self.text_color = [0.019607, 0.019607, 0.019607]  # [1.000000, 0.982973, 0.926544]
-        self.parameter = parameter
+        # self.parameter = parameter
         self.color_gen = colors.cycle_color(initial_rgb=(0.080099, 0.226146, 1.000000))
 
-        self.xlabel_text = None
-        self.ylabel_text = None
-        self.zlabel_text = None
-        self.title_text = None
-        # self.xticks = []
-        self.xformat = '{:.2f}'
-        self.xlocator = LinearLocator(numticks=8)
-        # self.xticks_labels = []
-        # self.yticks = []
-        self.yformat = '{:.2f}'
-        self.ylocator = LinearLocator(numticks=8)
-        # self.yticks_labels = []
-        self.zformat = '{:.2f}'
-        self.zlocator = LinearLocator(numticks=8)
         self.context = context
         collection = bpy.data.collections.get('Charts')
         if not collection:
@@ -215,18 +353,24 @@ class Axes:
         self._line_z_offset = 0
         """Offset multiple lines in z direction. Only for 2 dim lines"""
 
-        self.plot_lines: list[Line] = []
-
-        self.xlim_min = 0
-        self.xlim_max = 1
-        self.ylim_min = 0
-        self.ylim_max = 1
-        self.zlim_min = 0
-        self.zlim_max = 1
+        self._lines: dict[Line] = {}
 
         # blender objects that create this chart:
         self.root = bpy.data.objects.new('Plot', None)
         self.collection.objects.link(self.root)
+        if nengo_axes is not None:
+            from bl_nengo_3d.bl_utils import copy_property_group
+            copy_property_group(nengo_axes, self.root.nengo_axes)
+        super().__init__(self.root.nengo_axes)
+
+        offset = 0
+        for line_prop in self.lines:
+            line_prop: 'LineProperties'
+            line = Line(self, line=line_prop)
+            line._line.location.z = offset
+            offset += self.line_offset
+            self._lines[line_prop.name] = line
+
         self.root.empty_display_size = 1.1
         self.root.empty_display_type = 'ARROWS'  # 'PLAIN_AXES'
 
@@ -244,13 +388,14 @@ class Axes:
 
     @property
     def line_offset(self):
-        return self._line_z_offset
+        return self._nengo_axes.line_offset
 
     @line_offset.setter
     def line_offset(self, value: float):
-        for i, line in enumerate(self.plot_lines):
+        for i, line in enumerate(self._lines.values()):
             line._line.location.z = value * i
         self._line_z_offset = value
+        self._nengo_axes.line_offset = value
 
     @property
     def location(self):
@@ -262,52 +407,43 @@ class Axes:
             self.root.location = value
         self._location = value
 
-    def xlabel(self, text: str):
-        self.xlabel_text = text
-
-    def ylabel(self, text: str):
-        self.ylabel_text = text
-
-    def zlabel(self, text: str):
-        self.zlabel_text = text
-
-    def title(self, text: str):
-        self.title_text = text
+    def get_line(self, line: 'LineProperties') -> Line:
+        return self._lines[line.name]
 
     def relim(self):
-        if not self.plot_lines:
+        if not self._lines:
             return
-        xlim_max = -math.inf
-        xlim_min = math.inf
-        ylim_max = -math.inf
-        ylim_min = math.inf
-        zlim_max = -math.inf
-        zlim_min = math.inf
-        for line in self.plot_lines:
+        x_max = -math.inf
+        x_min = math.inf
+        y_max = -math.inf
+        y_min = math.inf
+        z_max = -math.inf
+        z_min = math.inf
+        for line in self._lines.values():
             if not line.original_data_x:
                 continue
             if not line.original_data_y:
                 continue
-            xlim_max = max(xlim_max, max(line.original_data_x))
-            xlim_min = min(xlim_min, min(line.original_data_x))
-            ylim_max = max(ylim_max, max(line.original_data_y))
-            ylim_min = min(ylim_min, min(line.original_data_y))
+            x_max = max(x_max, max(line.original_data_x))
+            x_min = min(x_min, min(line.original_data_x))
+            y_max = max(y_max, max(line.original_data_y))
+            y_min = min(y_min, min(line.original_data_y))
             if line.original_data_z:
-                zlim_max = max(zlim_max, max(line.original_data_z))
-                zlim_min = min(zlim_min, min(line.original_data_z))
-        self.xlim_max = 1 if xlim_max == -math.inf else xlim_max
-        self.xlim_min = 0 if xlim_min == math.inf else xlim_min
-        self.ylim_max = 1 if ylim_max == -math.inf else ylim_max
-        self.ylim_min = 0 if ylim_min == math.inf else ylim_min
-        assert self.xlim_min not in {math.inf, -math.inf}, (self.xlim_min, line.original_data_x)
-        assert self.xlim_max not in {math.inf, -math.inf}
-        assert self.ylim_min not in {math.inf, -math.inf}
-        assert self.ylim_max not in {math.inf, -math.inf}
-        if any(line.original_data_z for line in self.plot_lines):
-            self.zlim_max = 1 if zlim_max == -math.inf else zlim_max
-            self.zlim_min = 0 if zlim_min == math.inf else zlim_min
-            assert self.zlim_min not in {math.inf, -math.inf}
-            assert self.zlim_max not in {math.inf, -math.inf}
+                z_max = max(z_max, max(line.original_data_z))
+                z_min = min(z_min, min(line.original_data_z))
+        self.x_max = 1 if x_max == -math.inf else x_max
+        self.x_min = 0 if x_min == math.inf else x_min
+        self.y_max = 1 if y_max == -math.inf else y_max
+        self.y_min = 0 if y_min == math.inf else y_min
+        assert self.x_min not in {math.inf, -math.inf}, (self.x_min, line.original_data_x)
+        assert self.x_max not in {math.inf, -math.inf}
+        assert self.y_min not in {math.inf, -math.inf}
+        assert self.y_max not in {math.inf, -math.inf}
+        if any(line.original_data_z for line in self._lines.values()):
+            self.z_max = 1 if z_max == -math.inf else z_max
+            self.z_min = 0 if z_min == math.inf else z_min
+            assert self.z_min not in {math.inf, -math.inf}
+            assert self.z_max not in {math.inf, -math.inf}
 
     def _create_text(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False, ):
         mesh = bpy.data.curves.new(name, type='FONT')
@@ -345,20 +481,22 @@ class Axes:
             z = None
             assert len(x) == len(y)
 
-        _x, xlim_min, xlim_max = normalize(x.copy())
-        self.xlim_max = max(xlim_max, self.xlim_max)
-        self.xlim_min = min(xlim_min, self.xlim_min)
-        _y, ylim_min, ylim_max = normalize(y.copy())
-        self.ylim_max = max(ylim_max, self.ylim_max)
-        self.ylim_min = min(ylim_min, self.ylim_min)
+        _x, x_min, x_max = normalize(x.copy())
+        self.x_max = max(x_max, self.x_max)
+        self.x_min = min(x_min, self.x_min)
+        _y, y_min, y_max = normalize(y.copy())
+        self.y_max = max(y_max, self.y_max)
+        self.y_min = min(y_min, self.y_min)
         if z:
-            _z, zlim_min, zlim_max = normalize(z.copy())
-            self.zlim_max = max(zlim_max, self.zlim_max)
-            self.zlim_min = min(zlim_min, self.zlim_min)
-        line = Line(self, name=label)
-        line._line.location.z = len(self.plot_lines) * self._line_z_offset
+            _z, z_min, z_max = normalize(z.copy())
+            self.z_max = max(z_max, self.z_max)
+            self.z_min = min(z_min, self.z_min)
+
+        line_prop: 'LineProperties' = self.lines.add()
+        line = Line(self, line=line_prop)
+        line._line.location.z = len(self._lines) * self.line_offset
         line.set_data(x, y, z)
-        self.plot_lines.append(line)
+        self._lines[line_prop.name] = line
         # line.draw_line()
         # self.draw()  # todo should we draw here?
         return line
@@ -371,23 +509,23 @@ class Axes:
         if not self._ticks_x:
             self._ticks_x = self._create_object('Ticks X', solidify=0.02, parent=self._chart)
             self._ticks_x.nengo_colors.color = self.text_color
-        self._draw_ticks_x(ticks=self.xlocator.tick_values(self.xlim_min, self.xlim_max),
+        self._draw_ticks_x(ticks=self.xlocator.tick_values(self.x_min, self.x_max),
                            ticks_x_mesh=self._ticks_x.data)
 
         if not self._ticks_y:
             self._ticks_y = self._create_object('Ticks Y', solidify=0.02, parent=self._chart)
             self._ticks_y.nengo_colors.color = self.text_color
-        self._draw_ticks_y(ticks=self.ylocator.tick_values(self.ylim_min, self.ylim_max),
+        self._draw_ticks_y(ticks=self.ylocator.tick_values(self.y_min, self.y_max),
                            ticks_y_mesh=self._ticks_y.data)
 
-        if any(line.original_data_z for line in self.plot_lines):
+        if any(line.original_data_z for line in self._lines.values()):
             if not self._ticks_z:
                 self._ticks_z = self._create_object('Ticks Z', solidify=0.02, parent=self._chart)
                 self._ticks_z.nengo_colors.color = self.text_color
-            self._draw_ticks_z(ticks=self.zlocator.tick_values(self.zlim_min, self.zlim_max),
+            self._draw_ticks_z(ticks=self.zlocator.tick_values(self.z_min, self.z_max),
                                ticks_z_mesh=self._ticks_z.data)
 
-            if self.zlabel_text:
+            if self.zlabel:
                 if not self._zlabel:
                     self._zlabel = self._create_text('zlabel', parent=self._chart)
                 zlabel = self._zlabel.data
@@ -395,35 +533,42 @@ class Axes:
                 zlabel.size = 0.1
                 zlabel.align_x = 'CENTER'
                 zlabel.align_y = 'TOP'
+                self._zlabel.hide_render = False
+                self._zlabel.hide_viewport = False
                 marigin = self._tick_text_z[0].dimensions.x if self._tick_text_z else 0
                 self._zlabel.location = (-marigin - 0.07, 0, 0.5)
                 self._zlabel.rotation_euler = (math.pi / 2, math.pi / 2, 0)
         else:
             if self._ticks_z:
-                bpy.ops.object.delete({'selected_objects': [self._ticks_z]})
+                bpy.data.objects.remove(self._ticks_z, do_unlink=True)
+                # bpy.ops.object.delete({'selected_objects': [self._ticks_z]})
                 self._ticks_z = None
                 while self._tick_text_z:
                     obj = self._tick_text_z.pop()
-                    bpy.ops.object.delete({'selected_objects': [obj]})
-            if not self._zlabel:
-                bpy.ops.object.delete({'selected_objects': [self._zlabel]})
+                    bpy.data.objects.remove(obj, do_unlink=True)
+                    # bpy.ops.object.delete({'selected_objects': [obj]})
+            if not self.zlabel and self._zlabel:
+                self._zlabel.hide_render = True
+                self._zlabel.hide_viewport = True
+                # bpy.data.objects.remove(self._zlabel, do_unlink=True)
+                # bpy.ops.object.delete({'selected_objects': [self._zlabel]})
 
-        if self.xlabel_text:
+        if self.xlabel:
             if not self._xlabel:
                 self._xlabel = self._create_text('xlabel', parent=self._chart)
             xlabel = self._xlabel.data
-            xlabel.body = self.xlabel_text
+            xlabel.body = self.xlabel
             xlabel.size = 0.1
             xlabel.align_x = 'CENTER'
             xlabel.align_y = 'TOP'
             marigin = self._tick_text_x[0].dimensions.y if self._tick_text_x else 0
             self._xlabel.location = (0.5, -0.10 - marigin, 0)
 
-        if self.ylabel_text:
+        if self.ylabel:
             if not self._ylabel:
                 self._ylabel = self._create_text('ylabel', parent=self._chart)
             ylabel = self._ylabel.data
-            ylabel.body = self.ylabel_text
+            ylabel.body = self.ylabel
             ylabel.size = 0.1
             ylabel.align_x = 'CENTER'
             ylabel.align_y = 'TOP'
@@ -431,26 +576,26 @@ class Axes:
             self._ylabel.location = (-0.07 - marigin, 0.5, 0)
             self._ylabel.rotation_euler = (0, 0, -math.pi / 2)
 
-        if self.title_text:
+        if self.title:
             if not self._title:
                 self._title = self._create_text('Title', parent=self._chart)
             title = self._title.data
-            title.body = self.title_text
+            title.body = self.title
             title.size = 0.15
             title.align_x = 'CENTER'
             title.align_y = 'BOTTOM'
             self._title.location = (0.5, 1.1, 0)
             # self._title.rotation_euler = (0, 0, -math.pi / 2)
 
-        for line in self.plot_lines:
+        for line in self._lines.values():
             line.draw_line()
 
     def _draw_ticks_x(self, ticks: list, ticks_x_mesh):
         bm = bmesh.new()
-        ticks = [i for i in ticks if self.xlim_max >= i >= self.xlim_min]
+        ticks = [i for i in ticks if self.x_max >= i >= self.x_min]
         tick_width = 0.01
         tick_height = 0.04
-        ticks_loc = normalize_precalculated(ticks.copy(), self.xlim_min, self.xlim_max)
+        ticks_loc = normalize_precalculated(ticks.copy(), self.x_min, self.x_max)
         for t in ticks_loc:
             x_loc = t
             v1 = bm.verts.new((x_loc, 0, 0))
@@ -465,7 +610,8 @@ class Axes:
             self._tick_text_x.append(self._create_text(f'Tick x {len(self._tick_text_x)}', parent=self._chart))
         while len(self._tick_text_x) > len(ticks):
             obj = self._tick_text_x.pop()
-            bpy.ops.object.delete({'selected_objects': [obj]})
+            bpy.data.objects.remove(obj, do_unlink=True)
+            # bpy.ops.object.delete({'selected_objects': [obj]})
 
         for i, (t, t_loc) in enumerate(zip(ticks, ticks_loc)):
             tick_text_obj = self._tick_text_x[i]
@@ -478,10 +624,10 @@ class Axes:
 
     def _draw_ticks_y(self, ticks: list, ticks_y_mesh):
         bm = bmesh.new()
-        ticks = [i for i in ticks if self.ylim_max >= i >= self.ylim_min]
+        ticks = [i for i in ticks if self.y_max >= i >= self.y_min]
         tick_width = 0.01
         tick_height = 0.04
-        ticks_loc = normalize_precalculated(ticks.copy(), self.ylim_min, self.ylim_max)
+        ticks_loc = normalize_precalculated(ticks.copy(), self.y_min, self.y_max)
         for t in ticks_loc:
             y_loc = t
             v1 = bm.verts.new((0, y_loc, 0))
@@ -496,7 +642,8 @@ class Axes:
             self._tick_text_y.append(self._create_text(f'Tick y {len(self._tick_text_y)}', parent=self._chart))
         while len(self._tick_text_y) > len(ticks):
             obj = self._tick_text_y.pop()
-            bpy.ops.object.delete({'selected_objects': [obj]})
+            bpy.data.objects.remove(obj, do_unlink=True)
+            # bpy.ops.object.delete({'selected_objects': [obj]})
 
         for i, (t, t_loc) in enumerate(zip(ticks, ticks_loc)):
             tick_text_obj = self._tick_text_y[i]
@@ -509,10 +656,10 @@ class Axes:
 
     def _draw_ticks_z(self, ticks: list, ticks_z_mesh):
         bm = bmesh.new()
-        ticks = [i for i in ticks if self.zlim_max >= i >= self.zlim_min]
+        ticks = [i for i in ticks if self.z_max >= i >= self.z_min]
         tick_width = 0.01
         tick_height = 0.04
-        ticks_loc = normalize_precalculated(ticks.copy(), self.zlim_min, self.zlim_max)
+        ticks_loc = normalize_precalculated(ticks.copy(), self.z_min, self.z_max)
         for t in ticks_loc:
             z_loc = t
             v1 = bm.verts.new((0, 0, z_loc,))
@@ -528,7 +675,8 @@ class Axes:
                                                        parent=self._chart))
         while len(self._tick_text_z) > len(ticks):
             obj = self._tick_text_z.pop()
-            bpy.ops.object.delete({'selected_objects': [obj]})
+            bpy.data.objects.remove(obj, do_unlink=True)
+            # bpy.ops.object.delete({'selected_objects': [obj]})
 
         for i, (t, t_loc) in enumerate(zip(ticks, ticks_loc)):
             tick_text_obj = self._tick_text_z[i]
@@ -538,9 +686,3 @@ class Axes:
             tick_text.align_x = 'RIGHT'
             tick_text.align_y = 'TOP'
             tick_text_obj.location = (-tick_height, 0, t_loc + tick_width / 2)
-
-
-locators = [
-    (LinearLocator.__name__, LinearLocator.__name__, ''),
-    (IntegerLocator.__name__, IntegerLocator.__name__, ''),
-]

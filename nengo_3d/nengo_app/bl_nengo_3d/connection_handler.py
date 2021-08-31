@@ -60,81 +60,89 @@ def handle_data(nengo_3d: Nengo3dProperties):
 
 
 def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
-    from bl_nengo_3d.digraph_model import DiGraphModel
+    # from bl_nengo_3d.digraph_model import DiGraphModel
     answer_schema = schemas.Message()
     incoming_answer: dict = answer_schema.loads(message)  # json.loads(message)
     if incoming_answer['schema'] == schemas.NetworkSchema.__name__:
-        data_scheme = schemas.NetworkSchema()
-        g, data = data_scheme.load(data=incoming_answer['data'])
-        g: DiGraphModel
-        share_data.model_graph = g
-
-        # nengo_3d.expand_subnetworks.clear()
-        for subnet in g.list_subnetworks():
-            # logger.debug(subnet)
-            item = nengo_3d.expand_subnetworks.add()
-            item.name = subnet.name
-            item.network = subnet.name
-            item.expand = False  # bool(g.networks.get(subnet.name))
-        nengo_3d.expand_subnetworks['model'].expand = True
-
-        share_data.model_graph_view = g.get_graph_view(nengo_3d)
-
-        handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d)
-
-        file_path = data['file']
-
-        t = bpy.data.texts.get(os.path.basename(file_path))
-        if t:
-            t.clear()
-        else:
-            t = bpy.data.texts.new(os.path.basename(file_path))
-        for area in bpy.context.screen.areas:
-            if area.type == 'TEXT_EDITOR':
-                area.spaces[0].text = t  # make loaded text file visible
-        with open(file_path, 'r') as f:
-            while line := f.read():
-                t.write(line)
+        handle_network_schema(incoming_answer, nengo_3d)
     elif incoming_answer['schema'] == schemas.SimulationSteps.__name__:
-        data_scheme = schemas.SimulationSteps(many=True)
-        data = data_scheme.load(data=incoming_answer['data'])
-        for simulation_step in sorted(data, key=lambda sim_step: sim_step['step']):
-            share_data.current_step = simulation_step['step']
-            parameters = simulation_step.get('parameters')
-            if not parameters:
-                continue
-            node_name = simulation_step['node_name']
-            for access_path, value in parameters.items():
-                share_data.simulation_cache[node_name, access_path].append(np.array(value))
-
-        if share_data.step_when_ready != 0 and not nengo_3d.is_realtime:
-            bpy.context.scene.frame_current += share_data.step_when_ready
-            share_data.step_when_ready = 0
-        # bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d)
+        handle_simulation_steps(incoming_answer, nengo_3d)
     elif incoming_answer['schema'] == schemas.PlotLines.__name__:
-        data_scheme = schemas.PlotLines()
-        data = data_scheme.load(data=incoming_answer['data'])
-        plot_id = data['plot_id']
-        access_path = data['access_path']
-        source = data['source']
-        axes = share_data.get_chart(source, access_path=access_path)
-        ax = None
-        for _ax in axes:
-            if _ax.root.name == plot_id and _ax.parameter == access_path:
-                ax = _ax
-                break
-        datax = np.array(data['x'])
-        datay = np.array(data['y'])
-        if access_path == 'neurons.response_curves':
-            for i in range(datay.shape[1]):
-                ax.plot(datax, datay[:, i], label=f'Neuron {i}')
-        elif access_path == 'neurons.tuning_curves':  # todo handle higher dim
-            for i in range(datay.shape[-1]):
-                ax.plot(datax[:, 0], datay[:, i], label=f'Neuron {i}')
-        ax.relim()
-        ax.draw()
+        handle_plot_lines(incoming_answer, nengo_3d)
     else:
         logger.error(f'Unknown schema: {incoming_answer["schema"]}')
+
+
+def handle_plot_lines(incoming_answer, nengo_3d: Nengo3dProperties):
+    from bl_nengo_3d.bl_properties import LineSourceProperties
+    from bl_nengo_3d.frame_change_handler import get_xyzdata
+    data_scheme = schemas.PlotLines()
+    data = data_scheme.load(data=incoming_answer['data'])
+    source = data['source']
+    access_path = data['access_path']
+    axes = share_data.charts[source]
+    data = np.array(data['data'])
+    for ax in axes:
+        for line_prop in ax.lines:
+            line_source: LineSourceProperties = line_prop.source
+            if not source == line_source.source_obj:
+                continue
+            if not access_path == line_source.access_path:
+                continue
+            l = ax.get_line(line_prop)
+            # logger.debug((data.shape, data))
+            x, y, z = get_xyzdata(data, None, line_prop, nengo_3d)
+            l.set_data(X=x, Y=y, Z=z)
+        ax.relim()
+        ax.draw()
+
+
+def handle_network_schema(incoming_answer, nengo_3d: Nengo3dProperties):
+    from bl_nengo_3d.digraph_model import DiGraphModel
+    data_scheme = schemas.NetworkSchema()
+    g, data = data_scheme.load(data=incoming_answer['data'])
+    g: DiGraphModel
+    share_data.model_graph = g
+    # nengo_3d.expand_subnetworks.clear()
+    for subnet in g.list_subnetworks():
+        # logger.debug(subnet)
+        item = nengo_3d.expand_subnetworks.add()
+        item.name = subnet.name
+        item.network = subnet.name
+        item.expand = False  # bool(g.networks.get(subnet.name))
+    nengo_3d.expand_subnetworks['model'].expand = True
+    share_data.model_graph_view = g.get_graph_view(nengo_3d)
+    handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d)
+    # bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d, )
+    file_path = data['file']
+    t = bpy.data.texts.get(os.path.basename(file_path))
+    if t:
+        t.clear()
+    else:
+        t = bpy.data.texts.new(os.path.basename(file_path))
+    for area in bpy.context.screen.areas:
+        if area.type == 'TEXT_EDITOR':
+            area.spaces[0].text = t  # make loaded text file visible
+    with open(file_path, 'r') as f:
+        while line := f.read():
+            t.write(line)
+
+
+def handle_simulation_steps(incoming_answer, nengo_3d: Nengo3dProperties):
+    data_scheme = schemas.SimulationSteps(many=True)
+    data = data_scheme.load(data=incoming_answer['data'])
+    for simulation_step in sorted(data, key=lambda sim_step: sim_step['step']):
+        share_data.current_step = simulation_step['step']
+        parameters = simulation_step.get('parameters')
+        if not parameters:
+            continue
+        node_name = simulation_step['node_name']
+        for access_path, value in parameters.items():
+            share_data.simulation_cache[node_name, access_path].append(np.array(value))
+    if share_data.step_when_ready != 0 and not nengo_3d.allow_scrubbing:
+        bpy.context.scene.frame_current += share_data.step_when_ready
+        share_data.step_when_ready = 0
+    # bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d) # todo needed?
 
 
 def _get_text_label_material() -> bpy.types.Material:
@@ -220,7 +228,7 @@ def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
     regenerate_nodes(g, nengo_3d, pos, select=select)
     regenerate_edges(g, nengo_3d, pos, select=select)
     regenerate_labels(g, nengo_3d)
-    bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d)
+    # bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d)
 
 
 class Arrow:

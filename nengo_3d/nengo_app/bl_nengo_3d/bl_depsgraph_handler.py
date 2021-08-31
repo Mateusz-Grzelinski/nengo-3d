@@ -9,8 +9,10 @@ def graph_edges_recalculate_handler(scene: bpy.types.Scene):
     # must be 3d viewport
     if not hasattr(bpy.context, 'selected_objects'):
         return
-    nodes_to_update = []
     g_view = share_data.model_graph_view
+    if g_view is None:
+        return
+    nodes_to_update = []
     for obj in bpy.context.selected_objects:
         if not share_data.model_graph_view.nodes.get(obj.name):
             continue

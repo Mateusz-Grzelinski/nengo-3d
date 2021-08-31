@@ -12,15 +12,6 @@ from bl_nengo_3d import colors
 from bl_nengo_3d.charts import Axes, Line
 
 
-class Indices(NamedTuple):
-    x: int
-    x_is_step: bool
-    y: Optional[int]
-    y_multi_dim: Optional[str]
-    z_is_step: bool
-    z: Optional[int]
-
-
 class _ShareData:
     """
     ShareData is the class storing the global state of the addon.
@@ -42,15 +33,11 @@ class _ShareData:
         # self.model: dict[str, bpy.types.Object] = {}
         self.model_graph: Optional[DiGraphModel] = None
         self.model_graph_view: Optional[DiGraphModel] = None
-        self.charts = defaultdict(list)
-        """dict[(source, access_path), list[Axes]]"""
+        self.charts: dict[str, list[Axes]] = defaultdict(list)
         # self.simulation_cache_step = list()
         self.simulation_cache = defaultdict(list)
         """
         dict[(object, access_path), list[data]] ]
-        """
-        self.plot_line_sources = {}
-        """chart/line -> (x,y,z)]
         """
         self.step_when_ready = 0
         """
@@ -76,20 +63,30 @@ class _ShareData:
             return cached_steps
         return None
 
-    def get_chart(self, source: str, access_path: str) -> list[Axes]:
-        return self.charts[source, access_path]
+    def register_chart(self, source: str, ax: Axes):
+        axes = self.charts[source]
+        if ax not in axes:
+            axes.append(ax)
 
-    def register_chart(self, source: str, access_path: str, ax: Axes):
-        # if not self.charts[source.name].get(ax.parameter):
-        #     self.charts[source.name][ax.parameter] = []
-        charts = self.charts[source, access_path]
-        if ax not in charts:
-            charts.append(ax)
-
-    def register_plot_line_source(self, line: Line, xindex: int, yindex: int, yindex_multi_dim: str, zindex: int = None,
-                                  x_is_step: bool = False, z_is_step: bool = False):
-        self.plot_line_sources[line] = Indices(x=xindex, y=yindex, y_multi_dim=yindex_multi_dim, z=zindex,
-                                               x_is_step=x_is_step, z_is_step=z_is_step)
+    def get_all_sources(self, nengo_3d: 'Nengo3dProperties'):
+        from bl_nengo_3d.bl_properties import LineProperties, Nengo3dProperties
+        from bl_nengo_3d.bl_properties import LineSourceProperties
+        nengo_3d: Nengo3dProperties
+        observe = set()
+        plot = set()
+        if nengo_3d.node_color == 'MODEL_DYNAMIC':
+            for node in self.model_graph_view.nodes:
+                observe.add((node, nengo_3d.node_dynamic_access_path))
+        for source, axes in self.charts.items():
+            for ax in axes:
+                for line in ax.lines:
+                    line: LineProperties
+                    line_source: LineSourceProperties = line.source
+                    if line_source.iterate_step:
+                        observe.add((line_source.source_obj, line_source.access_path))
+                    else:
+                        plot.add((line_source.source_obj, line_source.access_path, line_source.fixed_step))
+        return observe, plot
 
 
 share_data = _ShareData()  # Instance storing addon state, is used by most of the sub-modules.

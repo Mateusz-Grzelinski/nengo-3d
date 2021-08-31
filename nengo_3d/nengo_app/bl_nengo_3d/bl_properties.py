@@ -3,18 +3,101 @@ import math
 
 import bpy
 
-from bl_nengo_3d import colors
 from bl_nengo_3d.charts import locators
-from bl_nengo_3d.utils import get_from_path
+from bl_nengo_3d.utils import get_from_path, recurse_dict
+from bl_nengo_3d.bl_utils import probeable_nodes, probeable
 
 
-class LinesProperties(bpy.types.PropertyGroup):
+class ColorGeneratorProperties(bpy.types.PropertyGroup):
+    initial_color: bpy.props.FloatVectorProperty(name='Initial color', subtype='COLOR',
+                                                 default=[0.021821, 1.000000, 0.149937])
+    shift: bpy.props.EnumProperty(name='Shift type', items=[
+        ('H', 'Shift hue', ''),
+        ('S', 'Shift saturation', ''),
+        ('V', 'Shift value', ''),
+    ])
+    max_colors: bpy.props.IntProperty(name='Max number of different colors', min=1, default=8)
+
+
+def draw_color_generator_properties_template(layout: bpy.types.UILayout, color_gen: ColorGeneratorProperties):
+    row = layout.row(align=True)
+    row.prop(color_gen, 'initial_color')
+    row.prop(color_gen, 'shift', text='')
+    row.prop(color_gen, 'max_colors', text='')
+
+
+# class NodeColorSourceProperties(bpy.types.PropertyGroup):
+#     # source_obj: bpy.props.StringProperty()
+#     access_path: bpy.props.EnumProperty(items=probeable)  # todo filter probeable by source_obj
+#     get: bpy.props.StringProperty(default='data')
+#
+#
+# def draw_color_source_properties_template(layout: bpy.types.UILayout, color_source: NodeColorSourceProperties):
+#     row = layout.row(align=True)
+#     # row.prop(color_source, 'source_obj')
+#     row.prop(color_source, 'access_path', text='')
+#     layout.label(text='data: np.array = data[step]')
+#     layout.prop(color_source, 'get')
+
+
+# step based
+class LineSourceProperties(bpy.types.PropertyGroup):
+    # .name is line object name
+    source_obj: bpy.props.StringProperty(name='Source', description='Source element from model')  # make enum?
+    access_path: bpy.props.EnumProperty(items=probeable)
+    # introduce special variables for step, tstep (trange)?
+    iterate_step: bpy.props.BoolProperty()
+    fixed_step: bpy.props.IntProperty()
+    # todo validate:
+    get_x: bpy.props.StringProperty(default='')
+    get_y: bpy.props.StringProperty(default='')
+    get_z: bpy.props.StringProperty(default='')
+
+
+def draw_line_source_properties_template(layout: bpy.types.UILayout, line_source: LineSourceProperties):
+    row = layout.row(align=True)
+    row.prop(line_source, 'source_obj')
+    row.prop(line_source, 'access_path', text='')
+    row = layout.row(align=True)
+    row.prop(line_source, 'iterate_step')
+    if not line_source.iterate_step:
+        row.prop(line_source, 'fixed_step')
+    col = layout.column(align=True)
+    if line_source.iterate_step:
+        col.label(text='for step, row in zip(steps, data):')
+        col.label(text='    step: int, row: np.array')
+        col.prop(line_source, 'get_x', text='    Get X')
+        col.prop(line_source, 'get_y', text='    Get Y')
+        col.prop(line_source, 'get_z', text='    Get Z')
+    else:
+        col.label(text=f'data: np.array = data[{line_source.fixed_step}]')
+        col.prop(line_source, 'get_x', text='Get X')
+        col.prop(line_source, 'get_y', text='Get Y')
+        col.prop(line_source, 'get_z', text='Get Z')
+
+
+class LineProperties(bpy.types.PropertyGroup):
+    # .name is object name
     axes_obj: bpy.props.StringProperty()
-    source: bpy.props.StringProperty()
-    update: bpy.props.BoolProperty()
-    hide_viewport: bpy.props.BoolProperty()
+    update: bpy.props.BoolProperty(default=True)
     label: bpy.props.StringProperty()
-    line_color: bpy.props.FloatVectorProperty(name='Color', subtype='COLOR', default=[0.099202, 1.000000, 0.217183])
+    # todo use color from nengo_colors
+    color: bpy.props.FloatVectorProperty(name='Color', subtype='COLOR', default=[0.099202, 1.000000, 0.217183])
+    # not needed for now: https://gist.github.com/sambler/2cdafb820dfdd5044b33421d8df706e2
+    # show_line_source_ui: bpy.props.BoolProperty()
+    source: bpy.props.PointerProperty(type=LineSourceProperties)
+
+
+def draw_line_properties_template(layout: bpy.types.UILayout, line: 'LineProperties'):
+    # col = layout.column()
+    # col.enabled = False
+    # col.prop(line, 'name')
+    # col.prop(line, 'axes_obj')
+    row = layout.row(align=True)
+    row.prop(line, 'update', text='')
+    row.prop(line, 'label')
+    row.prop(line, 'color', text='')
+    draw_line_source_properties_template(layout, line.source)
 
 
 class AxesProperties(bpy.types.PropertyGroup):
@@ -27,52 +110,84 @@ class AxesProperties(bpy.types.PropertyGroup):
     z_min: bpy.props.FloatProperty(default=0)
     z_max: bpy.props.FloatProperty(default=1)
 
-    title: bpy.props.StringProperty(name='Title', default='')
-    numticks: bpy.props.IntProperty(default=8)
-    xlabel: bpy.props.StringProperty(name='X label', default='X')
-    ylabel: bpy.props.StringProperty(name='Y label', default='Y')
-    zlabel: bpy.props.StringProperty(name='Z label', default='')
-    xlocator: bpy.props.EnumProperty(items=locators)
-    ylocator: bpy.props.EnumProperty(items=locators)
-    zlocator: bpy.props.EnumProperty(items=locators)
-    xformat: bpy.props.StringProperty(default='{:.2f}')
-    yformat: bpy.props.StringProperty(default='{:.2f}')
-    zformat: bpy.props.StringProperty(default='{:.2f}')
+    title: bpy.props.StringProperty(name='Title', default='')  # update=
+    xnumticks: bpy.props.IntProperty(name='X ticks', default=6)  # update=
+    ynumticks: bpy.props.IntProperty(name='Y ticks', default=6)  # update=
+    znumticks: bpy.props.IntProperty(name='Z ticks', default=6)  # update=
+    xlabel: bpy.props.StringProperty(name='X label', default='X')  # update=
+    ylabel: bpy.props.StringProperty(name='Y label', default='Y')  # update=
+    zlabel: bpy.props.StringProperty(name='Z label', default='')  # update=
+    xlocator: bpy.props.EnumProperty(items=locators)  # update=
+    ylocator: bpy.props.EnumProperty(items=locators)  # update=
+    zlocator: bpy.props.EnumProperty(items=locators)  # update=
+    xformat: bpy.props.StringProperty(default='{:.2f}')  # update=
+    yformat: bpy.props.StringProperty(default='{:.2f}')  # update=
+    zformat: bpy.props.StringProperty(default='{:.2f}')  # update=
 
-    line_initial_color: bpy.props.FloatVectorProperty(name='Color', subtype='COLOR', default=[0.099, 1.0, 0.217183])
-    select_lines: bpy.props.BoolProperty()
-    lines: bpy.props.CollectionProperty(type=LinesProperties)
+    color_gen: bpy.props.PointerProperty(type=ColorGeneratorProperties)
+    selectable_lines: bpy.props.BoolProperty()  # update=
+    lines: bpy.props.CollectionProperty(type=LineProperties)
+    line_offset: bpy.props.FloatProperty()
 
-    # lines: bpy.props.CollectionProperty(type=Nengo3dLineProperties)
 
+def draw_axes_properties_template(layout: bpy.types.UILayout, axes: 'AxesProperties'):
+    col = layout.column()
+    col.prop(axes, 'title')
+    row = layout.row(align=True)
+    row.prop(axes, 'xlabel', text='X')
+    row.prop(axes, 'xlocator', text='')
+    row.prop(axes, 'xformat', text='')
+    row.prop(axes, 'xnumticks')
+    row = layout.row(align=True)
+    row.prop(axes, 'ylabel', text='Y')
+    row.prop(axes, 'ylocator', text='')
+    row.prop(axes, 'yformat', text='')
+    row.prop(axes, 'ynumticks')
+    row = layout.row(align=True)
+    row.prop(axes, 'zlabel', text='Z')
+    row.prop(axes, 'zlocator', text='')
+    row.prop(axes, 'zformat', text='')
+    row.prop(axes, 'znumticks')
+    layout.prop(axes, 'line_offset')
+    layout.prop(axes, 'auto_range')
+    col = layout.column(align=True)
+    col.enabled = not axes.auto_range
+    row = col.row(align=True)
+    row.prop(axes, 'x_min', emboss=col.enabled)
+    row.prop(axes, 'x_max', emboss=col.enabled)
+    row = col.row(align=True)
+    row.prop(axes, 'y_min', emboss=col.enabled)
+    row.prop(axes, 'y_max', emboss=col.enabled)
+    row = col.row(align=True)
+    row.prop(axes, 'z_min', emboss=col.enabled)
+    row.prop(axes, 'z_max', emboss=col.enabled)
 
-def recurse_dict(prefix: str, value: dict):
-    for k, v in value.items():
-        if k.startswith('_'):
-            continue
-        elif isinstance(v, list):
-            continue
-        elif isinstance(v, tuple):
-            continue
-        elif isinstance(v, dict):
-            yield from recurse_dict(prefix=k, value=v)
-        yield prefix + '.' + k, v
+    draw_color_generator_properties_template(layout, axes.color_gen)
+    row = layout.row()
+    row.label(text='Lines:')
+    row.prop(axes, 'selectable_lines',
+             icon='RESTRICT_SELECT_OFF' if axes.selectable_lines else 'RESTRICT_SELECT_ON', text='')
+    box = layout.box()
+    # todo make editable?
+    for line in axes.lines:
+        line: LineProperties
+        draw_line_properties_template(box, line)
 
 
 _node_anti_crash = None
-_node_attributes_cache = None
+_node_attribute_with_types_cache = None
 
 
-def node_attributes(self, context):
+def node_attribute_with_types_items(self, context):
     from bl_nengo_3d.share_data import share_data
-    global _node_anti_crash, _node_attributes_cache
+    global _node_anti_crash, _node_attribute_with_types_cache
     g = share_data.model_graph_view
-    if _node_attributes_cache == g:
-        return _node_anti_crash
-    else:
-        _node_attributes_cache = g
     if not g:
         return [(':', '--no data--', '')]
+    if _node_attribute_with_types_cache == g and _node_anti_crash:
+        return _node_anti_crash
+    else:
+        _node_attribute_with_types_cache = g
     used = {}
     for node, data in g.nodes(data=True):
         data = share_data.model_graph.get_node_or_subnet_data(node)
@@ -104,16 +219,19 @@ def node_attributes(self, context):
     return _node_anti_crash
 
 
-def node_attributes_update(self: 'Nengo3dProperties', context):
+def node_attribute_with_types_update(self: 'Nengo3dProperties', context):
     from bl_nengo_3d.share_data import share_data
+    from bl_nengo_3d import colors
     nengo_3d: Nengo3dProperties = self
-    if nengo_3d.node_attribute == ':' or not nengo_3d.node_attribute:
+    if nengo_3d.node_attribute_with_type == ':' or not nengo_3d.node_attribute_with_type:
         return
-    access_path, attr_type = nengo_3d.node_attribute.split(':')
+    access_path, attr_type = nengo_3d.node_attribute_with_type.split(':')
     nengo_3d.node_mapped_colors.clear()
     access_path = access_path.split('.')
-    share_data.color_gen = colors.cycle_color(nengo_3d.node_initial_color, shift_type=nengo_3d.node_color_shift)
-    is_numerical = attr_type in {'int', 'float'}
+    share_data.color_gen = colors.cycle_color(nengo_3d.node_color_gen.initial_color,
+                                              shift_type=nengo_3d.node_color_gen.shift,
+                                              max_colors=nengo_3d.node_color_gen.max_colors)
+    is_numerical = attr_type.strip().lower() in {'int', 'float'}
     minimum, maximum = math.inf, -math.inf
     for node, data in share_data.model_graph_view.nodes(data=True):
         data = share_data.model_graph.get_node_or_subnet_data(node)
@@ -126,7 +244,7 @@ def node_attributes_update(self: 'Nengo3dProperties', context):
         if is_numerical and value is not None:
             if minimum > value:
                 minimum = value
-            elif maximum < value:
+            if maximum < value:
                 maximum = value
 
     if is_numerical:
@@ -151,14 +269,8 @@ def node_attributes_update(self: 'Nengo3dProperties', context):
             else:
                 # must be normalized for color ramp to work
                 obj.nengo_colors.weight = (float(value) - minimum) / (maximum - minimum)
-                logging.debug((node, value, obj.nengo_colors.weight))
-                assert 1 >= obj.nengo_colors.weight >= 0, (node, obj.nengo_colors.weight)
-
-
-color_map_items = [
-    ('ENUM', 'Enum', ''),
-    ('GRADIENT', 'Gradient', ''),
-]
+                # logging.debug((node, value, obj.nengo_colors.weight))
+                assert 1 >= obj.nengo_colors.weight >= 0, (node, obj.nengo_colors.weight, minimum, maximum, value)
 
 
 def color_map_node_update(self: 'Nengo3dProperties', context):
@@ -174,25 +286,41 @@ def color_map_node_update(self: 'Nengo3dProperties', context):
         logging.error(f'Unknown value: {self.node_color_map}')
 
 
-def color_update(self: 'Nengo3dMappedColor', context):
+def node_color_update(self: 'Nengo3dMappedColor', context):
     from bl_nengo_3d.share_data import share_data
     nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
-    access_path, attr_type = nengo_3d.node_attribute.split(':')
-    access_path = access_path.split('.')
-    for node, data in share_data.model_graph_view.nodes(data=True):
-        data = share_data.model_graph.get_node_or_subnet_data(node)
-        value = get_from_path(data, access_path)
-        mapped_color = nengo_3d.node_mapped_colors.get(str(value))
-        if not mapped_color:
-            continue  # update only selected nodes
-        obj = data['_blender_object']
-        assert mapped_color, (node, str(value), list(nengo_3d.node_mapped_colors.keys()))
-        obj.nengo_colors.color = mapped_color.color
-        obj.update_tag()
+    if nengo_3d.node_color == 'MODEL':
+        access_path, attr_type = nengo_3d.node_attribute_with_type.split(':')
+        access_path = access_path.split('.')
+        for node, node_data in share_data.model_graph_view.nodes(data=True):
+            node_data = share_data.model_graph.get_node_or_subnet_data(node)
+            value = get_from_path(node_data, access_path)
+            mapped_color = nengo_3d.node_mapped_colors.get(str(value))
+            if not mapped_color:
+                continue  # update only selected nodes
+            obj = node_data['_blender_object']
+            assert mapped_color, (node, str(value), list(nengo_3d.node_mapped_colors.keys()))
+            obj.nengo_colors.color = mapped_color.color
+            obj.update_tag()
+    elif nengo_3d.node_color == 'MODEL_DYNAMIC':
+        from bl_nengo_3d.frame_change_handler import recolor_dynamic_node_attributes
+        # recursive call!!!!
+        # recolor_dynamic_node_attributes(nengo_3d, int(context.scene.frame_current / nengo_3d.sample_every))
+        # access_path = nengo_3d.node_dynamic_access_path
+        # for node, node_data in share_data.model_graph_view.nodes(data=True):
+        #     node_data = share_data.model_graph.get_node_or_subnet_data(node)
+        #     data = share_data.simulation_cache.get((node, access_path))
+        #     if not data:
+        #         continue
+        #     obj = node_data['_blender_object']
+        #     value = data[int(context.scene.frame_current / nengo_3d.sample_every)]
+        #     mapped_color = nengo_3d.node_mapped_colors.get(str(value))
+    else:
+        assert False
 
 
 class Nengo3dMappedColor(bpy.types.PropertyGroup):
-    color: bpy.props.FloatVectorProperty(subtype='COLOR', default=[1.0, 1.0, 1.0], update=color_update)
+    color: bpy.props.FloatVectorProperty(subtype='COLOR', default=[1.0, 1.0, 1.0], update=node_color_update)
 
 
 def node_color_single_update(self: 'Nengo3dProperties', context):
@@ -282,7 +410,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
     dt: bpy.props.FloatProperty(default=0.001, min=0.0, precision=3, step=1, update=sample_every_update)
     step_n: bpy.props.IntProperty(name='Step N', default=1, min=1)
     speed: bpy.props.FloatProperty(default=1.0, min=0.01, description='Default simulation rate is 24 steps per second')
-    is_realtime: bpy.props.BoolProperty(name='Live simulate when playback')
+    allow_scrubbing: bpy.props.BoolProperty(name='Step by timeline scrubbing')
     collection: bpy.props.StringProperty(name='Collection', default='Nengo Model')
     algorithm_dim: bpy.props.EnumProperty(
         items=[
@@ -313,30 +441,25 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
         ], name='Layout', description='', default='SPRING_LAYOUT')
     spacing: bpy.props.FloatProperty(name='spacing', description='', default=5, min=0)
 
-    node_color_source: bpy.props.EnumProperty(items=[
+    node_color: bpy.props.EnumProperty(items=[
         ('SINGLE', 'Single color', ''),
-        # ('GRAPH', 'Graph properties', ''),
         ('MODEL', 'Model properties', ''),
         ('MODEL_DYNAMIC', 'Model dynamic properties', ''),
     ])
     node_color_single: bpy.props.FloatVectorProperty(name='Color', subtype='COLOR', update=node_color_single_update,
                                                      default=[0.099202, 1.000000, 0.217183])
-    node_attribute: bpy.props.EnumProperty(name='Attribute', items=node_attributes, update=node_attributes_update)
-    node_dynamic_attribute: bpy.props.EnumProperty(name='Attribute', items=[
-        ('SPIKES', 'Spike frequency', ''),
-        ('INPUT', '', ''),  # all probeable??
-    ])
+    node_attribute_with_type: bpy.props.EnumProperty(name='Attribute', items=node_attribute_with_types_items,
+                                                     update=node_attribute_with_types_update)
+    node_dynamic_access_path: bpy.props.EnumProperty(name='Dynamic attributes', items=probeable_nodes)
+    node_dynamic_get: bpy.props.StringProperty(default='sum(data)')
     node_attr_min: bpy.props.FloatProperty(name='Min')
     node_attr_max: bpy.props.FloatProperty(name='Max')
-    node_color_map: bpy.props.EnumProperty(items=color_map_items, update=color_map_node_update)
+    node_color_map: bpy.props.EnumProperty(items=[('ENUM', 'Enum', ''),
+                                                  ('GRADIENT', 'Gradient', '')
+                                                  ],
+                                           update=color_map_node_update)
     node_mapped_colors: bpy.props.CollectionProperty(type=Nengo3dMappedColor)
-    node_initial_color: bpy.props.FloatVectorProperty(name='Initial color', subtype='COLOR',
-                                                      default=[0.021821, 1.000000, 0.149937])
-    node_color_shift: bpy.props.EnumProperty(name='Shift type', items=[
-        ('H', 'Shift hue', ''),
-        ('S', 'Shift saturation', ''),
-        ('V', 'Shift value', ''),
-    ])
+    node_color_gen: bpy.props.PointerProperty(type=ColorGeneratorProperties)
 
     # edge_attribute: bpy.props.EnumProperty(name='Attribute', items=edge_attributes)
     # edge_color_map: bpy.props.EnumProperty(items=color_map_items, update=color_map_edge_update)
@@ -351,10 +474,13 @@ class Nengo3dColors(bpy.types.PropertyGroup):
 
 
 classes = (
-    LinesProperties,
+    ColorGeneratorProperties,
+    LineSourceProperties,
+    LineProperties,
     AxesProperties,
     Nengo3dMappedColor,
     Nengo3dShowNetwork,
+    # NodeColorSourceProperties,
     Nengo3dProperties,
     Nengo3dColors,
 )
@@ -365,7 +491,7 @@ register_factory, unregister_factory = bpy.utils.register_classes_factory(classe
 def register():
     register_factory()
     bpy.types.WindowManager.nengo_3d = bpy.props.PointerProperty(type=Nengo3dProperties)
-    bpy.types.Object.nengo_axes = AxesProperties
+    bpy.types.Object.nengo_axes = bpy.props.PointerProperty(type=AxesProperties)
     bpy.types.Object.nengo_colors = bpy.props.PointerProperty(type=Nengo3dColors)
 
 

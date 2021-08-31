@@ -2,21 +2,24 @@ import logging
 
 import nengo_3d_schemas
 from marshmallow import post_load, pre_dump
-from nengo_3d_schemas import Message, Observe, SimulationSteps, Simulation
+from nengo_3d_schemas import Message, Observe, SimulationSteps, Simulation, PlotLines
 
 
-class PlotLines(nengo_3d_schemas.PlotLines):
-    @pre_dump
-    def process_axes(self, data: 'Axes', **kwargs):
-        ax = data
-        node = self.context['node']
-        access_path = self.context['access_path']
-        return {
-            'plot_id': ax.root.name,
-            'source': node.name,
-            'access_path': access_path,
-            'x': [], 'y': []
-        }
+# class PlotLines(nengo_3d_schemas.PlotLines):
+#     @pre_dump
+#     def process_axes(self, data: 'Axes', **kwargs):
+#         ax = data
+#         source_obj_name = self.context['source_obj_name']
+#         access_path = self.context['access_path']
+#         step = self.context['step']
+#         return {
+#             # 'plot_id': ax.root.name,
+#             # line_id?
+#             'source': source_obj_name,
+#             'access_path': access_path,
+#             'step': step,
+#             'x': [], 'y': []
+#         }
 
 
 class NetworkSchema(nengo_3d_schemas.NetworkSchema):

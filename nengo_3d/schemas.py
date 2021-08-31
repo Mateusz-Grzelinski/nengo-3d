@@ -2,6 +2,7 @@ import logging
 from itertools import chain
 
 import nengo
+
 from marshmallow import pre_dump
 
 import nengo_3d.nengo_3d_schemas as nengo_3d_schemas
@@ -23,9 +24,9 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
             for step in recorded_steps:
                 for obj, probes in requested_probes.items():
                     _result = {'step': step, 'parameters': {}, 'node_name': name_finder.name(obj)}
-                    for probe, access_path in probes:
+                    for probe, access_path, _, _ in probes:
                         probe: nengo.Probe
-                        sim.trange()
+                        # sim.trange()
                         # logging.debug((probe, probe.sample_every))
                         _result['parameters'][access_path] = sim_data[probe][step].tolist()
                     results.append(_result)

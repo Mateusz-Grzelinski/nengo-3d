@@ -21,10 +21,10 @@ logging.basicConfig(
 
 try:
     OK = True
+    from bl_nengo_3d import bl_properties
     from bl_nengo_3d import bl_operators
     from bl_nengo_3d import bl_panels
     from bl_nengo_3d import debug
-    from bl_nengo_3d import bl_properties
     from bl_nengo_3d import bl_plot_operators
     from bl_nengo_3d import bl_depsgraph_handler
 except ModuleNotFoundError as e:
@@ -35,8 +35,8 @@ except ModuleNotFoundError as e:
 def register():
     if not OK:
         return
-    bl_plot_operators.register()
     bl_properties.register()
+    bl_plot_operators.register()
     bl_depsgraph_handler.register()
     bl_operators.register()
     bl_panels.register()
