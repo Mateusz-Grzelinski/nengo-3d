@@ -1,13 +1,14 @@
 import logging
 import math
 from collections import Sequence
-from typing import Iterable, Mapping, Union
+from typing import Mapping, Union
 
 import bmesh
 import bpy.utils
 
 import bl_nengo_3d.colors as colors
 import numpy as np
+from bl_nengo_3d.utils import normalize_precalculated, normalize
 
 logger = logging.getLogger(__name__)
 
@@ -30,32 +31,6 @@ def get_primitive_material():
         attribute.attribute_name = 'nengo_colors.color'
         material.node_tree.links.new(diffuse.inputs[0], attribute.outputs[0])
     return material
-
-
-def normalize_precalculated(x: list[float], min_x: float, max_x: float):
-    if min_x == max_x:
-        min_x -= 1
-        max_x += 1
-    for i, _x in enumerate(x):
-        x[i] = (_x - min_x) / (max_x - min_x)
-    return x
-
-
-def normalize(x: list[float]):
-    min_x = min(x) if len(x) == 0 else 0
-    max_x = max(x) if len(x) == 0 else 1
-    if min_x == max_x:
-        min_x = round(min_x - 1)
-        max_x = round(max_x + 1)
-    for i, _x in enumerate(x):
-        x[i] = (_x - min_x) / (max_x - min_x)
-    return x, min_x, max_x
-
-
-def denormalize(x: list[float], min_x: float, max_x: float):
-    for i, _x in enumerate(x):
-        x[i] = (_x - min_x) / (max_x - min_x)
-    return x
 
 
 class Locator:
@@ -115,9 +90,7 @@ class Line:
 
         self._line = ax._create_object('Line', solidify=None, parent=ax.root)
         line.name = self._line.name
-    #     if not self.label:
-    #         self.label = self._line.name
-    #
+
     # def set_label(self, text):
     #     self.label = text
 
@@ -179,10 +152,6 @@ class Line:
                 v.co.z += 0.04
         bm.to_mesh(line_mesh)
         bm.free()
-
-    @property
-    def dim(self):
-        return 3 if self.original_data_z else 2
 
 
 class AxesAccessors:
@@ -341,7 +310,6 @@ class Axes(AxesAccessors):
     def __init__(self, context: bpy.types.Context, nengo_axes: 'AxesProperties' = None):
         self.text_color = [0.019607, 0.019607, 0.019607]  # [1.000000, 0.982973, 0.926544]
         # self.parameter = parameter
-        self.color_gen = colors.cycle_color(initial_rgb=(0.080099, 0.226146, 1.000000))
 
         self.context = context
         collection = bpy.data.collections.get('Charts')
@@ -361,13 +329,18 @@ class Axes(AxesAccessors):
         if nengo_axes is not None:
             from bl_nengo_3d.bl_utils import copy_property_group
             copy_property_group(nengo_axes, self.root.nengo_axes)
+        self.root.nengo_axes.object = self.root.name
         super().__init__(self.root.nengo_axes)
+
+        color_gen_prop = self.root.nengo_axes.color_gen
+        color_gen = colors.cycle_color(color_gen_prop.initial_color, color_gen_prop.shift, color_gen_prop.max_colors)
 
         offset = 0
         for line_prop in self.lines:
             line_prop: 'LineProperties'
             line = Line(self, line=line_prop)
             line._line.location.z = offset
+            line._line.nengo_colors.color = next(color_gen)
             offset += self.line_offset
             self._lines[line_prop.name] = line
 
@@ -467,7 +440,7 @@ class Axes(AxesAccessors):
             obj.modifiers["Solidify"].thickness = solidify  # 0.04
         obj.hide_select = not selectable
         obj.active_material = get_primitive_material()
-        obj.nengo_colors.color = next(self.color_gen)
+        # obj.nengo_colors.color = next(self.color_gen)
         obj.parent = parent
         return obj
 

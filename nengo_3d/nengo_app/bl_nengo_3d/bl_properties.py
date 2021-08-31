@@ -3,7 +3,7 @@ import math
 
 import bpy
 
-from bl_nengo_3d.charts import locators
+from bl_nengo_3d.axes import locators
 from bl_nengo_3d.utils import get_from_path, recurse_dict
 from bl_nengo_3d.bl_utils import probeable_nodes, probeable
 
@@ -46,9 +46,9 @@ class LineSourceProperties(bpy.types.PropertyGroup):
     source_obj: bpy.props.StringProperty(name='Source', description='Source element from model')  # make enum?
     access_path: bpy.props.EnumProperty(items=probeable)
     # introduce special variables for step, tstep (trange)?
-    iterate_step: bpy.props.BoolProperty()
+    iterate_step: bpy.props.BoolProperty(name='Iterate last n steps')
     fixed_step: bpy.props.IntProperty()
-    # todo validate:
+    # todo validate and report errors:
     get_x: bpy.props.StringProperty(default='')
     get_y: bpy.props.StringProperty(default='')
     get_z: bpy.props.StringProperty(default='')
@@ -81,26 +81,44 @@ class LineProperties(bpy.types.PropertyGroup):
     axes_obj: bpy.props.StringProperty()
     update: bpy.props.BoolProperty(default=True)
     label: bpy.props.StringProperty()
-    # todo use color from nengo_colors
-    color: bpy.props.FloatVectorProperty(name='Color', subtype='COLOR', default=[0.099202, 1.000000, 0.217183])
-    # not needed for now: https://gist.github.com/sambler/2cdafb820dfdd5044b33421d8df706e2
-    # show_line_source_ui: bpy.props.BoolProperty()
+    ui_show_source: bpy.props.BoolProperty()
     source: bpy.props.PointerProperty(type=LineSourceProperties)
 
 
 def draw_line_properties_template(layout: bpy.types.UILayout, line: 'LineProperties'):
-    # col = layout.column()
-    # col.enabled = False
-    # col.prop(line, 'name')
-    # col.prop(line, 'axes_obj')
+    obj = bpy.data.objects[line.name]
     row = layout.row(align=True)
-    row.prop(line, 'update', text='')
-    row.prop(line, 'label')
-    row.prop(line, 'color', text='')
-    draw_line_source_properties_template(layout, line.source)
+    subrow = row.row(align=True)
+    subrow.prop(line, 'ui_show_source', text='', icon='TRIA_DOWN' if line.ui_show_source else 'TRIA_RIGHT',
+                emboss=False)
+    subrow.prop(line, 'update', text='', icon='ORIENTATION_VIEW', icon_only=True)
+    subrow = row.row(align=True)
+    subrow.active = line.update
+    subrow.prop(line, 'label', text='')
+    subrow.prop(obj.nengo_colors, 'color', text='')
+    subrow = row.row(align=True)
+    subrow.prop(obj, 'hide_viewport', text='', icon_only=True, emboss=False)
+    subrow.prop(obj, 'hide_select', text='', icon_only=True, emboss=False)
+    if line.ui_show_source:
+        col = layout.column()
+        col.active = line.update
+        draw_line_source_properties_template(col, line.source)
+
+
+def line_offset_update(self: 'AxesProperties', context):
+    ax_obj = bpy.data.objects.get(self.object)
+    if not ax_obj:
+        return
+    i = 0
+    for line in ax_obj.nengo_axes.lines:
+        line_obj = bpy.data.objects[line.name]
+        line_obj.location.z = ax_obj.nengo_axes.line_offset * i
+        i += 1
+        line_obj.update_tag()
 
 
 class AxesProperties(bpy.types.PropertyGroup):
+    object: bpy.props.StringProperty()
     treat_as_node: bpy.props.BoolProperty(description='Treat axes as part of graph')
     auto_range: bpy.props.BoolProperty(default=True)
     x_min: bpy.props.FloatProperty(default=0)
@@ -125,30 +143,30 @@ class AxesProperties(bpy.types.PropertyGroup):
     zformat: bpy.props.StringProperty(default='{:.2f}')  # update=
 
     color_gen: bpy.props.PointerProperty(type=ColorGeneratorProperties)
-    selectable_lines: bpy.props.BoolProperty()  # update=
     lines: bpy.props.CollectionProperty(type=LineProperties)
-    line_offset: bpy.props.FloatProperty()
+    line_offset: bpy.props.FloatProperty(name='Line offset', update=line_offset_update)
 
 
 def draw_axes_properties_template(layout: bpy.types.UILayout, axes: 'AxesProperties'):
     col = layout.column()
+    col.enabled = False  # not supported
     col.prop(axes, 'title')
-    row = layout.row(align=True)
+    row = col.row(align=True)
     row.prop(axes, 'xlabel', text='X')
     row.prop(axes, 'xlocator', text='')
     row.prop(axes, 'xformat', text='')
     row.prop(axes, 'xnumticks')
-    row = layout.row(align=True)
+    row = col.row(align=True)
     row.prop(axes, 'ylabel', text='Y')
     row.prop(axes, 'ylocator', text='')
     row.prop(axes, 'yformat', text='')
     row.prop(axes, 'ynumticks')
-    row = layout.row(align=True)
+    row = col.row(align=True)
     row.prop(axes, 'zlabel', text='Z')
     row.prop(axes, 'zlocator', text='')
     row.prop(axes, 'zformat', text='')
     row.prop(axes, 'znumticks')
-    layout.prop(axes, 'line_offset')
+
     layout.prop(axes, 'auto_range')
     col = layout.column(align=True)
     col.enabled = not axes.auto_range
@@ -162,13 +180,14 @@ def draw_axes_properties_template(layout: bpy.types.UILayout, axes: 'AxesPropert
     row.prop(axes, 'z_min', emboss=col.enabled)
     row.prop(axes, 'z_max', emboss=col.enabled)
 
+    from bl_nengo_3d.bl_operators import NengoColorLinesOperator
+    layout.operator(NengoColorLinesOperator.bl_idname).axes_obj = axes.object
+
     draw_color_generator_properties_template(layout, axes.color_gen)
     row = layout.row()
-    row.label(text='Lines:')
-    row.prop(axes, 'selectable_lines',
-             icon='RESTRICT_SELECT_OFF' if axes.selectable_lines else 'RESTRICT_SELECT_ON', text='')
+    row.label(text=f'Lines ({len(axes.lines)}:')
+    row.prop(axes, 'line_offset')
     box = layout.box()
-    # todo make editable?
     for line in axes.lines:
         line: LineProperties
         draw_line_properties_template(box, line)
@@ -390,6 +409,16 @@ def requires_reset_update(self: 'Nengo3dProperties', context):
         context.scene.is_simulation_playing = False
 
 
+_last_node_dynamic_access_path = None
+
+
+def node_dynamic_access_path_update(self: 'Nengo3dProperties', context):
+    global _last_node_dynamic_access_path
+    if _last_node_dynamic_access_path != self.node_dynamic_access_path:
+        self.requires_reset = True
+    _last_node_dynamic_access_path = self.node_dynamic_access_path
+
+
 class Nengo3dProperties(bpy.types.PropertyGroup):
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
     draw_labels: bpy.props.BoolProperty(name='Draw labels', default=False, update=draw_edges_update)
@@ -450,7 +479,8 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
                                                      default=[0.099202, 1.000000, 0.217183])
     node_attribute_with_type: bpy.props.EnumProperty(name='Attribute', items=node_attribute_with_types_items,
                                                      update=node_attribute_with_types_update)
-    node_dynamic_access_path: bpy.props.EnumProperty(name='Dynamic attributes', items=probeable_nodes)
+    node_dynamic_access_path: bpy.props.EnumProperty(name='Dynamic attributes', items=probeable_nodes,
+                                                     update=node_dynamic_access_path_update)
     node_dynamic_get: bpy.props.StringProperty(default='sum(data)')
     node_attr_min: bpy.props.FloatProperty(name='Min')
     node_attr_max: bpy.props.FloatProperty(name='Max')

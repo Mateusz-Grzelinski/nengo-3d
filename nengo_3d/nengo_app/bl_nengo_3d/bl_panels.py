@@ -9,7 +9,7 @@ import bpy
 from bl_nengo_3d import bl_operators, bl_plot_operators, frame_change_handler
 from bl_nengo_3d.bl_properties import Nengo3dProperties, Nengo3dShowNetwork, draw_axes_properties_template, \
     AxesProperties, LineProperties, LineSourceProperties, draw_color_generator_properties_template
-from bl_nengo_3d.charts import Axes
+from bl_nengo_3d.axes import Axes
 from bl_nengo_3d.share_data import share_data
 
 logger = logging.getLogger(__name__)
@@ -62,20 +62,27 @@ class NengoSettingsPanel(bpy.types.Panel):
 
         col = layout.column()
         col.active = connected() and not nengo_3d.requires_reset
+        observe, plot = share_data.get_all_sources(context.window_manager.nengo_3d)
         row = col.row(align=True)
-        op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text=f'Step x{nengo_3d.step_n}',
-                          icon='FRAME_NEXT')
+        subrow = row.row(align=True)
+        subrow.enabled = (len(observe) != 0 or len(plot) != 0)
+        op = subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text=f'Step x{nengo_3d.step_n}',
+                             icon='FRAME_NEXT')
         op.action = 'step'
-        row.prop(nengo_3d, 'step_n', text='')
+        subrow = row.row(align=True)
+        subrow.prop(nengo_3d, 'step_n', text='')
 
         row = col.row(align=True)
+        subrow = row.row(align=True)
+        subrow.enabled = (len(observe) != 0 or len(plot) != 0)
         if context.scene.is_simulation_playing:
-            op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Stop',
-                              icon='PAUSE')
+            op = subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Stop',
+                                 icon='PAUSE')
         else:
-            op = row.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Play',
-                              icon='PLAY')
-        row.prop(nengo_3d, 'speed', text='')
+            op = subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Play',
+                                 icon='PLAY')
+        subrow = row.row(align=True)
+        subrow.prop(nengo_3d, 'speed', text='')
         op.action = 'continuous'
 
         nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
@@ -160,13 +167,15 @@ class NengoContextPanel(bpy.types.Panel):
             return
 
         obj_name = obj.name
-        if not bl_plot_operators.PlotLineOperator.poll(context):
-            layout.label(text='No actions available')
-            return
+        # if not bl_plot_operators.PlotLineOperator.poll(context):
+        #     layout.label(text='No actions available')
+        #     return
+
         node = share_data.model_graph.get_node_or_subnet_data(obj_name)
         # layout.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d anything',
         #                 icon='FORCE_HARMONIC')
 
+        # logger.debug(node)
         if node:
             if node['type'] in {'Ensemble', 'Node'} and node['network_name'] != 'model':
                 op = layout.operator(bl_operators.NengoGraphOperator.bl_idname,
@@ -189,10 +198,14 @@ class NengoContextPanel(bpy.types.Panel):
             return
 
         e_source, e_target, edge = share_data.model_graph.get_edge_by_name(obj_name)
+        # logger.debug(edge)
         if edge:
             pass
             # self.draw_edge_actions(layout, e_source, e_target, edge)
             return
+
+        if obj.nengo_axes.object == obj_name:
+            layout.operator(bl_plot_operators.RemoveAxOperator.bl_idname).axes_obj = obj.nengo_axes.object
 
     @staticmethod
     def draw_node_actions(layout: bpy.types.UILayout, obj_name, node: dict[str, Any]):
@@ -296,13 +309,13 @@ class NengoContextPanel(bpy.types.Panel):
             box.operator_context = 'EXEC_DEFAULT'
 
         box = layout.box().column(align=True)
-        box.label(text='Neurons:')
-        neurons = ensemble['neurons']
         max_neurons = 50  # todo raise neurons limit
+        box.label(text=f'Neurons (drawing first {max_neurons}):')
+        neurons = ensemble['neurons']
         box.operator_context = 'EXEC_DEFAULT'
         # layout.active = share_data.current_step > 0
         op = box.operator(bl_plot_operators.PlotLineOperator.bl_idname,
-                          text=f'Response curves at {frame_current}',
+                          text=f'Response curves at {frame_current} step',
                           icon='ORIENTATION_VIEW')
         op: bl_plot_operators.PlotLineOperator
         op.axes: AxesProperties
@@ -328,7 +341,7 @@ class NengoContextPanel(bpy.types.Panel):
         box.operator_context = 'EXEC_DEFAULT'
         # layout.active = share_data.current_step > 0 and ensemble['size_out'] < 2
         op = box.operator(bl_plot_operators.PlotLineOperator.bl_idname,
-                          text=f'Tuning curves at {frame_current}',
+                          text=f'Tuning curves at {frame_current} step',
                           icon='ORIENTATION_VIEW')
         op.axes.xlabel = 'Input signal'
         op.axes.ylabel = 'Firing rate (Hz)'
@@ -413,7 +426,6 @@ class NengoContextPanel(bpy.types.Panel):
             line_source.iterate_step = True
             line_source.get_x = 'step'
             line_source.get_y = f'row[{i}]'
-
 
         box.operator_context = 'EXEC_DEFAULT'
         op = box.operator(bl_plot_operators.PlotLineOperator.bl_idname,
@@ -630,7 +642,7 @@ class NengoInfoPanel(bpy.types.Panel):
     @staticmethod
     def draw_info_chart(ax: Axes, layout, obj: bpy.types.Object):
         col = layout.column()
-        col.enabled = False
+        # col.enabled = False
         # todo edition is not supported yet
         draw_axes_properties_template(col, ax.root.nengo_axes)
 

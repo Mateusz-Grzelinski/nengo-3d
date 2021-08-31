@@ -114,7 +114,7 @@ class GuiConnection(Connection):
             # todo observe built in values
             # paths = list(get_path(obj, access_path))
             # assert len(paths) == len(access_path), (paths, access_path)
-            logger.warning('Not supported yet')
+            logger.warning(f'Not supported yet: {observe}')
 
     def handle_simulation(self, incoming_message):
         schema = schemas.Simulation()

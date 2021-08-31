@@ -8,7 +8,7 @@ import numpy as np
 from bl_nengo_3d import bl_properties, schemas
 from bl_nengo_3d.bl_properties import LineProperties, LineSourceProperties, Nengo3dProperties, \
     Nengo3dMappedColor
-from bl_nengo_3d.charts import Axes
+from bl_nengo_3d.axes import Axes
 from bl_nengo_3d.share_data import share_data
 from bl_nengo_3d.time_utils import ExecutionTimes
 

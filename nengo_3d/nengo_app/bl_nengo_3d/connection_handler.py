@@ -15,7 +15,7 @@ import bl_nengo_3d.schemas as schemas
 from bl_nengo_3d import nx_layouts, bl_operators
 from bl_nengo_3d.bl_nengo_primitives import get_primitive_material, get_primitive
 from bl_nengo_3d.bl_properties import Nengo3dProperties
-from bl_nengo_3d.charts import normalize
+from bl_nengo_3d.utils import normalize
 from bl_nengo_3d.share_data import share_data
 from bl_nengo_3d.time_utils import ExecutionTimes
 
@@ -301,7 +301,7 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
         source_pos_vector = Vector(source_pos)
         vector_difference: Vector = target_pos_vector - source_pos_vector
 
-        src_dim = max(g.nodes[node_target]['_blender_object'].dimensions) / 2
+        src_dim = max(g.nodes[node_source]['_blender_object'].dimensions) / 2
         target_dim = max(g.nodes[node_target]['_blender_object'].dimensions) / 2
         # arrow_height = 1  # 0.5
 

@@ -1,12 +1,10 @@
 import logging
+import typing
 
 import bpy
 
-from bl_nengo_3d import schemas, charts
-from bl_nengo_3d.bl_properties import AxesProperties, draw_axes_properties_template, LineProperties, \
-    LineSourceProperties
-from bl_nengo_3d.bl_utils import probeable
-from bl_nengo_3d.charts import Axes, locators
+from bl_nengo_3d.bl_properties import AxesProperties, draw_axes_properties_template
+from bl_nengo_3d.axes import Axes
 from bl_nengo_3d.share_data import share_data
 
 
@@ -42,48 +40,64 @@ class PlotLineOperator(bpy.types.Operator):
             bpy.ops.screen.animation_play()
             share_data.resume_playback_on_steps = False
             share_data.step_when_ready = 0
+        context.window_manager.nengo_3d.requires_reset = True
 
         ax = Axes(context, self.axes)
 
         node: bpy.types.Object = context.active_object  # or for all selected_objects
-        ax.location = node.location + node.dimensions / 2
+        ax.root.parent = node
+        ax.location = node.dimensions / 2
 
         share_data.register_chart(source=node.name, ax=ax)
-        # observe = set()
-        # plot = set()
-        # for line in self.axes.lines:
-        #     line: LineProperties
-        #     line_source: LineSourceProperties = line.source
-        #     mess_schema = schemas.Message()
-        #     if line_source.iterate_step:
-        #         observe.add((line_source.source_obj, line_source.access_path))
-        #     else:
-        #         plot.add((line_source.source_obj, line_source.access_path, line_source.fixed_step))
-        # for i in observe:
-        #     data_scheme = schemas.Observe()
-        #     data = {'source': i[0],
-        #             'access_path': i[1],
-        #             'sample_every': context.window_manager.nengo_3d.sample_every,
-        #             'dt': context.window_manager.nengo_3d.dt}
-        #     message = mess_schema.dumps({'schema': schemas.Observe.__name__, 'data': data_scheme.dump(obj=data)})
-        #     logging.debug(f'Sending: {message}')
-        #     share_data.sendall(message.encode('utf-8'))
-        # for i in plot:
-        #     data_scheme = schemas.PlotLines(context={
-        #         'source_obj_name': i[0],
-        #         'access_path': i[1],
-        #         'step': i[2],
-        #     })
-        #     data = data_scheme.dump(obj=ax)
-        #     message = mess_schema.dumps({'schema': schemas.PlotLines.__name__, 'data': data})
-        #     logging.debug(f'Sending: {message}')
-        #     share_data.sendall(message.encode('utf-8'))
         ax.draw()
+        return {'FINISHED'}
+
+
+class RemoveAxOperator(bpy.types.Operator):
+    bl_idname = 'nengo_3d.remove_ax'
+    bl_label = 'Remove axes'
+
+    axes_obj: bpy.props.StringProperty()
+
+    def execute(self, context: 'Context') -> typing.Union[typing.Set[str], typing.Set[int]]:
+        ax_obj = bpy.data.objects.get(self.axes_obj)
+        if not ax_obj:
+            return {'CANCELLED'}
+
+        # todo getting chart by parent relationship is not reliable
+        names = set()
+
+        def get_child_names(obj):
+            nonlocal names
+            for child in obj.children:
+                names.add(child.name)
+                if child.children:
+                    get_child_names(child)
+
+        ax: AxesProperties = ax_obj.nengo_axes
+        for source, axes in share_data.charts.items():
+            to_remove = []
+            for _ax in axes:
+                if ax.object == _ax.root.name:
+                    to_remove.append(_ax)
+            for r in to_remove:
+                axes.remove(r)
+
+        # axes: Axes = share_data.charts[ax]
+        get_child_names(ax_obj)
+        for child in names:
+            obj = bpy.data.objects[child]
+            bpy.data.objects.remove(obj, do_unlink=True)
+        bpy.data.objects.remove(ax_obj, do_unlink=True)
+        # for line in ax_obj.nengo_axes.lines:
+        #     line_obj = bpy.data.objects[line.name]
+        #     bpy.data.objects.remove(line_obj, do_unlink=True)
         return {'FINISHED'}
 
 
 classes = (
     PlotLineOperator,
+    RemoveAxOperator,
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)

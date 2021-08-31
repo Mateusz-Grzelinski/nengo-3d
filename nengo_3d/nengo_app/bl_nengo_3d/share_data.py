@@ -9,7 +9,7 @@ import networkx as nx
 import collections
 
 from bl_nengo_3d import colors
-from bl_nengo_3d.charts import Axes, Line
+from bl_nengo_3d.axes import Axes, Line
 
 
 class _ShareData:
@@ -74,7 +74,7 @@ class _ShareData:
         nengo_3d: Nengo3dProperties
         observe = set()
         plot = set()
-        if nengo_3d.node_color == 'MODEL_DYNAMIC':
+        if self.model_graph_view and nengo_3d.node_color == 'MODEL_DYNAMIC':
             for node in self.model_graph_view.nodes:
                 observe.add((node, nengo_3d.node_dynamic_access_path))
         for source, axes in self.charts.items():

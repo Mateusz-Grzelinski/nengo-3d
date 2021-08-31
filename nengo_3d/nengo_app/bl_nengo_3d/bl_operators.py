@@ -7,11 +7,12 @@ from functools import partial
 import bpy
 
 import bl_nengo_3d.schemas as schemas
+from bl_nengo_3d import colors
 from bl_nengo_3d.bl_depsgraph_handler import graph_edges_recalculate_handler
 from bl_nengo_3d.frame_change_handler import frame_change_handler, execution_times, recolor_dynamic_node_attributes
 from bl_nengo_3d.bl_properties import Nengo3dProperties, node_color_single_update, \
-    node_attribute_with_types_update, Nengo3dShowNetwork
-from bl_nengo_3d.charts import Axes
+    node_attribute_with_types_update, Nengo3dShowNetwork, ColorGeneratorProperties
+from bl_nengo_3d.axes import Axes
 from bl_nengo_3d.connection_handler import handle_data, handle_network_model
 from bl_nengo_3d.share_data import share_data
 
@@ -304,6 +305,27 @@ class NengoColorNodesOperator(bpy.types.Operator):
             assert False, nengo_3d.node_color
 
 
+class NengoColorLinesOperator(bpy.types.Operator):
+    """Calculate graph drawing"""
+    bl_idname = 'nengo_3d.color_lines'
+    bl_label = 'Recolor lines'
+    bl_options = {'REGISTER'}
+
+    axes_obj: bpy.props.StringProperty()
+
+    def execute(self, context):
+        ax_obj = bpy.data.objects.get(self.axes_obj)
+        if not ax_obj:
+            return {'CANCELLED'}
+        color_gen: ColorGeneratorProperties = ax_obj.nengo_axes.color_gen
+        gen = colors.cycle_color(color_gen.initial_color, color_gen.shift, color_gen.max_colors)
+        for line in ax_obj.nengo_axes.lines:
+            line_obj = bpy.data.objects[line.name]
+            line_obj.nengo_colors.color = next(gen)
+            line_obj.update_tag()
+        return {'FINISHED'}
+
+
 classes = (
     ConnectOperator,
     DisconnectOperator,
@@ -311,6 +333,7 @@ classes = (
     NengoSimulateOperator,
     SimpleSelectOperator,
     NengoColorNodesOperator,
+    NengoColorLinesOperator,
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)
