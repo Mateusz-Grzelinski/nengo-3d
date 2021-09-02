@@ -167,41 +167,47 @@ class NengoContextPanel(bpy.types.Panel):
             return
 
         obj_name = obj.name
-        # if not bl_plot_operators.PlotLineOperator.poll(context):
-        #     layout.label(text='No actions available')
-        #     return
-
         node = share_data.model_graph.get_node_or_subnet_data(obj_name)
         # layout.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d anything',
         #                 icon='FORCE_HARMONIC')
 
-        # logger.debug(node)
         if node:
+            layout.label(text='Select')
+            row = layout.row()
+            op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Predecessors')
+            for _node in share_data.model_graph_view.predecessors(obj_name):
+                item = op.objects.add()
+                item.object = _node
+
+            op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Successors')
+            for _node in share_data.model_graph_view.successors(obj_name):
+                item = op.objects.add()
+                item.object = _node
+
+            col = layout.column()
             if node['type'] in {'Ensemble', 'Node'} and node['network_name'] != 'model':
-                op = layout.operator(bl_operators.NengoGraphOperator.bl_idname,
-                                     text=f'Collapse {node["network_name"]}')
+                op = col.operator(bl_operators.NengoGraphOperator.bl_idname,
+                                  text=f'Collapse {node["network_name"]}')
                 op.regenerate = True
                 op.collapse = node['network_name']
             if node['type'] == 'Network' and node.get('parent_network'):
-                op = layout.operator(bl_operators.NengoGraphOperator.bl_idname,
-                                     text=f'Collapse {node["parent_network"]}')
+                op = col.operator(bl_operators.NengoGraphOperator.bl_idname,
+                                  text=f'Collapse {node["parent_network"]}')
                 op.regenerate = True
                 op.collapse = node['parent_network']
 
-            col = layout.column()
+            # col = layout.column()
             if node['type'] == 'Ensemble':
                 self.draw_ensemble_actions(col, node, obj_name, context.scene.frame_current)
             elif node['type'] == 'Node':
                 self.draw_node_actions(col, obj_name, node)
             elif node['type'] == 'Network':
-                self.draw_network_actions(layout, node)
+                self.draw_network_actions(col, node)
             return
 
         e_source, e_target, edge = share_data.model_graph.get_edge_by_name(obj_name)
-        # logger.debug(edge)
         if edge:
-            pass
-            # self.draw_edge_actions(layout, e_source, e_target, edge)
+            self.draw_edge_actions(layout, e_source, e_target, edge)
             return
 
         if obj.nengo_axes.object == obj_name:
@@ -213,7 +219,7 @@ class NengoContextPanel(bpy.types.Panel):
         layout.operator_context = 'EXEC_DEFAULT'
         op = layout.operator(
             operator=bl_plot_operators.PlotLineOperator.bl_idname,
-            text=f'Plot 2d output',
+            text=f'Output',
             icon='ORIENTATION_VIEW')
         op: bl_plot_operators.PlotLineOperator
         op.axes: AxesProperties
@@ -309,7 +315,7 @@ class NengoContextPanel(bpy.types.Panel):
             box.operator_context = 'EXEC_DEFAULT'
 
         box = layout.box().column(align=True)
-        max_neurons = 50  # todo raise neurons limit
+        max_neurons = 20  # todo raise neurons limit
         box.label(text=f'Neurons (drawing first {max_neurons}):')
         neurons = ensemble['neurons']
         box.operator_context = 'EXEC_DEFAULT'
@@ -324,7 +330,7 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.title = f'{obj_name}: Neuron response curves\n' \
                         f'(step {frame_current}, {ensemble["neuron_type"]["name"]})'
         op.axes.line_offset = -0.05
-        for i in range(min(neurons['size_out'], max_neurons)):
+        for i in range(min(neurons['size_in'], max_neurons)):
             line: LineProperties = op.axes.lines.add()
             line.label = f'Neuron {i}'
             line.update = False
@@ -469,7 +475,7 @@ class NengoContextPanel(bpy.types.Panel):
         #     item.z_is_step = True
         #
         #     op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname,
-        #                       text=f'Plot 2d ouput',
+        #                       text=f'Ouput',
         #                       icon='ORIENTATION_VIEW')
         #     op.probe = 'probeable.decoded_output'
         #     op.axes.xlabel = 'X'
@@ -504,74 +510,106 @@ class NengoContextPanel(bpy.types.Panel):
         op.expand = node['name']
 
     @staticmethod
-    def draw_edge_actions(layout: bpy.types.UILayout, e_source: str, e_target: str, edge: dict[str, Any]):
-        col = layout.column(align=True)
-        col.operator_context = 'EXEC_DEFAULT'
-        op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d input',
-                          icon='ORIENTATION_VIEW')
-        op.probe = 'probeable.input'
-        op.xlabel = 'Step'
-        op.ylabel = 'Input'
-        op.xlocator = 'IntegerLocator'
-        op.xformat = '{:.0f}'
-        op.yformat = '{:.2f}'
-        op.line_offset = -0.05
-        op.title = f'{e_source} -> {e_target}: input'
-        source_node = share_data.model_graph.get_node_data(e_source)
-        if source_node['type'] == 'Ensemble':
-            for i in range(source_node['neurons']['size_out']):
-                item = op.indices.add()
-                item.x_is_step = True
-                item.yindex = i
-                item.label = f'Neuron {i}'
-        elif source_node['type'] == 'Node':
-            # todo check
-            for i in range(source_node['size_out']):
-                item = op.indices.add()
-                item.x_is_step = True
-                item.yindex = i
-                item.label = f'Neuron {i}'
-        col.operator_context = 'EXEC_DEFAULT'
-        op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d output',
-                          icon='ORIENTATION_VIEW')
-        op.probe = 'probeable.output'
-        op.xlabel = 'Step'
-        op.ylabel = 'Output'
-        op.xlocator = 'IntegerLocator'
-        op.xformat = '{:.0f}'
-        op.yformat = '{:.2f}'
-        op.title = f'{e_source} -> {e_target}: output'
-        item = op.indices.add()
-        item.x_is_step = True
-        item.yindex = 0
-        if edge['has_weights']:
-            # todo check format of weights
-            col.operator_context = 'EXEC_DEFAULT'
-            op = col.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Plot 2d Weights',
+    def draw_edge_actions(layout: bpy.types.UILayout, e_source: str, e_target: str, e_data: dict[str, Any]):
+        layout.label(text='Select')
+        row = layout.row()
+        view_source, view_target, _view_data = share_data.model_graph_view.get_edge_by_name(e_data['name'])
+        op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Source')
+        item = op.objects.add()
+        item.object = view_source
+        op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Target')
+        item = op.objects.add()
+        item.object = view_target
+
+        layout.label(text='Plot 2d:')
+        box = layout.box().column(align=True)
+
+        box.operator_context = 'EXEC_DEFAULT'
+        op = box.operator(
+            operator=bl_plot_operators.PlotLineOperator.bl_idname,
+            text=f'Input',
+            icon='ORIENTATION_VIEW')
+        op: bl_plot_operators.PlotLineOperator
+        op.axes: AxesProperties
+        op.axes.xlabel = 'Step'
+        op.axes.ylabel = 'Voltage'
+        op.axes.xlocator = 'IntegerLocator'
+        op.axes.xformat = '{:.0f}'
+        op.axes.yformat = '{:.2f}'
+        op.axes.title = f'{e_data["name"]}: input'
+        for i in range(e_data['size_in']):
+            line: LineProperties = op.axes.lines.add()
+            line.label = f'Dimension {i}'
+            line.source: LineSourceProperties
+            line.source.source_obj = e_data['name']
+            line.source.access_path = 'probeable.input'
+            line.source.iterate_step = True
+            line.source.get_x = 'step'
+            line.source.get_y = f'row[{i}]'
+
+        box.operator_context = 'EXEC_DEFAULT'
+        op = box.operator(
+            operator=bl_plot_operators.PlotLineOperator.bl_idname,
+            text=f'Output',
+            icon='ORIENTATION_VIEW')
+        op: bl_plot_operators.PlotLineOperator
+        op.axes: AxesProperties
+        op.axes.xlabel = 'Step'
+        op.axes.ylabel = 'Voltage'
+        op.axes.xlocator = 'IntegerLocator'
+        op.axes.xformat = '{:.0f}'
+        op.axes.yformat = '{:.2f}'
+        op.axes.title = f'{e_data["name"]}: output'
+        for i in range(e_data['size_out']):
+            line: LineProperties = op.axes.lines.add()
+            line.label = f'Dimension {i}'
+            line.source: LineSourceProperties
+            line.source.source_obj = e_data['name']
+            line.source.access_path = 'probeable.output'
+            line.source.iterate_step = True
+            line.source.get_x = 'step'
+            line.source.get_y = f'row[{i}]'
+
+        if e_data['has_weights']:
+            box.operator_context = 'EXEC_DEFAULT'
+            op = box.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Weights',
                               icon='ORIENTATION_VIEW')
             """Weights are solved once. They are used to approximate function given in connection"""
-            # op.probe = 'probeable.weights'
-            op.xlabel = 'Step'
-            op.ylabel = 'Neuron Weight'
-            op.xlocator = 'IntegerLocator'
-            op.xformat = '{:.0f}'
-            op.yformat = '{:.4f}'
-            op.title = f'{e_source} -> {e_target}: weights'
-            op.line_offset = -0.05
-            target_node = share_data.model_graph.get_node_data(
-                e_target)  # model_graph.nodes[e_target]
+            op.axes.xlabel = 'Step'
+            op.axes.ylabel = 'Neuron weight'
+            op.axes.xlocator = 'IntegerLocator'
+            op.axes.xformat = '{:.0f}'
+            op.axes.yformat = '{:.4f}'
+            op.axes.title = f'{e_data["name"]}: weights'
+            op.axes.line_offset = -0.05
+            target_node = share_data.model_graph.get_node_data(e_data['post'])  # model_graph.nodes[e_target]
+            source_node = share_data.model_graph.get_node_data(e_data['pre'])  # model_graph.nodes[e_target]
             # dimension 1 weight [neuron1, neuron2, ...]
             # dimension 2 weight [neuron1, neuron2, ...], ...
-            for d in range(target_node['size_in']):
+            # todo check dimensions
+            if source_node['type'] == 'Node':
                 # todo connection to node can also have weights?
-                if source_node['type'] == 'Node':
-                    logging.warning(f'Not implemented: {source_node}')
-                    break
-                for i in range(source_node['neurons']['size_out']):
-                    item = op.indices.add()
-                    item.x_is_step = True
-                    item.yindex_multi_dim = f'[{d}, {i}]'  # same as numpy array slice. Must return single value
-                    item.label = f'Neuron {item.yindex_multi_dim}'
+                return  # todo not supported
+            for i in range(e_data['size_out']):  # same as target_node['size_in']
+                for d in range(source_node['neurons']['size_out']):
+                    line: LineProperties = op.axes.lines.add()
+                    line.label = f'Neuron {d} {i}'
+                    line.source: LineSourceProperties
+                    line.source.source_obj = e_data['name']
+                    line.source.access_path = 'probeable.weights'
+                    line.source.iterate_step = True
+                    line.source.get_x = 'step'
+                    line.source.get_y = f'row[{d}, {i}]'
+
+            # for d in range(target_node['size_in']):
+            #     if source_node['type'] == 'Node':
+            #         logging.warning(f'Not implemented: {source_node}')
+            #         break
+            #     for i in range(source_node['neurons']['size_out']):
+            #         item = op.indices.add()
+            #         item.x_is_step = True
+            #         item.yindex_multi_dim = f'[{d}, {i}]'  # same as numpy array slice. Must return single value
+            #         item.label = f'Neuron {item.yindex_multi_dim}'
 
 
 class NengoInfoPanel(bpy.types.Panel):

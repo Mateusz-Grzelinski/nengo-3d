@@ -20,17 +20,27 @@ message = schemas.Message()
 simulation_scheme = schemas.Simulation()
 
 
+class ObjectNames(bpy.types.PropertyGroup):
+    object: bpy.props.StringProperty(name='Select')
+
+
 class SimpleSelectOperator(bpy.types.Operator):
     bl_idname = "object.simple_select"
     bl_label = "Simple Object Operator"
 
-    object_name: bpy.props.StringProperty(name='Select')
+    active_object: bpy.props.StringProperty(name='Select', options={'SKIP_SAVE'})
+    objects: bpy.props.CollectionProperty(type=ObjectNames, options={'SKIP_SAVE'})
 
     def execute(self, context):
-        ob = bpy.data.objects.get(self.object_name)
-        if ob is not None:
-            ob.select_set(True)
-            context.view_layer.objects.active = ob
+        if self.active_object:
+            ob = bpy.data.objects.get(self.active_object)
+            if ob is not None:
+                ob.select_set(True)
+                context.view_layer.objects.active = ob
+        for obj_names in self.objects.values():
+            ob = bpy.data.objects.get(obj_names.object)
+            if ob is not None:
+                ob.select_set(True)
         return {'FINISHED'}
 
 
@@ -331,6 +341,7 @@ classes = (
     DisconnectOperator,
     NengoGraphOperator,
     NengoSimulateOperator,
+    ObjectNames,
     SimpleSelectOperator,
     NengoColorNodesOperator,
     NengoColorLinesOperator,
