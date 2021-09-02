@@ -9,9 +9,11 @@ import bpy
 import bl_nengo_3d.schemas as schemas
 from bl_nengo_3d import colors
 from bl_nengo_3d.bl_depsgraph_handler import graph_edges_recalculate_handler
-from bl_nengo_3d.frame_change_handler import frame_change_handler, execution_times, recolor_dynamic_node_attributes
+from bl_nengo_3d.frame_change_handler import frame_change_handler, execution_times, recolor_dynamic_node_attributes, \
+    recolor_dynamic_edge_attributes
 from bl_nengo_3d.bl_properties import Nengo3dProperties, node_color_single_update, \
-    node_attribute_with_types_update, Nengo3dShowNetwork, ColorGeneratorProperties
+    node_attribute_with_types_update, Nengo3dShowNetwork, ColorGeneratorProperties, edge_color_single_update, \
+    edge_attribute_with_types_update
 from bl_nengo_3d.axes import Axes
 from bl_nengo_3d.connection_handler import handle_data, handle_network_model
 from bl_nengo_3d.share_data import share_data
@@ -164,6 +166,8 @@ class NengoGraphOperator(bpy.types.Operator):
         # logging.debug(share_data.model_graph_view.nodes(data=False))
         # logging.debug(share_data.model_graph_view.nodes['model.cortical'])
         handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d, select=True)
+        NengoColorNodesOperator.recolor(nengo_3d, context.scene.frame_current)
+        NengoColorEdgesOperator.recolor(nengo_3d, context.scene.frame_current)
         bpy.ops.view3d.view_selected()
 
         context.area.tag_redraw()
@@ -299,11 +303,11 @@ class NengoColorNodesOperator(bpy.types.Operator):
         return bool(share_data.model_graph)
 
     def execute(self, context):
-        self.recolor_nodes(context.window_manager.nengo_3d, context.scene.frame_current)
+        self.recolor(context.window_manager.nengo_3d, context.scene.frame_current)
         return {'FINISHED'}
 
     @staticmethod
-    def recolor_nodes(nengo_3d: Nengo3dProperties, frame_current):
+    def recolor(nengo_3d: Nengo3dProperties, frame_current):
         if nengo_3d.node_color == 'SINGLE':
             node_color_single_update(nengo_3d, None)
         elif nengo_3d.node_color == 'MODEL':
@@ -313,6 +317,33 @@ class NengoColorNodesOperator(bpy.types.Operator):
             # share_data.simulation_cache  # todo
         else:
             assert False, nengo_3d.node_color
+
+
+class NengoColorEdgesOperator(bpy.types.Operator):
+    """Calculate graph drawing"""
+    bl_idname = 'nengo_3d.color_edges'
+    bl_label = 'Recolor edges'
+    bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(cls, context):
+        return bool(share_data.model_graph)
+
+    def execute(self, context):
+        self.recolor(context.window_manager.nengo_3d, context.scene.frame_current)
+        return {'FINISHED'}
+
+    @staticmethod
+    def recolor(nengo_3d: Nengo3dProperties, frame_current):
+        if nengo_3d.edge_color == 'SINGLE':
+            edge_color_single_update(nengo_3d, None)
+        elif nengo_3d.edge_color == 'MODEL':
+            edge_attribute_with_types_update(nengo_3d, None)
+        elif nengo_3d.edge_color == 'MODEL_DYNAMIC':
+            recolor_dynamic_edge_attributes(nengo_3d, int(frame_current / nengo_3d.sample_every))
+            # share_data.simulation_cache  # todo
+        else:
+            assert False, nengo_3d.edge_color
 
 
 class NengoColorLinesOperator(bpy.types.Operator):
@@ -343,6 +374,7 @@ classes = (
     NengoSimulateOperator,
     ObjectNames,
     SimpleSelectOperator,
+    NengoColorEdgesOperator,
     NengoColorNodesOperator,
     NengoColorLinesOperator,
 )

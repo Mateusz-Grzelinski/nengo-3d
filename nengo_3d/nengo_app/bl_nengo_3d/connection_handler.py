@@ -113,7 +113,8 @@ def handle_network_schema(incoming_answer, nengo_3d: Nengo3dProperties):
     nengo_3d.expand_subnetworks['model'].expand = True
     share_data.model_graph_view = g.get_graph_view(nengo_3d)
     handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d)
-    # bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d, )
+    bl_operators.NengoColorNodesOperator.recolor(nengo_3d, 0)
+    bl_operators.NengoColorEdgesOperator.recolor(nengo_3d, 0)
     file_path = data['file']
     t = bpy.data.texts.get(os.path.basename(file_path))
     if t:
@@ -332,7 +333,7 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
         connection_obj.hide_render = False
         connection_obj.hide_select = not nengo_3d.select_edges
         connection_obj.location = source_pos
-        connection_obj.nengo_colors.color = [0.011030, 0.011030, 0.011030]
+        # connection_obj.nengo_colors.color = [0.011030, 0.011030, 0.011030]
         connection_obj.active_material = material
         connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
         g.edges[node_source, node_target]['_blender_object'] = connection_obj

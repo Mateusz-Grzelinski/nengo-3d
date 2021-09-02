@@ -105,7 +105,7 @@ class NengoSubnetworksPanel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = 'Nengo 3d'
     bl_options = {'DEFAULT_CLOSED'}
-    bl_parent_id = 'NENGO_PT_algorithms'
+    bl_parent_id = 'NENGO_PT_layout'
 
     def draw(self, context: bpy.types.Context):
         layout = self.layout
@@ -124,9 +124,9 @@ class NengoSubnetworksPanel(bpy.types.Panel):
             row.label(text=net.name)
 
 
-class NengoAlgorithmPanel(bpy.types.Panel):
-    bl_label = 'Nengo Algorithms'
-    bl_idname = 'NENGO_PT_algorithms'
+class NengoLayoutPanel(bpy.types.Panel):
+    bl_label = 'Nengo layout'
+    bl_idname = 'NENGO_PT_layout'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Nengo 3d'
@@ -172,37 +172,16 @@ class NengoContextPanel(bpy.types.Panel):
         #                 icon='FORCE_HARMONIC')
 
         if node:
-            layout.label(text='Select')
-            row = layout.row()
-            op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Predecessors')
-            for _node in share_data.model_graph_view.predecessors(obj_name):
-                item = op.objects.add()
-                item.object = _node
-
-            op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Successors')
-            for _node in share_data.model_graph_view.successors(obj_name):
-                item = op.objects.add()
-                item.object = _node
+            nengo_3d = context.window_manager.nengo_3d
+            self.draw_node_actions(layout, obj_name, nengo_3d.select_edges)
 
             col = layout.column()
-            if node['type'] in {'Ensemble', 'Node'} and node['network_name'] != 'model':
-                op = col.operator(bl_operators.NengoGraphOperator.bl_idname,
-                                  text=f'Collapse {node["network_name"]}')
-                op.regenerate = True
-                op.collapse = node['network_name']
-            if node['type'] == 'Network' and node.get('parent_network'):
-                op = col.operator(bl_operators.NengoGraphOperator.bl_idname,
-                                  text=f'Collapse {node["parent_network"]}')
-                op.regenerate = True
-                op.collapse = node['parent_network']
-
-            # col = layout.column()
             if node['type'] == 'Ensemble':
-                self.draw_ensemble_actions(col, node, obj_name, context.scene.frame_current)
+                self.draw_ensemble_type_actions(col, node, obj_name, context.scene.frame_current)
             elif node['type'] == 'Node':
-                self.draw_node_actions(col, obj_name, node)
+                self.draw_node_type_actions(col, obj_name, node)
             elif node['type'] == 'Network':
-                self.draw_network_actions(col, node)
+                self.draw_network_type_actions(col, node)
             return
 
         e_source, e_target, edge = share_data.model_graph.get_edge_by_name(obj_name)
@@ -213,8 +192,41 @@ class NengoContextPanel(bpy.types.Panel):
         if obj.nengo_axes.object == obj_name:
             layout.operator(bl_plot_operators.RemoveAxOperator.bl_idname).axes_obj = obj.nengo_axes.object
 
+    def draw_node_actions(self, layout, obj_name: str, selectable_edges: bool):
+        layout.label(text='Select')
+        row = layout.row()
+        op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Predecessors')
+        for _node in share_data.model_graph_view.predecessors(obj_name):
+            item = op.objects.add()
+            item.object = _node
+        op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Successors')
+        for _node in share_data.model_graph_view.successors(obj_name):
+            item = op.objects.add()
+            item.object = _node
+
+        if not selectable_edges:
+            return
+        layout.label(text='Select edges')
+        row = layout.row()
+        op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'In')
+        for e_source, e_target, e_data in share_data.model_graph_view.in_edges(obj_name, data=True):
+            item = op.objects.add()
+            item.object = e_data['name']
+        op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Out')
+        for e_source, e_target, e_data in share_data.model_graph_view.out_edges(obj_name, data=True):
+            item = op.objects.add()
+            item.object = e_data['name']
+
     @staticmethod
-    def draw_node_actions(layout: bpy.types.UILayout, obj_name, node: dict[str, Any]):
+    def draw_node_type_actions(layout: bpy.types.UILayout, obj_name, node: dict[str, Any]):
+        col = layout
+        if node['network_name'] != 'model':
+            layout.label(text='Subnetworks:')
+            op = col.operator(bl_operators.NengoGraphOperator.bl_idname,
+                              text=f'Collapse {node["network_name"]}')
+            op.regenerate = True
+            op.collapse = node['network_name']
+
         layout.label(text='Plot 2d lines:')
         layout.operator_context = 'EXEC_DEFAULT'
         op = layout.operator(
@@ -240,7 +252,17 @@ class NengoContextPanel(bpy.types.Panel):
             line.label = f'Dimension {i}'
 
     @staticmethod
-    def draw_ensemble_actions(layout: bpy.types.UILayout, ensemble: dict[str, Any], obj_name: str, frame_current: int):
+    def draw_ensemble_type_actions(layout: bpy.types.UILayout, ensemble: dict[str, Any], obj_name: str,
+                                   frame_current: int):
+        col = layout
+        node = ensemble
+        if node['network_name'] != 'model':
+            layout.label(text='Subnetworks:')
+            op = col.operator(bl_operators.NengoGraphOperator.bl_idname,
+                              text=f'Collapse {node["network_name"]}')
+            op.regenerate = True
+            op.collapse = node['network_name']
+
         layout.label(text='Plot 2d lines:')
         box = layout.box().column(align=True)
         box.label(text='Ensemble:')
@@ -502,10 +524,17 @@ class NengoContextPanel(bpy.types.Panel):
         #     item.yindex = 0
 
     @staticmethod
-    def draw_network_actions(layout: bpy.types.UILayout, node: dict[str, Any]):
+    def draw_network_type_actions(layout: bpy.types.UILayout, node: dict[str, Any]):
+        row = layout.row()
+        layout.label(text='Subnetworks:')
+        if node.get('parent_network'):
+            op = row.operator(bl_operators.NengoGraphOperator.bl_idname,
+                              text=f'Collapse {node["parent_network"]}')
+            op.regenerate = True
+            op.collapse = node['parent_network']
         # nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
         # layout.prop(nengo_3d.expand_subnetworks[node['name']], 'expand', text=f'Expand {node["name"]}')
-        op = layout.operator(bl_operators.NengoGraphOperator.bl_idname, text=f'Expand {node["name"]}')
+        op = row.operator(bl_operators.NengoGraphOperator.bl_idname, text=f'Expand {node["name"]}')
         op.regenerate = True
         op.expand = node['name']
 
@@ -706,7 +735,7 @@ class NengoInfoPanel(bpy.types.Panel):
                 row.label(text=str(value))
 
 
-def draw_enum(layout, nengo_3d):
+def draw_node_enum(layout: bpy.types.UILayout, nengo_3d: Nengo3dProperties):
     row = layout.row(align=True)
     draw_color_generator_properties_template(layout, nengo_3d.node_color_gen)
     box = layout.box()
@@ -717,7 +746,27 @@ def draw_enum(layout, nengo_3d):
         row.prop(data, 'color', text=name)
 
 
-def draw_gradient(layout, nengo_3d):
+def draw_edge_enum(layout: bpy.types.UILayout, nengo_3d: Nengo3dProperties):
+    row = layout.row(align=True)
+    draw_color_generator_properties_template(layout, nengo_3d.edge_color_gen)
+    box = layout.box()
+    col = box.column()
+    for name, data in sorted(nengo_3d.edge_mapped_colors.items()):
+        row = col.row(align=True)
+        # todo add filters for hiding and selecting nodes and edges
+        row.prop(data, 'color', text=name)
+
+
+def draw_edge_gradient(layout, nengo_3d):
+    cr_node = bpy.data.materials['NengoEdgeMaterial'].node_tree.nodes['ColorRamp']
+    row = layout.row(align=True)
+    row.label(text=f'Min: {nengo_3d.edge_attr_min}')
+    row.label(text=f'Max: {nengo_3d.edge_attr_max}')
+
+    box = layout.box()
+    box.template_color_ramp(cr_node, 'color_ramp', expand=True)
+
+def draw_node_gradient(layout, nengo_3d):
     cr_node = bpy.data.materials['NengoNodeMaterial'].node_tree.nodes['ColorRamp']
     row = layout.row(align=True)
     row.label(text=f'Min: {nengo_3d.node_attr_min}')
@@ -774,13 +823,12 @@ class NengoNodeColorsPanel(bpy.types.Panel):
             return
         layout.label(text='data: np.array = data[node, access_path][step]')
         layout.prop(nengo_3d, 'node_dynamic_get', text='Get')
-        # draw_color_source_properties_template(layout, nengo_3d.node_color_source)
         layout.prop(nengo_3d, 'node_color_map', expand=True)
         if nengo_3d.node_color_map == 'GRADIENT':
-            draw_gradient(layout, nengo_3d)
+            draw_node_gradient(layout, nengo_3d)
         elif nengo_3d.node_color_map == 'ENUM':
             layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
-            draw_enum(layout, nengo_3d)
+            draw_node_enum(layout, nengo_3d)
         else:
             logging.error(f'Unknown value: {nengo_3d.node_color_map}')
 
@@ -792,24 +840,95 @@ class NengoNodeColorsPanel(bpy.types.Panel):
         if nengo_3d.node_attribute_with_type.endswith(':str'):
             nengo_3d.node_color_map = 'ENUM'
             layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
-            draw_enum(layout, nengo_3d)
+            draw_node_enum(layout, nengo_3d)
         elif nengo_3d.node_attribute_with_type.endswith(':int'):
             layout.prop(nengo_3d, 'node_color_map', expand=True)
             if nengo_3d.node_color_map == 'GRADIENT':
-                draw_gradient(layout, nengo_3d)
+                draw_node_gradient(layout, nengo_3d)
             elif nengo_3d.node_color_map == 'ENUM':
                 layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
-                draw_enum(layout, nengo_3d)
+                draw_node_enum(layout, nengo_3d)
             else:
                 logging.error(f'Unknown value: {nengo_3d.node_color_map}')
         elif nengo_3d.node_attribute_with_type.endswith(':float'):
             nengo_3d.node_color_map = 'GRADIENT'
-            draw_gradient(layout, nengo_3d)
+            draw_node_gradient(layout, nengo_3d)
         elif nengo_3d.node_attribute_with_type.endswith(':bool'):
             layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
-            draw_enum(layout, nengo_3d)
+            draw_node_enum(layout, nengo_3d)
         else:
             logging.error(f'Unknown type: "{nengo_3d.node_attribute_with_type}"')
+
+
+class NengoEdgeColorsPanel(bpy.types.Panel):
+    bl_label = 'Edge'
+    bl_idname = 'NENGO_PT_edge_colors'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Nengo 3d'
+    bl_parent_id = NengoColorsPanel.bl_idname
+
+    def draw(self, context):
+        layout = self.layout
+        nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+        layout.active = bool(share_data.model_graph) and context.area.type == 'VIEW_3D' and \
+                        context.space_data.shading.type in {'MATERIAL', 'RENDERED'}
+        layout.prop(nengo_3d, 'edge_color', expand=True)
+
+        if nengo_3d.edge_color == 'SINGLE':
+            nengo_3d.edge_color_map = 'ENUM'
+            layout.prop(nengo_3d, 'edge_color_single', text='')
+        elif nengo_3d.edge_color == 'GRAPH':
+            pass
+        elif nengo_3d.edge_color == 'MODEL':
+            self.draw_model(layout, nengo_3d)
+        elif nengo_3d.edge_color == 'MODEL_DYNAMIC':
+            self.draw_model_dynamic(layout, nengo_3d)
+        else:
+            assert False, nengo_3d.edge_color
+
+    @staticmethod
+    def draw_model_dynamic(layout: bpy.types.UILayout, nengo_3d: Nengo3dProperties):
+        layout.prop(nengo_3d, 'edge_dynamic_access_path')
+        if nengo_3d.edge_dynamic_access_path == ':':
+            return
+        layout.label(text='data: np.array = data[node, access_path][step]')
+        layout.prop(nengo_3d, 'edge_dynamic_get', text='Get')
+        layout.prop(nengo_3d, 'edge_color_map', expand=True)
+        if nengo_3d.edge_color_map == 'GRADIENT':
+            draw_edge_gradient(layout, nengo_3d,)
+        elif nengo_3d.edge_color_map == 'ENUM':
+            layout.operator(bl_operators.NengoColorEdgesOperator.bl_idname)
+            draw_edge_enum(layout, nengo_3d)
+        else:
+            logging.error(f'Unknown value: {nengo_3d.edge_color_map}')
+
+    @staticmethod
+    def draw_model(layout: bpy.types.UILayout, nengo_3d: Nengo3dProperties):
+        layout.prop(nengo_3d, 'edge_attribute_with_type', text='')
+        if nengo_3d.edge_attribute_with_type == ':':
+            return
+        if nengo_3d.edge_attribute_with_type.endswith(':str'):
+            nengo_3d.edge_color_map = 'ENUM'
+            layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
+            draw_edge_enum(layout, nengo_3d)
+        elif nengo_3d.edge_attribute_with_type.endswith(':int'):
+            layout.prop(nengo_3d, 'edge_color_map', expand=True)
+            if nengo_3d.edge_color_map == 'GRADIENT':
+                draw_edge_gradient(layout, nengo_3d)
+            elif nengo_3d.edge_color_map == 'ENUM':
+                layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
+                draw_edge_enum(layout, nengo_3d)
+            else:
+                logging.error(f'Unknown value: {nengo_3d.edge_color_map}')
+        elif nengo_3d.edge_attribute_with_type.endswith(':float'):
+            nengo_3d.edge_color_map = 'GRADIENT'
+            draw_edge_gradient(layout, nengo_3d)
+        elif nengo_3d.edge_attribute_with_type.endswith(':bool'):
+            layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
+            draw_edge_enum(layout, nengo_3d)
+        else:
+            logging.error(f'Unknown type: "{nengo_3d.edge_attribute_with_type}"')
 
 
 class NengoStylePanel(bpy.types.Panel):
@@ -835,9 +954,10 @@ classes = (
     NengoSettingsPanel,
     NengoContextPanel,
     NengoInfoPanel,
-    NengoAlgorithmPanel,
+    NengoLayoutPanel,
     NengoColorsPanel,
     NengoNodeColorsPanel,
+    NengoEdgeColorsPanel,
     NengoSubnetworksPanel,
     NengoStylePanel,
 )

@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 import bpy
@@ -42,11 +43,35 @@ def probeable_recurse_dict(prefix: Optional[str], value: dict):
         # yield prefix + '.' + k if prefix else k
 
 
+_probeable_edges_anti_crash = None
+_probeable_edges_cache = None
+
+
+def probeable_edges_items(self, context):
+    global _probeable_edges_anti_crash, _probeable_edges_cache
+    from bl_nengo_3d.share_data import share_data
+    g = share_data.model_graph_view
+    if not g:
+        return [(':', '--no data--', '')]
+    if _probeable_edges_cache == g and _probeable_edges_anti_crash:
+        return _probeable_edges_anti_crash
+    else:
+        _probeable_edges_cache = g
+    _probeable_edges_anti_crash = [(':', '--Choose an attribute--', '')]
+    probeables = set()
+    for e_source, e_target, e_data in g.edges(data=True):
+        e_data = share_data.model_graph.edges[e_data['pre'], e_data['post']]
+        probeables.update(list(probeable_recurse_dict(prefix=None, value=e_data)))
+    for param in sorted(probeables):
+        _probeable_edges_anti_crash.append((param, param, ''))
+    return _probeable_edges_anti_crash
+
+
 _probeable_nodes_anti_crash = None
 _probeable_nodes_cache = None
 
 
-def probeable_nodes(self, context):
+def probeable_nodes_items(self, context):
     global _probeable_nodes_anti_crash, _probeable_nodes_cache
     from bl_nengo_3d.share_data import share_data
     g = share_data.model_graph_view
@@ -59,9 +84,9 @@ def probeable_nodes(self, context):
     _probeable_nodes_anti_crash = [(':', '--Choose an attribute--', '')]
     probeables = set()
     for node in g.nodes:
-        node = share_data.model_graph.get_node_or_subnet_data(node)
-        probeables.update(list(probeable_recurse_dict(prefix=None, value=node)))
-        if node.get('type') == 'Ensemble':
+        node_data = share_data.model_graph.get_node_or_subnet_data(node)
+        probeables.update(list(probeable_recurse_dict(prefix=None, value=node_data)))
+        if node_data.get('type') == 'Ensemble':
             probeables.add('neurons.response_curves')
             probeables.add('neurons.tuning_curves')
     for param in sorted(probeables):

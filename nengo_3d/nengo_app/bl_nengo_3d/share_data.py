@@ -77,6 +77,9 @@ class _ShareData:
         if self.model_graph_view and nengo_3d.node_color == 'MODEL_DYNAMIC':
             for node in self.model_graph_view.nodes:
                 observe.add((node, nengo_3d.node_dynamic_access_path))
+        if self.model_graph_view and nengo_3d.edge_color == 'MODEL_DYNAMIC':
+            for e_source, e_target, e_data in self.model_graph_view.edges(data=True):
+                observe.add((e_data['name'], nengo_3d.edge_dynamic_access_path))
         for source, axes in self.charts.items():
             for ax in axes:
                 for line in ax.lines:
