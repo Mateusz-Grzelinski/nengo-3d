@@ -17,4 +17,4 @@ with model:
 if __name__ == "__main__":
     import nengo_3d
 
-    nengo_3d.GUI(__file__).start()
+    nengo_3d.GUI(filename=__file__, model=model, local_vars=locals()).start()

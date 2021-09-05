@@ -436,12 +436,12 @@ def edge_color_update(self: 'NodeMappedColor', context):
         access_path, attr_type = nengo_3d.edge_attribute_with_type.split(':')
         access_path = access_path.split('.')
         for e_source, e_target, e_data in share_data.model_graph_view.edges(data=True):
+            obj = e_data['_blender_object']
             e_data = share_data.model_graph.edges[e_data['pre'], e_data['post']]
             value = get_from_path(e_data, access_path)
             mapped_color = nengo_3d.edge_mapped_colors.get(str(value))
             if not mapped_color:
                 continue  # update only selected nodes
-            obj = e_data['_blender_object']
             assert mapped_color, (e_data['name'], str(value), list(nengo_3d.edge_mapped_colors.keys()))
             obj.nengo_colors.color = mapped_color.color
             obj.update_tag()
@@ -499,9 +499,9 @@ def edge_attribute_with_types_update(self: 'Nengo3dProperties', context):
         nengo_3d.edge_attr_max = maximum
 
         for e_source, e_target, e_data in share_data.model_graph_view.edges(data=True):
+            obj = e_data['_blender_object']
             e_data = share_data.model_graph.edges[e_data['pre'], e_data['post']]
             value = get_from_path(e_data, access_path)
-            obj = e_data['_blender_object']
             if value is None:
                 obj.nengo_colors.weight = 0
             else:

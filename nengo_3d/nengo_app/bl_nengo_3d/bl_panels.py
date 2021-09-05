@@ -910,14 +910,14 @@ class NengoEdgeColorsPanel(bpy.types.Panel):
             return
         if nengo_3d.edge_attribute_with_type.endswith(':str'):
             nengo_3d.edge_color_map = 'ENUM'
-            layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
+            layout.operator(bl_operators.NengoColorEdgesOperator.bl_idname)
             draw_edge_enum(layout, nengo_3d)
         elif nengo_3d.edge_attribute_with_type.endswith(':int'):
             layout.prop(nengo_3d, 'edge_color_map', expand=True)
             if nengo_3d.edge_color_map == 'GRADIENT':
                 draw_edge_gradient(layout, nengo_3d)
             elif nengo_3d.edge_color_map == 'ENUM':
-                layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
+                layout.operator(bl_operators.NengoColorEdgesOperator.bl_idname)
                 draw_edge_enum(layout, nengo_3d)
             else:
                 logging.error(f'Unknown value: {nengo_3d.edge_color_map}')
@@ -925,7 +925,7 @@ class NengoEdgeColorsPanel(bpy.types.Panel):
             nengo_3d.edge_color_map = 'GRADIENT'
             draw_edge_gradient(layout, nengo_3d)
         elif nengo_3d.edge_attribute_with_type.endswith(':bool'):
-            layout.operator(bl_operators.NengoColorNodesOperator.bl_idname)
+            layout.operator(bl_operators.NengoColorEdgesOperator.bl_idname)
             draw_edge_enum(layout, nengo_3d)
         else:
             logging.error(f'Unknown type: "{nengo_3d.edge_attribute_with_type}"')
