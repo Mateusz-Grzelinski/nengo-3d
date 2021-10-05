@@ -45,6 +45,9 @@ def frame_change_handler(scene: bpy.types.Scene):
         return
     _last_update = frame_current - frame_current % nengo_3d.sample_every
 
+    if not share_data.simulation_cache_steps() or frame_current > 1+share_data.simulation_cache_steps():
+        return
+
     # calculate data range:
     if nengo_3d.show_whole_simulation:
         start_entries = 0
@@ -52,12 +55,14 @@ def frame_change_handler(scene: bpy.types.Scene):
         start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
     start_entries = int(start_entries / nengo_3d.sample_every)
     end_entries = int(frame_current / nengo_3d.sample_every)
-    steps = range(start_entries, end_entries, nengo_3d.sample_every)
+    steps = list(range(start_entries, end_entries, nengo_3d.sample_every))
 
     if nengo_3d.node_color == 'MODEL_DYNAMIC':
         recolor_dynamic_node_attributes(nengo_3d, steps[-1] if steps else 0)
 
     if nengo_3d.edge_color == 'MODEL_DYNAMIC':
+        # logging.debug((frame_current, start_entries, end_entries))
+        # logging.debug(list(steps))
         recolor_dynamic_edge_attributes(nengo_3d, steps[-1] if steps else 0)
 
     # update plots
@@ -139,6 +144,10 @@ def recolor_dynamic_edge_attributes(nengo_3d: Nengo3dProperties, step: int):
             obj.nengo_colors.color = (0.0, 0.0, 0.0)
             obj.update_tag()
             continue
+        # logging.debug((len(all_data), step))
+        # if len(all_data) >= step:
+        #     step = len(all_data) - 1  # workaround...
+        # logging.debug((len(all_data), step))
         data = all_data[step]
         value = eval(get)
         # logging.debug((e_source, e_target, value, data, all_data, step))

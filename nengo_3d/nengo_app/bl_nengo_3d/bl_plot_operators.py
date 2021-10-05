@@ -65,6 +65,7 @@ class RemoveAxOperator(bpy.types.Operator):
             return {'CANCELLED'}
 
         # todo getting chart by parent relationship is not reliable
+        # todo remove by collection name?
         names = set()
 
         def get_child_names(obj):
@@ -89,6 +90,7 @@ class RemoveAxOperator(bpy.types.Operator):
             obj = bpy.data.objects[child]
             bpy.data.objects.remove(obj, do_unlink=True)
         bpy.data.objects.remove(ax_obj, do_unlink=True)
+        bpy.data.collections.remove(bpy.data.collections[ax_obj.nengo_axes.collection])
         # for line in ax_obj.nengo_axes.lines:
         #     line_obj = bpy.data.objects[line.name]
         #     bpy.data.objects.remove(line_obj, do_unlink=True)

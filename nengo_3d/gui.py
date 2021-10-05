@@ -218,14 +218,14 @@ class GUI(Nengo3dServer):
             from nengo_3d import BLENDER_EXE_PATH
             # import pygetwindow
             command = [BLENDER_EXE_PATH,
-                       '--engine', 'BLENDER_WORKBENCH',
+                       # '--engine', 'EEVEE',
                        '--app-template', 'nengo_app',
                        '--window-geometry', '-1920', '0', '1920', '1080',
                        # '--no-window-focus',
                        # '--python-expr',
                        # f'import sys; sys.path.append({repr(BLENDER_PIP_MODULES_PATH)})',
                        # '--addons', 'bl_nengo_3d',
-                       blender_template,
+                       # blender_template,
                        ]
             # stdout=self.blender_log, stderr=self.blender_log,
             logging.info(f'Staring GUI: {" ".join(command)}')

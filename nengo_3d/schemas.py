@@ -64,7 +64,9 @@ class NodeSchema(nengo_3d_schemas.NodeSchema):
     def process_node(self, data: nengo.Node, **kwargs):
         result = {'probeable': data.probeable,
                   'class_type': type(data).__name__,
-                  'network_name': self.context['network_name']}
+                  'network_name': self.context['network_name'],
+                  'parent_network': self.context['network_name'],  # same as above
+                  }
         for param in data.params:
             result[param] = getattr(data, param)
         if isinstance(data, nengo.Node):

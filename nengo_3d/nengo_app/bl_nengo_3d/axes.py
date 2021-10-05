@@ -88,8 +88,9 @@ class Line:
         self.original_data_y = []
         self.original_data_z = None
 
-        self._line = ax._create_object('Line', solidify=None, parent=ax.root)
-        line.name = self._line.name
+        _line = ax._create_object('Line', solidify=None, parent=ax.root)
+        line.name = _line.name
+        self.line_name = _line.name
 
     # def set_label(self, text):
     #     self.label = text
@@ -133,7 +134,7 @@ class Line:
         else:
             Z = normalize_precalculated(self.original_data_z.copy(), self.ax.z_min, self.ax.z_max)
 
-        line_mesh = self._line.data
+        line_mesh = bpy.data.objects[self.line_name].data
         if not X:
             return
         bm = bmesh.new()
@@ -296,6 +297,86 @@ class AxesAccessors:
     def lines(self) -> Mapping[Union[str, int], 'LineProperties']:
         return self._nengo_axes.lines
 
+    @property
+    def xticks_collection_name(self):
+        return self._nengo_axes.xticks_collection_name
+
+    @xticks_collection_name.setter
+    def xticks_collection_name(self, value):
+        self._nengo_axes.xticks_collection_name = value
+
+    @property
+    def yticks_collection_name(self):
+        return self._nengo_axes.yticks_collection_name
+
+    @yticks_collection_name.setter
+    def yticks_collection_name(self, value):
+        self._nengo_axes.yticks_collection_name = value
+
+    @property
+    def zticks_collection_name(self):
+        return self._nengo_axes.zticks_collection_name
+
+    @zticks_collection_name.setter
+    def zticks_collection_name(self, value):
+        self._nengo_axes.zticks_collection_name = value
+
+    @property
+    def xticks_obj_name(self):
+        return self._nengo_axes.xticks_obj_name
+
+    @xticks_obj_name.setter
+    def xticks_obj_name(self, value):
+        self._nengo_axes.xticks_obj_name = value
+
+    @property
+    def yticks_obj_name(self):
+        return self._nengo_axes.yticks_obj_name
+
+    @yticks_obj_name.setter
+    def yticks_obj_name(self, value):
+        self._nengo_axes.yticks_obj_name = value
+
+    @property
+    def zticks_obj_name(self):
+        return self._nengo_axes.zticks_obj_name
+
+    @zticks_obj_name.setter
+    def zticks_obj_name(self, value):
+        self._nengo_axes.zticks_obj_name = value
+
+    @property
+    def xlabel_obj_name(self):
+        return self._nengo_axes.xlabel_obj_name
+
+    @xlabel_obj_name.setter
+    def xlabel_obj_name(self, value):
+        self._nengo_axes.xlabel_obj_name = value
+
+    @property
+    def ylabel_obj_name(self):
+        return self._nengo_axes.ylabel_obj_name
+
+    @ylabel_obj_name.setter
+    def ylabel_obj_name(self, value):
+        self._nengo_axes.ylabel_obj_name = value
+
+    @property
+    def zlabel_obj_name(self):
+        return self._nengo_axes.zlabel_obj_name
+
+    @zlabel_obj_name.setter
+    def zlabel_obj_name(self, value):
+        self._nengo_axes.zlabel_obj_name = value
+
+    @property
+    def title_obj_name(self):
+        return self._nengo_axes.title_obj_name
+
+    @title_obj_name.setter
+    def title_obj_name(self, value):
+        self._nengo_axes.title_obj_name = value
+
 
 class Axes(AxesAccessors):
     # todo handle graph removal
@@ -312,14 +393,17 @@ class Axes(AxesAccessors):
         # self.parameter = parameter
 
         self.context = context
-        collection = bpy.data.collections.get('Charts')
-        if not collection:
-            collection = bpy.data.collections.new('Charts')
-            context.collection.children.link(collection)
+        master_collection = bpy.data.collections.get('Charts')
+        if not master_collection:
+            master_collection = bpy.data.collections.new('Charts')
+            context.collection.children.link(master_collection)
+        # collection = bpy.data.collections.get('Plot')
+        # if not collection:
+        collection = bpy.data.collections.new('Plot')
+        master_collection.children.link(collection)
+
         self.collection = collection
         self._location = context.active_object.location if context.active_object else (0, 0, 0)
-        self._line_z_offset = 0
-        """Offset multiple lines in z direction. Only for 2 dim lines"""
 
         self._lines: dict[Line] = {}
 
@@ -330,7 +414,26 @@ class Axes(AxesAccessors):
             from bl_nengo_3d.bl_utils import copy_property_group
             copy_property_group(nengo_axes, self.root.nengo_axes)
         self.root.nengo_axes.object = self.root.name
+        self.root.nengo_axes.collection = self.collection.name
         super().__init__(self.root.nengo_axes)
+
+        if not self.xticks_collection_name or not bpy.data.collections.get(self.xticks_collection_name):
+            collection = bpy.data.collections.new('Ticks X')
+            collection.hide_select = True
+            self.collection.children.link(collection)
+            self.xticks_collection_name = collection.name
+
+        if not self.yticks_collection_name or not bpy.data.collections.get(self.yticks_collection_name):
+            collection = bpy.data.collections.new('Ticks Y')
+            collection.hide_select = True
+            self.collection.children.link(collection)
+            self.yticks_collection_name = collection.name
+
+        if not self.zticks_collection_name or not bpy.data.collections.get(self.zticks_collection_name):
+            collection = bpy.data.collections.new('Ticks Z')
+            collection.hide_select = True
+            self.collection.children.link(collection)
+            self.zticks_collection_name = collection.name
 
         color_gen_prop = self.root.nengo_axes.color_gen
         color_gen = colors.cycle_color(color_gen_prop.initial_color, color_gen_prop.shift, color_gen_prop.max_colors)
@@ -339,25 +442,14 @@ class Axes(AxesAccessors):
         for line_prop in self.lines:
             line_prop: 'LineProperties'
             line = Line(self, line=line_prop)
-            line._line.location.z = offset
-            line._line.nengo_colors.color = next(color_gen)
+            obj = bpy.data.objects[line.line_name]
+            obj.location.z = offset
+            obj.nengo_colors.color = next(color_gen)
             offset += self.line_offset
             self._lines[line_prop.name] = line
 
         self.root.empty_display_size = 1.1
         self.root.empty_display_type = 'ARROWS'  # 'PLAIN_AXES'
-
-        self._chart = None
-        self._ticks_x = None
-        self._ticks_y = None
-        self._ticks_z = None
-        self._tick_text_x = []
-        self._tick_text_y = []
-        self._tick_text_z = []
-        self._xlabel = None
-        self._ylabel = None
-        self._zlabel = None
-        self._title = None
 
     @property
     def line_offset(self):
@@ -365,9 +457,9 @@ class Axes(AxesAccessors):
 
     @line_offset.setter
     def line_offset(self, value: float):
-        for i, line in enumerate(self._lines.values()):
-            line._line.location.z = value * i
-        self._line_z_offset = value
+        for i, line_prop in enumerate(self.lines.values()):
+            obj = bpy.data.objects[line_prop.name]
+            obj.location.z = value * i
         self._nengo_axes.line_offset = value
 
     @property
@@ -418,10 +510,12 @@ class Axes(AxesAccessors):
             assert self.z_min not in {math.inf, -math.inf}
             assert self.z_max not in {math.inf, -math.inf}
 
-    def _create_text(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False, ):
+    def _create_text(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False,
+                     collection=None) -> str:
         mesh = bpy.data.curves.new(name, type='FONT')
         obj = bpy.data.objects.new(name=name, object_data=mesh)
-        self.collection.objects.link(obj)
+        col = collection if collection else self.collection
+        col.objects.link(obj)
         if solidify:
             mod = obj.modifiers.new('Solidify', 'SOLIDIFY')
             mod.thickness = solidify
@@ -431,10 +525,12 @@ class Axes(AxesAccessors):
         obj.parent = parent
         return obj
 
-    def _create_object(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False, ):
+    def _create_object(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False,
+                       collection=None) -> str:
         mesh = bpy.data.meshes.new(name)
         obj = bpy.data.objects.new(name=name, object_data=mesh)
-        self.collection.objects.link(obj)
+        col = collection if collection else self.collection
+        col.objects.link(obj)
         if solidify:
             bpy.ops.object.modifier_add({'object': obj}, type='SOLIDIFY')
             obj.modifiers["Solidify"].thickness = solidify  # 0.04
@@ -475,95 +571,104 @@ class Axes(AxesAccessors):
         return line
 
     def draw(self):
-        if not self._chart:
-            self.root.location = self._location
-            self._chart = self._create_object('Chart', selectable=True, parent=self.root)
+        if not self.xticks_obj_name or not bpy.data.objects.get(self.xticks_obj_name):
+            xticks = self._create_object('Ticks X', solidify=0.02, parent=self.root)
+            self.xticks_obj_name = xticks.name
+            xticks.nengo_colors.color = self.text_color
+        else:
+            xticks = bpy.data.objects[self.xticks_obj_name]
+        self._draw_xticks(ticks=self.xlocator.tick_values(self.x_min, self.x_max),
+                          xticks_mesh=xticks.data)
 
-        if not self._ticks_x:
-            self._ticks_x = self._create_object('Ticks X', solidify=0.02, parent=self._chart)
-            self._ticks_x.nengo_colors.color = self.text_color
-        self._draw_ticks_x(ticks=self.xlocator.tick_values(self.x_min, self.x_max),
-                           ticks_x_mesh=self._ticks_x.data)
+        if not self.yticks_obj_name or not bpy.data.objects.get(self.yticks_obj_name):
+            yticks = self._create_object('Ticks Y', solidify=0.02, parent=self.root)
+            self.yticks_obj_name = yticks.name
+            yticks.nengo_colors.color = self.text_color
+        else:
+            yticks = bpy.data.objects[self.yticks_obj_name]
+        self._draw_yticks(ticks=self.ylocator.tick_values(self.y_min, self.y_max),
+                          yticks_mesh=yticks.data)
 
-        if not self._ticks_y:
-            self._ticks_y = self._create_object('Ticks Y', solidify=0.02, parent=self._chart)
-            self._ticks_y.nengo_colors.color = self.text_color
-        self._draw_ticks_y(ticks=self.ylocator.tick_values(self.y_min, self.y_max),
-                           ticks_y_mesh=self._ticks_y.data)
-
+        # create z ticks if in use
         if any(line.original_data_z for line in self._lines.values()):
-            if not self._ticks_z:
-                self._ticks_z = self._create_object('Ticks Z', solidify=0.02, parent=self._chart)
-                self._ticks_z.nengo_colors.color = self.text_color
-            self._draw_ticks_z(ticks=self.zlocator.tick_values(self.z_min, self.z_max),
-                               ticks_z_mesh=self._ticks_z.data)
-
-            if self.zlabel:
-                if not self._zlabel:
-                    self._zlabel = self._create_text('zlabel', parent=self._chart)
-                zlabel = self._zlabel.data
+            if not self.zticks_obj_name or not bpy.data.objects.get(self.zticks_obj_name):
+                zticks = self._create_object('Ticks Z', solidify=0.02, parent=self.root)
+                self.zticks_obj_name = zticks.name
+                zticks.nengo_colors.color = self.text_color
+            else:
+                zticks = bpy.data.objects[self.zticks_obj_name]
+            self._draw_zticks(ticks=self.zlocator.tick_values(self.z_min, self.z_max),
+                              zticks_mesh=zticks.data)
+            if not self.zlabel_obj_name or not bpy.data.objects.get(self.zlabel_obj_name):
+                _zlabel = self._create_text('zlabel', parent=self.root)
+                self.zlabel_obj_name = _zlabel.name
+                zlabel = _zlabel.data
                 zlabel.body = self.zlabel_text
                 zlabel.size = 0.1
                 zlabel.align_x = 'CENTER'
                 zlabel.align_y = 'TOP'
-                self._zlabel.hide_render = False
-                self._zlabel.hide_viewport = False
-                marigin = self._tick_text_z[0].dimensions.x if self._tick_text_z else 0
-                self._zlabel.location = (-marigin - 0.07, 0, 0.5)
-                self._zlabel.rotation_euler = (math.pi / 2, math.pi / 2, 0)
-        else:
-            if self._ticks_z:
-                bpy.data.objects.remove(self._ticks_z, do_unlink=True)
-                # bpy.ops.object.delete({'selected_objects': [self._ticks_z]})
-                self._ticks_z = None
-                while self._tick_text_z:
-                    obj = self._tick_text_z.pop()
-                    bpy.data.objects.remove(obj, do_unlink=True)
-                    # bpy.ops.object.delete({'selected_objects': [obj]})
-            if not self.zlabel and self._zlabel:
-                self._zlabel.hide_render = True
-                self._zlabel.hide_viewport = True
-                # bpy.data.objects.remove(self._zlabel, do_unlink=True)
-                # bpy.ops.object.delete({'selected_objects': [self._zlabel]})
+                _zlabel.hide_render = False
+                _zlabel.hide_viewport = False
+                zticks_collection = bpy.data.collections[self.zticks_collection_name]
+                marigin = zticks_collection.objects[0].dimensions.x if len(zticks_collection.objects) > 0 else 0
+                _zlabel.location = (-marigin - 0.07, 0, 0.5)
+                _zlabel.rotation_euler = (math.pi / 2, math.pi / 2, 0)
+        # else:
+        # todo delete z ticks if not in use
+        # if self._ticks_z:
+        #     bpy.data.objects.remove(self._ticks_z, do_unlink=True)
+        #     # bpy.ops.object.delete({'selected_objects': [self._ticks_z]})
+        #     self._ticks_z = None
+        #     while self._tick_text_z:
+        #         obj = self._tick_text_z.pop()
+        #         bpy.data.objects.remove(obj, do_unlink=True)
+        #         # bpy.ops.object.delete({'selected_objects': [obj]})
+        # if not self.zlabel and self._zlabel:
+        #     self._zlabel.hide_render = True
+        #     self._zlabel.hide_viewport = True
+        #     # bpy.data.objects.remove(self._zlabel, do_unlink=True)
+        #     # bpy.ops.object.delete({'selected_objects': [self._zlabel]})
 
-        if self.xlabel:
-            if not self._xlabel:
-                self._xlabel = self._create_text('xlabel', parent=self._chart)
-            xlabel = self._xlabel.data
+        if not self.xlabel_obj_name or not bpy.data.objects.get(self.xlabel_obj_name):
+            _xlabel = self._create_text('xlabel', parent=self.root)
+            self.xlabel_obj_name = _xlabel.name
+            xlabel = _xlabel.data
             xlabel.body = self.xlabel
             xlabel.size = 0.1
             xlabel.align_x = 'CENTER'
             xlabel.align_y = 'TOP'
-            marigin = self._tick_text_x[0].dimensions.y if self._tick_text_x else 0
-            self._xlabel.location = (0.5, -0.10 - marigin, 0)
+            xticks_collection = bpy.data.collections[self.xticks_collection_name]
+            marigin = xticks_collection.objects[0].dimensions.y if len(xticks_collection.objects) > 0 else 0
+            _xlabel.location = (0.5, -0.10 - marigin, 0)
 
-        if self.ylabel:
-            if not self._ylabel:
-                self._ylabel = self._create_text('ylabel', parent=self._chart)
-            ylabel = self._ylabel.data
+        if not self.ylabel_obj_name or not bpy.data.objects.get(self.ylabel_obj_name):
+            _ylabel = self._create_text('ylabel', parent=self.root)
+            ylabel = _ylabel.data
+            self.ylabel_obj_name = _ylabel.name
             ylabel.body = self.ylabel
             ylabel.size = 0.1
             ylabel.align_x = 'CENTER'
             ylabel.align_y = 'TOP'
-            marigin = self._tick_text_y[0].dimensions.x if self._tick_text_y else 0
-            self._ylabel.location = (-0.07 - marigin, 0.5, 0)
-            self._ylabel.rotation_euler = (0, 0, -math.pi / 2)
+            yticks_collection = bpy.data.collections[self.yticks_collection_name]
+            marigin = yticks_collection.objects[0].dimensions.x if len(yticks_collection.objects) > 0 else 0
+            _ylabel.location = (-0.07 - marigin, 0.5, 0)
+            _ylabel.rotation_euler = (0, 0, -math.pi / 2)
 
-        if self.title:
-            if not self._title:
-                self._title = self._create_text('Title', parent=self._chart)
-            title = self._title.data
+        if not self.title_obj_name or not bpy.data.objects.get(self.title_obj_name):
+            _title = self._create_text('Title', parent=self.root)
+            self.title_obj_name = _title.name
+            title = _title.data
             title.body = self.title
             title.size = 0.15
             title.align_x = 'CENTER'
             title.align_y = 'BOTTOM'
-            self._title.location = (0.5, 1.1, 0)
+            _title.location = (0.5, 1.1, 0)
             # self._title.rotation_euler = (0, 0, -math.pi / 2)
 
         for line in self._lines.values():
             line.draw_line()
 
-    def _draw_ticks_x(self, ticks: list, ticks_x_mesh):
+    def _draw_xticks(self, ticks: list, xticks_mesh):
         bm = bmesh.new()
         ticks = [i for i in ticks if self.x_max >= i >= self.x_min]
         tick_width = 0.01
@@ -576,18 +681,20 @@ class Axes(AxesAccessors):
             v3 = bm.verts.new((x_loc, -tick_height, 0))
             v4 = bm.verts.new((x_loc + tick_width, -tick_height, 0))
             bm.faces.new((v1, v2, v4, v3))
-        bm.to_mesh(ticks_x_mesh)
+        bm.to_mesh(xticks_mesh)
         bm.free()
 
-        while len(self._tick_text_x) < len(ticks):
-            self._tick_text_x.append(self._create_text(f'Tick x {len(self._tick_text_x)}', parent=self._chart))
-        while len(self._tick_text_x) > len(ticks):
-            obj = self._tick_text_x.pop()
+        xticks_collection = bpy.data.collections[self.xticks_collection_name]
+        while len(xticks_collection.objects) < len(ticks):
+            self._create_text(f'Tick x {len(xticks_collection.objects)}', parent=self.root,
+                              collection=xticks_collection, selectable=True)
+        while len(xticks_collection.objects) > len(ticks):
+            obj = xticks_collection.objects[0]
             bpy.data.objects.remove(obj, do_unlink=True)
             # bpy.ops.object.delete({'selected_objects': [obj]})
 
         for i, (t, t_loc) in enumerate(zip(ticks, ticks_loc)):
-            tick_text_obj = self._tick_text_x[i]
+            tick_text_obj = xticks_collection.objects[i]
             tick_text = tick_text_obj.data
             tick_text.body = self.xformat.format(t)
             tick_text.size = 0.05
@@ -595,7 +702,7 @@ class Axes(AxesAccessors):
             tick_text.align_y = 'TOP'
             tick_text_obj.location = (t_loc + tick_width / 2, -tick_height, 0)
 
-    def _draw_ticks_y(self, ticks: list, ticks_y_mesh):
+    def _draw_yticks(self, ticks: list, yticks_mesh):
         bm = bmesh.new()
         ticks = [i for i in ticks if self.y_max >= i >= self.y_min]
         tick_width = 0.01
@@ -608,18 +715,20 @@ class Axes(AxesAccessors):
             v3 = bm.verts.new((-tick_height, y_loc, 0))
             v4 = bm.verts.new((-tick_height, y_loc + tick_width, 0))
             bm.faces.new((v1, v2, v4, v3))
-        bm.to_mesh(ticks_y_mesh)
+        bm.to_mesh(yticks_mesh)
         bm.free()
 
-        while len(self._tick_text_y) < len(ticks):
-            self._tick_text_y.append(self._create_text(f'Tick y {len(self._tick_text_y)}', parent=self._chart))
-        while len(self._tick_text_y) > len(ticks):
-            obj = self._tick_text_y.pop()
+        yticks_collection = bpy.data.collections[self.yticks_collection_name]
+        while len(yticks_collection.objects) < len(ticks):
+            self._create_text(f'Tick y {len(yticks_collection.objects)}', parent=self.root,
+                              collection=yticks_collection, selectable=True)
+        while len(yticks_collection.objects) > len(ticks):
+            obj = yticks_collection.objects[0]
             bpy.data.objects.remove(obj, do_unlink=True)
             # bpy.ops.object.delete({'selected_objects': [obj]})
 
         for i, (t, t_loc) in enumerate(zip(ticks, ticks_loc)):
-            tick_text_obj = self._tick_text_y[i]
+            tick_text_obj = yticks_collection.objects[i]
             tick_text = tick_text_obj.data
             tick_text.body = self.yformat.format(t)
             tick_text.size = 0.05
@@ -627,7 +736,7 @@ class Axes(AxesAccessors):
             tick_text.align_y = 'CENTER'
             tick_text_obj.location = (-tick_height, t_loc + tick_width / 2, 0)
 
-    def _draw_ticks_z(self, ticks: list, ticks_z_mesh):
+    def _draw_zticks(self, ticks: list, zticks_mesh):
         bm = bmesh.new()
         ticks = [i for i in ticks if self.z_max >= i >= self.z_min]
         tick_width = 0.01
@@ -640,19 +749,19 @@ class Axes(AxesAccessors):
             v3 = bm.verts.new((0, -tick_height, z_loc))
             v4 = bm.verts.new((0, -tick_height, z_loc + tick_width))
             bm.faces.new((v1, v2, v4, v3))
-        bm.to_mesh(ticks_z_mesh)
+        bm.to_mesh(zticks_mesh)
         bm.free()
 
-        while len(self._tick_text_z) < len(ticks):
-            self._tick_text_z.append(self._create_text(f'Tick z {len(self._tick_text_z)}',
-                                                       parent=self._chart))
-        while len(self._tick_text_z) > len(ticks):
-            obj = self._tick_text_z.pop()
+        zticks_collection = bpy.data.collections[self.zticks_collection_name]
+        while len(zticks_collection.objects) < len(ticks):
+            self._create_text(f'Tick z {len(zticks_collection.objects)}', parent=self.root,
+                              collection=zticks_collection, selectable=True)
+        while len(zticks_collection.objects) > len(ticks):
+            obj = zticks_collection.objects[0]
             bpy.data.objects.remove(obj, do_unlink=True)
-            # bpy.ops.object.delete({'selected_objects': [obj]})
 
         for i, (t, t_loc) in enumerate(zip(ticks, ticks_loc)):
-            tick_text_obj = self._tick_text_z[i]
+            tick_text_obj = zticks_collection.objects[i]
             tick_text = tick_text_obj.data
             tick_text.body = self.zformat.format(t)
             tick_text.size = 0.05

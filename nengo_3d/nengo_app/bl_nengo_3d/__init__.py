@@ -18,7 +18,6 @@ logging.basicConfig(
     format=f'%(levelname)s:{__name__}:"%(pathname)s:%(lineno)d":%(message)s'
 )
 
-
 try:
     OK = True
     from bl_nengo_3d import bl_properties
@@ -27,6 +26,7 @@ try:
     from bl_nengo_3d import debug
     from bl_nengo_3d import bl_plot_operators
     from bl_nengo_3d import bl_depsgraph_handler
+    from bl_nengo_3d import schemas  # sanity check
 except ModuleNotFoundError as e:
     logging.error(f'Addon nengo3d did not start: {e}')
     OK = False

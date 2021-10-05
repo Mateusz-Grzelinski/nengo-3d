@@ -165,6 +165,7 @@ def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
     if not collection:
         collection = bpy.data.collections.new(col_name)
         nengo_collection.children.link(collection)
+        collection.hide_select = True
         # collection.hide_viewport = True
         # collection.hide_render = True
     for item in collection.objects:
@@ -180,7 +181,7 @@ def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
             mesh = bpy.data.curves.new(name, type='FONT')
             label_obj = bpy.data.objects.new(name=name, object_data=mesh)
             collection.objects.link(label_obj)
-            label_obj.hide_select = True
+            # label_obj.hide_select = True
             label_obj.active_material = material
             label_obj.data.align_x = 'CENTER'
             label_obj.rotation_euler.x += math.pi / 2
@@ -289,7 +290,12 @@ class Arrow:
 
 def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[str, tuple[float, float, float]],
                      select: bool = False):
-    collection = bpy.data.collections.get(nengo_3d.collection)
+    nengo_collection = bpy.data.collections.get(nengo_3d.collection)
+    edges_collection = bpy.data.collections.get('Edges')
+    if not edges_collection:
+        edges_collection = bpy.data.collections.new('Edges')
+        nengo_collection.children.link(edges_collection)
+        edges_collection.hide_select = not nengo_3d.select_edges
     material = get_primitive_material('NengoEdgeMaterial')
     for node_source, node_target, edge_data in g.edges.data():  # todo iterate pos, not edges?
         source_pos = pos.get(node_source)
@@ -323,7 +329,7 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
                                  length=vector_difference.length - Arrow.original_len - target_dim)
             connection_obj = bpy.data.objects.new(name=connection_name, object_data=connection_primitive)
             connection_obj.rotation_mode = 'QUATERNION'
-            collection.objects.link(connection_obj)
+            edges_collection.objects.link(connection_obj)
         elif not connection_obj and connection_primitive:
             assert False, 'Object was deleted by hand, and mesh is still not deleted'
         else:
@@ -331,7 +337,7 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
         connection_obj.select_set(select)
         connection_obj.hide_viewport = False
         connection_obj.hide_render = False
-        connection_obj.hide_select = not nengo_3d.select_edges
+        # connection_obj.hide_select = not nengo_3d.select_edges
         connection_obj.location = source_pos
         # connection_obj.nengo_colors.color = [0.011030, 0.011030, 0.011030]
         connection_obj.active_material = material
@@ -355,7 +361,12 @@ def regenerate_edge_mesh(connection_primitive: bpy.types.Mesh, offset: float, le
 def regenerate_nodes(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[str, tuple[float, float, float]],
                      select: bool = False):
     material = get_primitive_material('NengoNodeMaterial')
-    collection = bpy.data.collections.get(nengo_3d.collection)
+
+    nengo_collection = bpy.data.collections.get(nengo_3d.collection)
+    nodes_collection = bpy.data.collections.get('Nodes')
+    if not nodes_collection:
+        nodes_collection = bpy.data.collections.new('Nodes')
+        nengo_collection.children.link(nodes_collection)
     for node_name, position in pos.items():
         node_obj = bpy.data.objects.get(node_name)
         node = share_data.model_graph.get_node_or_subnet_data(node_name)
@@ -367,7 +378,7 @@ def regenerate_nodes(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
                 mod = node_obj.modifiers.new('Wireframe', 'WIREFRAME')
                 mod.thickness = 0.05
             node_obj.name = node_name
-            collection.objects.link(node_obj)
+            nodes_collection.objects.link(node_obj)
             node_obj.active_material = material
             node_obj.select_set(select)
         node_obj.hide_viewport = False

@@ -119,6 +119,7 @@ def line_offset_update(self: 'AxesProperties', context):
 
 class AxesProperties(bpy.types.PropertyGroup):
     object: bpy.props.StringProperty()
+    collection: bpy.props.StringProperty()
     treat_as_node: bpy.props.BoolProperty(description='Treat axes as part of graph')
     auto_range: bpy.props.BoolProperty(default=True)
     x_min: bpy.props.FloatProperty(default=0)
@@ -128,16 +129,33 @@ class AxesProperties(bpy.types.PropertyGroup):
     z_min: bpy.props.FloatProperty(default=0)
     z_max: bpy.props.FloatProperty(default=1)
 
+    title_obj_name: bpy.props.StringProperty()
     title: bpy.props.StringProperty(name='Title', default='')  # update=
+
+    xticks_obj_name: bpy.props.StringProperty()
+    yticks_obj_name: bpy.props.StringProperty()
+    zticks_obj_name: bpy.props.StringProperty()
+
+    xticks_collection_name: bpy.props.StringProperty()
+    yticks_collection_name: bpy.props.StringProperty()
+    zticks_collection_name: bpy.props.StringProperty()
+
     xnumticks: bpy.props.IntProperty(name='X ticks', default=6)  # update=
     ynumticks: bpy.props.IntProperty(name='Y ticks', default=6)  # update=
     znumticks: bpy.props.IntProperty(name='Z ticks', default=6)  # update=
+
+    xlabel_obj_name: bpy.props.StringProperty()
+    ylabel_obj_name: bpy.props.StringProperty()
+    zlabel_obj_name: bpy.props.StringProperty()
+
     xlabel: bpy.props.StringProperty(name='X label', default='X')  # update=
     ylabel: bpy.props.StringProperty(name='Y label', default='Y')  # update=
     zlabel: bpy.props.StringProperty(name='Z label', default='')  # update=
+
     xlocator: bpy.props.EnumProperty(items=locators)  # update=
     ylocator: bpy.props.EnumProperty(items=locators)  # update=
     zlocator: bpy.props.EnumProperty(items=locators)  # update=
+
     xformat: bpy.props.StringProperty(default='{:.2f}')  # update=
     yformat: bpy.props.StringProperty(default='{:.2f}')  # update=
     zformat: bpy.props.StringProperty(default='{:.2f}')  # update=
@@ -238,19 +256,21 @@ class Nengo3dShowNetwork(bpy.types.PropertyGroup):
 
 
 def select_edges_update(self: 'Nengo3dProperties', context):
-    from bl_nengo_3d.share_data import share_data
-    if share_data.model_graph is None:
-        return
-    for e_s, e_dst, e_data in share_data.model_graph_view.edges(data=True):
-        obj = e_data.get('_blender_object')
-        if not obj:
-            continue
-        obj.hide_select = not self.select_edges
-    for e_s, e_dst, e_data in share_data.model_graph.edges(data=True):
-        obj = e_data.get('_blender_object')
-        if not obj:
-            continue
-        obj.hide_select = not self.select_edges
+    col = bpy.data.collections['Edges']
+    col.hide_select = not self.select_edges
+    # from bl_nengo_3d.share_data import share_data
+    # if share_data.model_graph is None:
+    #     return
+    # for e_s, e_dst, e_data in share_data.model_graph_view.edges(data=True):
+    #     obj = e_data.get('_blender_object')
+    #     if not obj:
+    #         continue
+    #     obj.hide_select = not self.select_edges
+    # for e_s, e_dst, e_data in share_data.model_graph.edges(data=True):
+    #     obj = e_data.get('_blender_object')
+    #     if not obj:
+    #         continue
+    #     obj.hide_select = not self.select_edges
 
 
 def recalculate_edges(self: 'Nengo3dProperties', context):

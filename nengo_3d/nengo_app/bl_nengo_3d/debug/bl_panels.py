@@ -17,7 +17,7 @@ def ranges(i):
 
 
 class NengoDebugPanel(bpy.types.Panel):
-    bl_label = 'Nengo 3d Debug'
+    bl_label = 'Nengo 3d debug'
     bl_idname = 'NENGO_PT_debug'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -32,12 +32,12 @@ class NengoDebugPanel(bpy.types.Panel):
         if share_data.simulation_cache:
             layout.label(text=f'Cached steps: {share_data.simulation_cache_steps()}')
         col = layout.column(align=True)
-        col.operator(DebugPlotLine.bl_idname, text='Plot 2d').dim = 2
-        col.operator(DebugPlotLine.bl_idname, text='Plot 3d').dim = 3
-        col.operator(DebugUpdatePlotLineOperator.bl_idname)
+        # col.operator(DebugPlotLine.bl_idname, text='Plot 2d').dim = 2
+        # col.operator(DebugPlotLine.bl_idname, text='Plot 3d').dim = 3
+        # col.operator(DebugUpdatePlotLineOperator.bl_idname)
         col = layout.column(align=True)
-        col.operator(DebugRasterPlotOperator.bl_idname, text='Raster plot').dim = 2
-        layout.operator(ReloadAddonOperator.bl_idname)
+        # col.operator(DebugRasterPlotOperator.bl_idname, text='Raster plot').dim = 2
+        # layout.operator(ReloadAddonOperator.bl_idname)
         layout.operator(DebugConnectionOperator.bl_idname)
 
 

@@ -153,7 +153,7 @@ class NengoLayoutPanel(bpy.types.Panel):
 
 
 class NengoContextPanel(bpy.types.Panel):
-    bl_label = 'Context Actions'
+    bl_label = 'Context actions'
     bl_idname = 'NENGO_PT_context'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -231,7 +231,7 @@ class NengoContextPanel(bpy.types.Panel):
         layout.operator_context = 'EXEC_DEFAULT'
         op = layout.operator(
             operator=bl_plot_operators.PlotLineOperator.bl_idname,
-            text=f'Output',
+            text=f'Output (dim {node["size_out"]})',
             icon='ORIENTATION_VIEW')
         op: bl_plot_operators.PlotLineOperator
         op.axes: AxesProperties
@@ -254,11 +254,10 @@ class NengoContextPanel(bpy.types.Panel):
     @staticmethod
     def draw_ensemble_type_actions(layout: bpy.types.UILayout, ensemble: dict[str, Any], obj_name: str,
                                    frame_current: int):
-        col = layout
         node = ensemble
         if node['network_name'] != 'model':
             layout.label(text='Subnetworks:')
-            op = col.operator(bl_operators.NengoGraphOperator.bl_idname,
+            op = layout.operator(bl_operators.NengoGraphOperator.bl_idname,
                               text=f'Collapse {node["network_name"]}')
             op.regenerate = True
             op.collapse = node['network_name']
@@ -269,7 +268,7 @@ class NengoContextPanel(bpy.types.Panel):
         box.operator_context = 'EXEC_DEFAULT'
         op = box.operator(
             operator=bl_plot_operators.PlotLineOperator.bl_idname,
-            text=f'Decoded output',
+            text=f'Decoded output (dim {ensemble["size_out"]})',
             icon='ORIENTATION_VIEW')
         op: bl_plot_operators.PlotLineOperator
         op.axes: AxesProperties
@@ -292,7 +291,7 @@ class NengoContextPanel(bpy.types.Panel):
         box.operator_context = 'EXEC_DEFAULT'
         op = box.operator(
             operator=bl_plot_operators.PlotLineOperator.bl_idname,
-            text=f'Input',
+            text=f'Input (dim {ensemble["size_in"]})',
             icon='ORIENTATION_VIEW')
         op: bl_plot_operators.PlotLineOperator
         op.axes: AxesProperties
@@ -302,7 +301,7 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.xformat = '{:.0f}'
         op.axes.yformat = '{:.2f}'
         op.axes.title = f'{obj_name}: input'
-        for i in range(ensemble['size_out']):
+        for i in range(ensemble['size_in']):
             line: LineProperties = op.axes.lines.add()
             line.label = f'Dimension {i}'
             line.source: LineSourceProperties
@@ -315,7 +314,7 @@ class NengoContextPanel(bpy.types.Panel):
         box.operator_context = 'EXEC_DEFAULT'
         op = box.operator(
             operator=bl_plot_operators.PlotLineOperator.bl_idname,
-            text=f'Scaled encoders',
+            text=f'Scaled encoders (dim {ensemble["size_out"]})',
             icon='ORIENTATION_VIEW')
         op: bl_plot_operators.PlotLineOperator
         op.axes: AxesProperties
@@ -338,8 +337,8 @@ class NengoContextPanel(bpy.types.Panel):
 
         box = layout.box().column(align=True)
         max_neurons = 20  # todo raise neurons limit
-        box.label(text=f'Neurons (drawing first {max_neurons}):')
         neurons = ensemble['neurons']
+        box.label(text=f'Neurons (drawing first {max_neurons} out of {neurons["size_out"]}):')
         box.operator_context = 'EXEC_DEFAULT'
         # layout.active = share_data.current_step > 0
         op = box.operator(bl_plot_operators.PlotLineOperator.bl_idname,
@@ -525,13 +524,15 @@ class NengoContextPanel(bpy.types.Panel):
 
     @staticmethod
     def draw_network_type_actions(layout: bpy.types.UILayout, node: dict[str, Any]):
-        row = layout.row()
         layout.label(text='Subnetworks:')
         if node.get('parent_network'):
+            row = layout.row()
             op = row.operator(bl_operators.NengoGraphOperator.bl_idname,
                               text=f'Collapse {node["parent_network"]}')
             op.regenerate = True
             op.collapse = node['parent_network']
+        else:
+            row = layout
         # nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
         # layout.prop(nengo_3d.expand_subnetworks[node['name']], 'expand', text=f'Expand {node["name"]}')
         op = row.operator(bl_operators.NengoGraphOperator.bl_idname, text=f'Expand {node["name"]}')
@@ -556,7 +557,7 @@ class NengoContextPanel(bpy.types.Panel):
         box.operator_context = 'EXEC_DEFAULT'
         op = box.operator(
             operator=bl_plot_operators.PlotLineOperator.bl_idname,
-            text=f'Input',
+            text=f'Input (dim {e_data["size_in"]})',
             icon='ORIENTATION_VIEW')
         op: bl_plot_operators.PlotLineOperator
         op.axes: AxesProperties
@@ -579,7 +580,7 @@ class NengoContextPanel(bpy.types.Panel):
         box.operator_context = 'EXEC_DEFAULT'
         op = box.operator(
             operator=bl_plot_operators.PlotLineOperator.bl_idname,
-            text=f'Output',
+            text=f'Output (dim {e_data["size_out"]})',
             icon='ORIENTATION_VIEW')
         op: bl_plot_operators.PlotLineOperator
         op.axes: AxesProperties
@@ -601,9 +602,10 @@ class NengoContextPanel(bpy.types.Panel):
 
         if e_data['has_weights']:
             box.operator_context = 'EXEC_DEFAULT'
-            op = box.operator(bl_plot_operators.PlotLineOperator.bl_idname, text=f'Weights',
+            op = box.operator(bl_plot_operators.PlotLineOperator.bl_idname,
+                              text=f'Weights (multi dim)',
                               icon='ORIENTATION_VIEW')
-            """Weights are solved once. They are used to approximate function given in connection"""
+            """Weights are solved once? They are used to approximate function given in connection"""
             op.axes.xlabel = 'Step'
             op.axes.ylabel = 'Neuron weight'
             op.axes.xlocator = 'IntegerLocator'
@@ -617,6 +619,7 @@ class NengoContextPanel(bpy.types.Panel):
             # dimension 2 weight [neuron1, neuron2, ...], ...
             # todo check dimensions
             if source_node['type'] == 'Node':
+                # logger.warning('Not implemented')
                 # todo connection to node can also have weights?
                 return  # todo not supported
             for i in range(e_data['size_out']):  # same as target_node['size_in']
@@ -760,8 +763,10 @@ def draw_edge_enum(layout: bpy.types.UILayout, nengo_3d: Nengo3dProperties):
 def draw_edge_gradient(layout, nengo_3d):
     cr_node = bpy.data.materials['NengoEdgeMaterial'].node_tree.nodes['ColorRamp']
     row = layout.row(align=True)
-    row.label(text=f'Min: {nengo_3d.edge_attr_min}')
-    row.label(text=f'Max: {nengo_3d.edge_attr_max}')
+    row.prop(nengo_3d, 'edge_attr_min')
+    row.prop(nengo_3d, 'edge_attr_max')
+    # row.label(text=f'Min: {nengo_3d.edge_attr_min}')
+    # row.label(text=f'Max: {nengo_3d.edge_attr_max}')
 
     box = layout.box()
     box.template_color_ramp(cr_node, 'color_ramp', expand=True)
@@ -769,6 +774,8 @@ def draw_edge_gradient(layout, nengo_3d):
 def draw_node_gradient(layout, nengo_3d):
     cr_node = bpy.data.materials['NengoNodeMaterial'].node_tree.nodes['ColorRamp']
     row = layout.row(align=True)
+    row.prop(nengo_3d, 'node_attr_min')
+    row.prop(nengo_3d, 'node_attr_max')
     row.label(text=f'Min: {nengo_3d.node_attr_min}')
     row.label(text=f'Max: {nengo_3d.node_attr_max}')
 

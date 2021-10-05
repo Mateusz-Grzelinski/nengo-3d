@@ -22,7 +22,7 @@ def load_handler_for_preferences(_):
     from bpy import context
 
     prefs = context.preferences
-    prefs.use_preferences_save = False
+    # prefs.use_preferences_save = False
 
     # kc = context.window_manager.keyconfigs["blender"]
 
