@@ -13,6 +13,7 @@ import nengo.ensemble
 import nengo.utils
 
 import numpy as np
+from nengo_3d import dependencies
 from nengo_3d.utils import ranges_str
 from nengo_3d.gui_backend import Nengo3dServer, Connection
 from nengo_3d.name_finder import NameFinder
@@ -202,8 +203,9 @@ class GUI(Nengo3dServer):
     connection = GuiConnection
 
     def __init__(self, host: str = 'localhost', port: int = 6001, filename=None, model: Optional[nengo.Network] = None,
-                 local_vars: dict[str, Any] = None):
+                 local_vars: dict[str, Any] = None, blender_exe: str = 'blender.exe'):
         super().__init__(host, port)
+        self.blender_exe = blender_exe
         self.locals = local_vars or {}
         self.model = model
         self.filename = os.path.realpath(filename) or __file__
@@ -211,13 +213,13 @@ class GUI(Nengo3dServer):
         self._blender_subprocess = None
 
     def start(self, skip_blender=False) -> None:
-        # todo search in PATH
-        from nengo_3d import BLENDER_EXE_PATH
+        dependencies.install(self.blender_exe)
+        # from nengo_3d import BLENDER_EXE_PATH
         # os.makedirs('log', exist_ok=True)
         # blender_template = os.path.join(script_path, 'nengo_app', 'startup.blend')
         if not skip_blender:
             # self.blender_log = open('log/blender.log', 'w')
-            command = [BLENDER_EXE_PATH,
+            command = [self.blender_exe,
                        # '--engine', 'EEVEE',
                        '--app-template', 'nengo_app',
                        '--window-geometry', '-1920', '0', '1920', '1080',

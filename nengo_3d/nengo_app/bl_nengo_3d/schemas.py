@@ -2,8 +2,12 @@ import logging
 
 import nengo_3d_schemas
 from marshmallow import post_load, pre_dump
-from nengo_3d_schemas import Message, Observe, SimulationSteps, Simulation, PlotLines
 
+Message = nengo_3d_schemas.Message
+Observe = nengo_3d_schemas.Observe
+SimulationSteps = nengo_3d_schemas.SimulationSteps
+Simulation = nengo_3d_schemas.Simulation
+PlotLines = nengo_3d_schemas.PlotLines
 
 # class PlotLines(nengo_3d_schemas.PlotLines):
 #     @pre_dump
