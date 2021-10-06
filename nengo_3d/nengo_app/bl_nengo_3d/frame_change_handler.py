@@ -24,7 +24,7 @@ def frame_change_handler(scene: bpy.types.Scene):
     """Updates scene for running nenego simulation"""
     start = time.time()
     frame_current = scene.frame_current
-    nengo_3d: Nengo3dProperties = bpy.context.window_manager.nengo_3d
+    nengo_3d: Nengo3dProperties = bpy.context.scene.nengo_3d
     if nengo_3d.requires_reset:
         return  # todo allow scrubbing existing data
     if nengo_3d.allow_scrubbing:

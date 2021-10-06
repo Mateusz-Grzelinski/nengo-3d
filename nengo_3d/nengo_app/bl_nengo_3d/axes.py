@@ -88,8 +88,10 @@ class Line:
         self.original_data_y = []
         self.original_data_z = None
 
-        _line = ax._create_object('Line', solidify=None, parent=ax.root)
-        line.name = _line.name
+        _line = bpy.data.objects.get(line.name)
+        if not line.name or not _line:
+            _line = ax._create_object('Line', solidify=None, parent=ax.root)
+            line.name = _line.name
         self.line_name = _line.name
 
     # def set_label(self, text):
@@ -407,7 +409,6 @@ class Axes(AxesAccessors):
         self.collection = collection
         # self._location = context.active_object.location if context.active_object else (0, 0, 0)
 
-        self._lines: dict[Line] = {}
 
         if root:
             self.root = bpy.data.objects[root]
@@ -442,9 +443,11 @@ class Axes(AxesAccessors):
             self.zticks_collection_name = collection.name
 
         color_gen_prop = self.root.nengo_axes.color_gen
+        color_gen_prop.max_colors = len(self.lines)
         color_gen = colors.cycle_color(color_gen_prop.initial_color, color_gen_prop.shift, color_gen_prop.max_colors)
 
         offset = 0
+        self._lines: dict[Line] = {}
         for line_prop in self.lines:
             line_prop: 'LineProperties'
             line = Line(self, line=line_prop)
@@ -475,8 +478,9 @@ class Axes(AxesAccessors):
     #         self.root.location = value
     #     self._location = value
 
-    def get_line(self, line: 'LineProperties') -> Line:
-        return self._lines[line.name]
+    def get_line(self, line_prop: 'LineProperties') -> Line:
+        # logger.debug(self._lines)
+        return self._lines[line_prop.name]
 
     def relim(self):
         if not self._lines:

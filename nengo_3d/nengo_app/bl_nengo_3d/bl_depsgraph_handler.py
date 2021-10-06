@@ -38,7 +38,7 @@ def graph_edges_recalculate_handler(scene: bpy.types.Scene):
         pos[_obj.name] = _obj.location
     connection_handler.regenerate_edges(
         g=g_view,
-        nengo_3d=bpy.context.window_manager.nengo_3d,
+        nengo_3d=bpy.context.scene.nengo_3d,
         pos=pos
     )
 

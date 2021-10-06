@@ -10,7 +10,9 @@ from bl_nengo_3d.bl_utils import probeable_nodes_items, probeable, probeable_edg
 
 class ColorGeneratorProperties(bpy.types.PropertyGroup):
     initial_color: bpy.props.FloatVectorProperty(name='Initial color', subtype='COLOR',
-                                                 default=[0.021821, 1.000000, 0.149937])
+                                                 default=[0.100000, 1.000000, 0.217877]
+                                                 # [0.021821, 1.000000, 0.149937]
+                                                 )
     shift: bpy.props.EnumProperty(name='Shift type', items=[
         ('H', 'Shift hue', ''),
         ('S', 'Shift saturation', ''),
@@ -162,6 +164,8 @@ class AxesProperties(bpy.types.PropertyGroup):
     zformat: bpy.props.StringProperty(default='{:.2f}')  # update=
 
     color_gen: bpy.props.PointerProperty(type=ColorGeneratorProperties)
+
+    ui_show_lines: bpy.props.BoolProperty(default=False)
     lines: bpy.props.CollectionProperty(type=LineProperties)
     line_offset: bpy.props.FloatProperty(name='Line offset', update=line_offset_update)
 
@@ -204,17 +208,20 @@ def draw_axes_properties_template(layout: bpy.types.UILayout, axes: 'AxesPropert
 
     draw_color_generator_properties_template(layout, axes.color_gen)
     row = layout.row()
-    row.label(text=f'Lines ({len(axes.lines)}:')
+    row.prop(axes, 'ui_show_lines', text='', icon='TRIA_DOWN' if axes.ui_show_lines else 'TRIA_RIGHT',
+             emboss=False)
+    row.label(text=f'Lines ({len(axes.lines)}):')
     row.prop(axes, 'line_offset')
-    box = layout.box()
-    for line in axes.lines:
-        line: LineProperties
-        draw_line_properties_template(box, line)
+    if axes.ui_show_lines:
+        box = layout.box()
+        for line in axes.lines:
+            line: LineProperties
+            draw_line_properties_template(box, line)
 
 
 def node_color_update(self: 'NodeMappedColor', context):
     from bl_nengo_3d.share_data import share_data
-    nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+    nengo_3d: Nengo3dProperties = context.scene.nengo_3d
     if nengo_3d.node_color == 'MODEL':
         access_path, attr_type = nengo_3d.node_attribute_with_type.split(':')
         access_path = access_path.split('.')
@@ -282,7 +289,7 @@ def recalculate_edges(self: 'Nengo3dProperties', context):
 
     regenerate_edges(
         g=share_data.model_graph_view,
-        nengo_3d=context.window_manager.nengo_3d,
+        nengo_3d=context.scene.nengo_3d,
         pos={node: n_data['_blender_object'].location for node, n_data in share_data.model_graph_view.nodes(data=True)})
     return
 
@@ -295,7 +302,7 @@ def draw_edges_update(self: 'Nengo3dProperties', context):
 
     regenerate_labels(
         g=share_data.model_graph_view,
-        nengo_3d=context.window_manager.nengo_3d
+        nengo_3d=context.scene.nengo_3d
     )
     return
 
@@ -452,7 +459,7 @@ _last_edge_dynamic_access_path = None
 
 def edge_color_update(self: 'NodeMappedColor', context):
     from bl_nengo_3d.share_data import share_data
-    nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+    nengo_3d: Nengo3dProperties = context.scene.nengo_3d
     if nengo_3d.edge_color == 'MODEL':
         access_path, attr_type = nengo_3d.edge_attribute_with_type.split(':')
         access_path = access_path.split('.')
@@ -725,13 +732,13 @@ register_factory, unregister_factory = bpy.utils.register_classes_factory(classe
 
 def register():
     register_factory()
-    bpy.types.WindowManager.nengo_3d = bpy.props.PointerProperty(type=Nengo3dProperties)
+    bpy.types.Scene.nengo_3d = bpy.props.PointerProperty(type=Nengo3dProperties)
     bpy.types.Object.nengo_axes = bpy.props.PointerProperty(type=AxesProperties)
     bpy.types.Object.nengo_colors = bpy.props.PointerProperty(type=Nengo3dColors)
 
 
 def unregister():
-    del bpy.types.WindowManager.nengo_3d
+    del bpy.types.Scene.nengo_3d
     del bpy.types.Object.nengo_axes
     del bpy.types.Object.nengo_colors
     unregister_factory()

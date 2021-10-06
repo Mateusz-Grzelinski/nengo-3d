@@ -4,7 +4,8 @@ import typing
 
 import bpy
 
-from bl_nengo_3d.bl_properties import AxesProperties, draw_axes_properties_template
+from bl_nengo_3d.bl_properties import AxesProperties, draw_axes_properties_template, LineProperties, \
+    LineSourceProperties
 from bl_nengo_3d.axes import Axes
 from bl_nengo_3d.share_data import share_data
 
@@ -12,6 +13,8 @@ from bl_nengo_3d.share_data import share_data
 class PlotLineOperator(bpy.types.Operator):
     bl_idname = 'nengo_3d.plot_line'
     bl_label = 'Plot'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
 
     axes: bpy.props.PointerProperty(type=AxesProperties, options={'SKIP_SAVE'})
 
@@ -41,7 +44,7 @@ class PlotLineOperator(bpy.types.Operator):
             bpy.ops.screen.animation_play()
             share_data.resume_playback_on_steps = False
             share_data.step_when_ready = 0
-        context.window_manager.nengo_3d.requires_reset = True
+        context.scene.nengo_3d.requires_reset = True
 
         node: bpy.types.Object = context.active_object  # or for all selected_objects
         self.axes.model_source = node.name
@@ -100,9 +103,99 @@ class RemoveAxOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class PlotByRowOperator(PlotLineOperator):
+    bl_idname = 'nengo_3d.plot_byrow'
+    bl_label = 'Plot output'
+
+    object: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    access_path: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    dimensions: bpy.props.IntProperty(options={'SKIP_SAVE'})
+
+    def invoke(self, context, event):
+        # node = share_data.model_graph.get_node_data(self.object)
+        op: PlotLineOperator = self
+        # op.axes: AxesProperties
+        # op.axes.xlabel = 'Step'
+        # op.axes.ylabel = 'Voltage'
+        # op.axes.xlocator = 'IntegerLocator'
+        # op.axes.xformat = '{:.0f}'
+        # op.axes.yformat = '{:.2f}'
+        # op.axes.title = f'{self.object}: {self.probeable}'
+        for i in range(self.dimensions):
+            line: LineProperties = op.axes.lines.add()
+            line.source: LineSourceProperties
+            line.source.source_obj = self.object
+            line.source.access_path = f'{self.access_path}'
+            line.source.iterate_step = True
+            line.source.get_x = 'step'
+            line.source.get_y = f'row[{i}]'
+            line.label = f'Dimension {i}'
+        return self.execute(context)
+
+
+class PlotBy2dRowOperator(PlotLineOperator):
+    bl_idname = 'nengo_3d.plot_by2drow'
+    bl_label = 'Plot output'
+
+    object: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    access_path: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    dimension1: bpy.props.IntProperty(options={'SKIP_SAVE'})
+    dimension2: bpy.props.IntProperty(options={'SKIP_SAVE'})
+
+    def invoke(self, context, event):
+        for i in range(self.dimension1):  # same as target_node['size_in']
+            for d in range(self.dimension2):
+                line: LineProperties = self.axes.lines.add()
+                line.label = f'Neuron {d} {i}'
+                line.source: LineSourceProperties
+                line.source.source_obj = self.object
+                line.source.access_path = self.access_path
+                line.source.iterate_step = True
+                line.source.get_x = 'step'
+                line.source.get_y = f'row[{d}, {i}]'
+        return self.execute(context)
+
+class PlotBy2dColumnOperator(PlotLineOperator):
+    bl_idname = 'nengo_3d.plot_neurons'
+    bl_label = 'Plot input'
+
+    object: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    access_path: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    n_neurons: bpy.props.IntProperty(options={'SKIP_SAVE'})
+
+    def invoke(self, context: 'Context', event: 'Event') -> typing.Union[typing.Set[str], typing.Set[int]]:
+        # ensemble = share_data.model_graph.get_node_data(self.object)
+        # neurons = ensemble['neurons']
+        obj_name = self.object
+        frame_current = context.scene.frame_current
+        op = self
+        # op.axes: AxesProperties
+        # op.axes.xlabel = 'Input signal'
+        # op.axes.ylabel = 'Firing rate (Hz)'
+        # op.axes.title = f'{obj_name}: Neuron response curves\n' \
+        #                 f'(step {frame_current}, {ensemble["neuron_type"]["name"]})'
+        op.axes.line_offset = -0.05
+        for i in range(self.n_neurons):
+            line: LineProperties = op.axes.lines.add()
+            line.label = f'Neuron {i}'
+            line.update = False
+            line_source = line.source
+            line_source: LineSourceProperties
+            line_source.source_obj = obj_name
+            line_source.iterate_step = False
+            line_source.fixed_step = frame_current  # todo do we need to calculate nengo.sample_step here?
+            line_source.access_path = self.access_path  # 'neurons.response_curves'
+            line_source.get_x = 'data[:, 0]'
+            line_source.get_y = f'data[:, {i + 1}]'
+        return self.execute(context)
+
+
 classes = (
     PlotLineOperator,
     RemoveAxOperator,
+    PlotByRowOperator,
+    PlotBy2dRowOperator,
+    PlotBy2dColumnOperator,
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)

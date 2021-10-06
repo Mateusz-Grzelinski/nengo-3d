@@ -47,6 +47,25 @@ class SimpleSelectOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class GrowSelectOperator(bpy.types.Operator):
+    bl_idname = "object.grow_select"
+    bl_label = "Grow selected objects"
+
+    def execute(self, context):
+        # nengo_3d: Nengo3dProperties = context.scene.nengo_3d
+        to_select = set()
+        for obj in context.selected_objects:
+            node = share_data.model_graph_view.nodes.get(obj.name)
+            if node:
+                for n in share_data.model_graph_view.neighbors(obj.name):
+                    to_select.add(n)
+        # logging.debug(to_select)
+        for o in to_select:
+            bpy.data.objects[o].select_set(True)
+            # o.select_set(True)
+        return {'FINISHED'}
+
+
 class ConnectOperator(bpy.types.Operator):
     """Connect to the Nengo 3d server"""
 
@@ -81,8 +100,8 @@ class ConnectOperator(bpy.types.Operator):
                 data = data_scheme.dump(
                     obj={'source': source_name,
                          'access_path': ax.parameter,
-                         'sample_every': context.window_manager.nengo_3d.sample_every,
-                         'dt': context.window_manager.nengo_3d.dt})
+                         'sample_every': context.scene.nengo_3d.sample_every,
+                         'dt': context.scene.nengo_3d.dt})
                 mess = message.dumps({'schema': schemas.Observe.__name__, 'data': data})
                 logging.debug(f'Sending: {mess}')
                 share_data.sendall(mess.encode('utf-8'))
@@ -91,7 +110,7 @@ class ConnectOperator(bpy.types.Operator):
         bpy.app.handlers.depsgraph_update_post.append(graph_edges_recalculate_handler)
         context.scene.frame_current = 0
 
-        handle_data_function = partial(handle_data, nengo_3d=context.window_manager.nengo_3d)
+        handle_data_function = partial(handle_data, nengo_3d=context.scene.nengo_3d)
         share_data.handle_data = handle_data_function
         bpy.app.timers.register(function=handle_data_function, first_interval=0.01)
         self.report({'INFO'}, 'Connected to localhost:6001')
@@ -141,7 +160,7 @@ class NengoGraphOperator(bpy.types.Operator):
         return share_data.model_graph is not None
 
     def execute(self, context):
-        nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+        nengo_3d: Nengo3dProperties = context.scene.nengo_3d
         if self.expand:
             # todo select new nodes when expanding
             # obj = share_data.model_graph_view.nodes[self.expand]['_blender_object']
@@ -166,7 +185,8 @@ class NengoGraphOperator(bpy.types.Operator):
 
         # logging.debug(share_data.model_graph_view.nodes(data=False))
         # logging.debug(share_data.model_graph_view.nodes['model.cortical'])
-        handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d, select=True)
+        handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d, select=True,
+                             force_refresh_node_placement=True)
         NengoColorNodesOperator.recolor(nengo_3d, context.scene.frame_current)
         NengoColorEdgesOperator.recolor(nengo_3d, context.scene.frame_current)
         bpy.ops.view3d.view_selected()
@@ -196,7 +216,7 @@ class NengoSimulateOperator(bpy.types.Operator):
         return share_data.client is not None
 
     def execute(self, context):
-        nengo_3d: Nengo3dProperties = context.window_manager.nengo_3d
+        nengo_3d: Nengo3dProperties = context.scene.nengo_3d
         if nengo_3d.requires_reset and self.action != 'reset':
             return {'CANCELLED'}
         if self.action == 'reset':
@@ -274,7 +294,7 @@ class NengoSimulateOperator(bpy.types.Operator):
             return {'CANCELLED'}
 
         if event.type == 'TIMER':
-            nengo_3d = context.window_manager.nengo_3d
+            nengo_3d = context.scene.nengo_3d
             speed = nengo_3d.speed
             if share_data.current_step >= context.scene.frame_current:
                 frame_change_time = execution_times.average()
@@ -304,7 +324,7 @@ class NengoColorNodesOperator(bpy.types.Operator):
         return bool(share_data.model_graph)
 
     def execute(self, context):
-        self.recolor(context.window_manager.nengo_3d, context.scene.frame_current)
+        self.recolor(context.scene.nengo_3d, context.scene.frame_current)
         return {'FINISHED'}
 
     @staticmethod
@@ -331,7 +351,7 @@ class NengoColorEdgesOperator(bpy.types.Operator):
         return bool(share_data.model_graph)
 
     def execute(self, context):
-        self.recolor(context.window_manager.nengo_3d, context.scene.frame_current)
+        self.recolor(context.scene.nengo_3d, context.scene.frame_current)
         return {'FINISHED'}
 
     @staticmethod
@@ -375,12 +395,12 @@ class NengoQuickSaveOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: 'Context'):
-        nengo_3d = context.window_manager.nengo_3d
+        nengo_3d = context.scene.nengo_3d
         file = nengo_3d.code_file_path
         return bool(file)
 
     def execute(self, context):
-        nengo_3d = context.window_manager.nengo_3d
+        nengo_3d = context.scene.nengo_3d
         file = nengo_3d.code_file_path
         save_path = os.path.splitext(file)[0] + '.blend'
         bpy.ops.wm.save_as_mainfile(filepath=save_path)
@@ -394,6 +414,7 @@ classes = (
     NengoSimulateOperator,
     ObjectNames,
     SimpleSelectOperator,
+    GrowSelectOperator,
     NengoColorEdgesOperator,
     NengoColorNodesOperator,
     NengoColorLinesOperator,
