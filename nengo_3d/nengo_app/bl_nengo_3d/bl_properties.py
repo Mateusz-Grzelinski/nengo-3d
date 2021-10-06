@@ -119,6 +119,7 @@ def line_offset_update(self: 'AxesProperties', context):
 
 class AxesProperties(bpy.types.PropertyGroup):
     object: bpy.props.StringProperty()
+    model_source: bpy.props.StringProperty()
     collection: bpy.props.StringProperty()
     treat_as_node: bpy.props.BoolProperty(description='Treat axes as part of graph')
     auto_range: bpy.props.BoolProperty(default=True)
@@ -608,6 +609,7 @@ def color_map_edge_update(self: 'Nengo3dProperties', context):
 #### end edges functions ####
 
 class Nengo3dProperties(bpy.types.PropertyGroup):
+    code_file_path: bpy.props.StringProperty()
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
     draw_labels: bpy.props.BoolProperty(name='Draw labels', default=False, update=draw_edges_update)
     select_edges: bpy.props.BoolProperty(name='Selectable edges', default=False, update=select_edges_update)

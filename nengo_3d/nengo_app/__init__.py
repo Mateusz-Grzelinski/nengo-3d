@@ -29,7 +29,7 @@ def load_handler_for_preferences(_):
 
 @persistent
 def load_handler_for_startup(_):
-    logging.info('Changing Startup Defaults!')
+    # logging.info('Changing Startup Defaults!')
     for addon in ADDONS:
         bpy.ops.preferences.addon_enable(module=addon)
 
@@ -49,7 +49,7 @@ def load_handler_for_startup(_):
 
 
 def register():
-    logging.info('Registering to Change Defaults')
+    # logging.info('Registering to Change Defaults')
 
     # print(sorted(sys.modules.keys()))
     def create_link(directory: str, link_path: str) -> None:
@@ -74,6 +74,6 @@ def register():
 
 
 def unregister():
-    logging.info("Unregistering to Change Defaults")
+    # logging.info("Unregistering to Change Defaults")
     bpy.app.handlers.load_factory_preferences_post.remove(load_handler_for_preferences)
     bpy.app.handlers.load_factory_startup_post.remove(load_handler_for_startup)

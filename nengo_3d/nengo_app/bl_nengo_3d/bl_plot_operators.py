@@ -1,4 +1,5 @@
 import logging
+import math
 import typing
 
 import bpy
@@ -42,13 +43,14 @@ class PlotLineOperator(bpy.types.Operator):
             share_data.step_when_ready = 0
         context.window_manager.nengo_3d.requires_reset = True
 
-        ax = Axes(context, self.axes)
-
         node: bpy.types.Object = context.active_object  # or for all selected_objects
+        self.axes.model_source = node.name
+        ax = Axes(context, self.axes)
         ax.root.parent = node
-        ax.location = node.dimensions / 2
+        ax.root.location = node.dimensions / 2
+        ax.root.rotation_euler.x += math.pi / 2
 
-        share_data.register_chart(source=node.name, ax=ax)
+        share_data.register_chart(ax=ax)
         ax.draw()
         return {'FINISHED'}
 
@@ -89,8 +91,9 @@ class RemoveAxOperator(bpy.types.Operator):
         for child in names:
             obj = bpy.data.objects[child]
             bpy.data.objects.remove(obj, do_unlink=True)
-        bpy.data.objects.remove(ax_obj, do_unlink=True)
+        # todo remove subcollections?
         bpy.data.collections.remove(bpy.data.collections[ax_obj.nengo_axes.collection])
+        bpy.data.objects.remove(ax_obj, do_unlink=True)
         # for line in ax_obj.nengo_axes.lines:
         #     line_obj = bpy.data.objects[line.name]
         #     bpy.data.objects.remove(line_obj, do_unlink=True)

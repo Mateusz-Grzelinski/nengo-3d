@@ -30,8 +30,8 @@ class NengoSettingsPanel(bpy.types.Panel):
         layout = self.layout
         layout.emboss = 'NONE'
         cached_frames = share_data.current_step
-        if cached_frames > -1:
-            layout.label(text=f'Cached: {cached_frames}')
+        # if cached_frames > -1:
+        layout.label(text=f'Cached: {cached_frames}')
 
     def draw(self, context):
         layout = self.layout.column()
@@ -45,6 +45,9 @@ class NengoSettingsPanel(bpy.types.Panel):
             row = layout.row()
             row.scale_y = 1.5
             row.operator(bl_operators.DisconnectOperator.bl_idname, text='Disconnect')
+
+        layout.operator(bl_operators.NengoQuickSaveOperator.bl_idname,
+                        text='Quick save!' if bpy.data.is_dirty else 'Quick save')
 
         win_man = context.window_manager
 
@@ -165,6 +168,8 @@ class NengoContextPanel(bpy.types.Panel):
         if not obj:
             layout.label(text='No active object')
             return
+        if not share_data.model_graph:
+            return
 
         obj_name = obj.name
         node = share_data.model_graph.get_node_or_subnet_data(obj_name)
@@ -258,7 +263,7 @@ class NengoContextPanel(bpy.types.Panel):
         if node['network_name'] != 'model':
             layout.label(text='Subnetworks:')
             op = layout.operator(bl_operators.NengoGraphOperator.bl_idname,
-                              text=f'Collapse {node["network_name"]}')
+                                 text=f'Collapse {node["network_name"]}')
             op.regenerate = True
             op.collapse = node['network_name']
 
@@ -771,6 +776,7 @@ def draw_edge_gradient(layout, nengo_3d):
     box = layout.box()
     box.template_color_ramp(cr_node, 'color_ramp', expand=True)
 
+
 def draw_node_gradient(layout, nengo_3d):
     cr_node = bpy.data.materials['NengoNodeMaterial'].node_tree.nodes['ColorRamp']
     row = layout.row(align=True)
@@ -903,7 +909,7 @@ class NengoEdgeColorsPanel(bpy.types.Panel):
         layout.prop(nengo_3d, 'edge_dynamic_get', text='Get')
         layout.prop(nengo_3d, 'edge_color_map', expand=True)
         if nengo_3d.edge_color_map == 'GRADIENT':
-            draw_edge_gradient(layout, nengo_3d,)
+            draw_edge_gradient(layout, nengo_3d, )
         elif nengo_3d.edge_color_map == 'ENUM':
             layout.operator(bl_operators.NengoColorEdgesOperator.bl_idname)
             draw_edge_enum(layout, nengo_3d)

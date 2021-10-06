@@ -116,6 +116,7 @@ def handle_network_schema(incoming_answer, nengo_3d: Nengo3dProperties):
     bl_operators.NengoColorNodesOperator.recolor(nengo_3d, 0)
     bl_operators.NengoColorEdgesOperator.recolor(nengo_3d, 0)
     file_path = data['file']
+    nengo_3d.code_file_path = file_path
     t = bpy.data.texts.get(os.path.basename(file_path))
     if t:
         t.clear()
@@ -159,7 +160,7 @@ def _get_text_label_material() -> bpy.types.Material:
 
 def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
     material = _get_text_label_material()
-    col_name = nengo_3d.collection + ' Labels'
+    col_name = 'Labels'
     nengo_collection = bpy.data.collections.get(nengo_3d.collection)
     collection = bpy.data.collections.get(col_name)
     if not collection:
@@ -230,7 +231,28 @@ def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
     regenerate_nodes(g, nengo_3d, pos, select=select)
     regenerate_edges(g, nengo_3d, pos, select=select)
     regenerate_labels(g, nengo_3d)
+    cache_charts(nengo_3d)
+
+    # clear addon state
+    nengo_3d.requires_reset = False
+    bpy.context.scene.frame_current = 0
+    share_data.step_when_ready = 0
+    share_data.requested_steps_until = -1
+    share_data.current_step = -1
+    share_data.resume_playback_on_steps = False
     # bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d)
+
+
+def cache_charts(nengo_3d: Nengo3dProperties):
+    if not bpy.data.collections.get('Charts'):
+        return
+    from bl_nengo_3d.axes import Axes
+    for collection in bpy.data.collections['Charts'].children:
+        for obj in collection.objects:
+            if not obj.nengo_axes.object or not obj.nengo_axes.collection:
+                continue
+            ax = Axes(bpy.context, obj.nengo_axes, root=obj.name)
+            share_data.register_chart(ax=ax)
 
 
 class Arrow:
@@ -330,18 +352,23 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
             connection_obj = bpy.data.objects.new(name=connection_name, object_data=connection_primitive)
             connection_obj.rotation_mode = 'QUATERNION'
             edges_collection.objects.link(connection_obj)
+
+            connection_obj.select_set(select)
+            connection_obj.hide_viewport = False
+            connection_obj.hide_render = False
+            # connection_obj.hide_select = not nengo_3d.select_edges
+            # connection_obj.location = source_pos
+            # connection_obj.nengo_colors.color = [0.011030, 0.011030, 0.011030]
+            connection_obj.active_material = material
+            # connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
         elif not connection_obj and connection_primitive:
             assert False, 'Object was deleted by hand, and mesh is still not deleted'
         else:
             assert False, 'Should never happen'
-        connection_obj.select_set(select)
+        connection_obj.location = source_pos
+        connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
         connection_obj.hide_viewport = False
         connection_obj.hide_render = False
-        # connection_obj.hide_select = not nengo_3d.select_edges
-        connection_obj.location = source_pos
-        # connection_obj.nengo_colors.color = [0.011030, 0.011030, 0.011030]
-        connection_obj.active_material = material
-        connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
         g.edges[node_source, node_target]['_blender_object'] = connection_obj
 
 
@@ -381,11 +408,19 @@ def regenerate_nodes(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
             nodes_collection.objects.link(node_obj)
             node_obj.active_material = material
             node_obj.select_set(select)
-        node_obj.hide_viewport = False
-        node_obj.hide_render = False
-        node_obj.location = position
-        node['_blender_object'] = node_obj
-        g.nodes[node_name]['_blender_object'] = node_obj
+            node_obj.hide_viewport = False
+            node_obj.hide_render = False
+            node['_blender_object'] = node_obj
+            g.nodes[node_name]['_blender_object'] = node_obj
+            node_obj.location = position
+        else:
+            # node exists, respect (most) existing placement and settings
+            node_obj.hide_viewport = False
+            node_obj.hide_render = False
+            node['_blender_object'] = node_obj
+            g.nodes[node_name]['_blender_object'] = node_obj
+            pos[node_name] = node_obj.location
+            continue
 
 
 Positions = dict[str, tuple]  # node: (float, float[, float]), depending on dimension

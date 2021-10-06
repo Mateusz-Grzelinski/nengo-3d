@@ -70,8 +70,8 @@ def get_primitive(type_name: Literal['Node', 'Ensemble', 'Network']) -> Optional
                     bm.to_mesh(primitive_mesh)
                     bm.free()
                 obj = bpy.data.objects.new(name=name, object_data=primitive_mesh)
+                collection.objects.link(obj)
             _PRIMITIVES[name] = obj
-            collection.objects.link(obj)
 
         name = 'Ensemble primitive'
         if not _PRIMITIVES.get(name):
@@ -87,8 +87,8 @@ def get_primitive(type_name: Literal['Node', 'Ensemble', 'Network']) -> Optional
                     bm.to_mesh(primitive_mesh)
                     bm.free()
                 obj = bpy.data.objects.new(name=name, object_data=primitive_mesh)
+                collection.objects.link(obj)
             _PRIMITIVES[name] = obj
-            collection.objects.link(obj)
 
         name = 'Network primitive'
         if not _PRIMITIVES.get(name):
@@ -103,8 +103,8 @@ def get_primitive(type_name: Literal['Node', 'Ensemble', 'Network']) -> Optional
                     bm.to_mesh(primitive_mesh)
                     bm.free()
                 obj = bpy.data.objects.new(name=name, object_data=primitive_mesh)
+                collection.objects.link(obj)
             _PRIMITIVES[name] = obj
-            collection.objects.link(obj)
 
     if obj := _PRIMITIVES.get(f'{type_name} primitive'):
         return obj.copy()

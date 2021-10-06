@@ -388,33 +388,39 @@ class Axes(AxesAccessors):
     color, color bar
     """
 
-    def __init__(self, context: bpy.types.Context, nengo_axes: 'AxesProperties' = None):
+    def __init__(self, context: bpy.types.Context, nengo_axes: 'AxesProperties' = None, root:str=None):
         self.text_color = [0.019607, 0.019607, 0.019607]  # [1.000000, 0.982973, 0.926544]
         # self.parameter = parameter
 
-        self.context = context
+        # self.context = context
         master_collection = bpy.data.collections.get('Charts')
         if not master_collection:
             master_collection = bpy.data.collections.new('Charts')
-            context.collection.children.link(master_collection)
-        # collection = bpy.data.collections.get('Plot')
-        # if not collection:
-        collection = bpy.data.collections.new('Plot')
-        master_collection.children.link(collection)
+            context.scene.collection.children.link(master_collection)
+        if nengo_axes.collection:
+            collection = bpy.data.collections.get(nengo_axes.collection)
+        else:
+            collection = bpy.data.collections.new('Plot')
+            master_collection.children.link(collection)
+            nengo_axes.collection = collection.name
 
         self.collection = collection
-        self._location = context.active_object.location if context.active_object else (0, 0, 0)
+        # self._location = context.active_object.location if context.active_object else (0, 0, 0)
 
         self._lines: dict[Line] = {}
 
-        # blender objects that create this chart:
-        self.root = bpy.data.objects.new('Plot', None)
-        self.collection.objects.link(self.root)
-        if nengo_axes is not None:
-            from bl_nengo_3d.bl_utils import copy_property_group
-            copy_property_group(nengo_axes, self.root.nengo_axes)
-        self.root.nengo_axes.object = self.root.name
-        self.root.nengo_axes.collection = self.collection.name
+        if root:
+            self.root = bpy.data.objects[root]
+        else:
+            self.root = bpy.data.objects.new('Plot', None)
+            self.collection.objects.link(self.root)
+            self.root.empty_display_size = 1.1
+            self.root.empty_display_type = 'ARROWS'  # 'PLAIN_AXES'
+            if nengo_axes is not None:
+                from bl_nengo_3d.bl_utils import copy_property_group
+                copy_property_group(nengo_axes, self.root.nengo_axes)
+            self.root.nengo_axes.object = self.root.name
+            self.root.nengo_axes.collection = self.collection.name
         super().__init__(self.root.nengo_axes)
 
         if not self.xticks_collection_name or not bpy.data.collections.get(self.xticks_collection_name):
@@ -448,9 +454,6 @@ class Axes(AxesAccessors):
             offset += self.line_offset
             self._lines[line_prop.name] = line
 
-        self.root.empty_display_size = 1.1
-        self.root.empty_display_type = 'ARROWS'  # 'PLAIN_AXES'
-
     @property
     def line_offset(self):
         return self._nengo_axes.line_offset
@@ -462,15 +465,15 @@ class Axes(AxesAccessors):
             obj.location.z = value * i
         self._nengo_axes.line_offset = value
 
-    @property
-    def location(self):
-        return self._location
-
-    @location.setter
-    def location(self, value: Sequence[float, float, float]):
-        if self.root:
-            self.root.location = value
-        self._location = value
+    # @property
+    # def location(self):
+    #     return self._location
+    #
+    # @location.setter
+    # def location(self, value: Sequence[float, float, float]):
+    #     if self.root:
+    #         self.root.location = value
+    #     self._location = value
 
     def get_line(self, line: 'LineProperties') -> Line:
         return self._lines[line.name]

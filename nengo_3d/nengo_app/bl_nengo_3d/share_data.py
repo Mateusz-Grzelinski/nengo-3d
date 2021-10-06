@@ -63,8 +63,8 @@ class _ShareData:
             return cached_steps
         return None
 
-    def register_chart(self, source: str, ax: Axes):
-        axes = self.charts[source]
+    def register_chart(self, ax: Axes):
+        axes = self.charts[ax._nengo_axes.model_source]
         if ax not in axes:
             axes.append(ax)
 

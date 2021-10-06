@@ -211,12 +211,12 @@ class GUI(Nengo3dServer):
         self._blender_subprocess = None
 
     def start(self, skip_blender=False) -> None:
+        # todo search in PATH
+        from nengo_3d import BLENDER_EXE_PATH
         # os.makedirs('log', exist_ok=True)
-        blender_template = os.path.join(script_path, 'nengo_app', 'startup.blend')
+        # blender_template = os.path.join(script_path, 'nengo_app', 'startup.blend')
         if not skip_blender:
             # self.blender_log = open('log/blender.log', 'w')
-            from nengo_3d import BLENDER_EXE_PATH
-            # import pygetwindow
             command = [BLENDER_EXE_PATH,
                        # '--engine', 'EEVEE',
                        '--app-template', 'nengo_app',
@@ -227,6 +227,10 @@ class GUI(Nengo3dServer):
                        # '--addons', 'bl_nengo_3d',
                        # blender_template,
                        ]
+            blend_file = os.path.splitext(self.filename)[0] + '.blend'
+            if os.path.exists(blend_file):
+                command.append(blend_file)
+                logger.info(f'Using saved file: {blend_file}')
             # stdout=self.blender_log, stderr=self.blender_log,
             logging.info(f'Staring GUI: {" ".join(command)}')
             self._blender_subprocess = subprocess.Popen(command, env=os.environ)

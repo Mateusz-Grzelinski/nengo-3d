@@ -1,4 +1,5 @@
 import logging
+import os.path
 import socket
 import time
 import typing
@@ -367,6 +368,25 @@ class NengoColorLinesOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class NengoQuickSaveOperator(bpy.types.Operator):
+    bl_idname = 'nengo_3d.quicksave'
+    bl_label = 'Quick save'
+    bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(cls, context: 'Context'):
+        nengo_3d = context.window_manager.nengo_3d
+        file = nengo_3d.code_file_path
+        return bool(file)
+
+    def execute(self, context):
+        nengo_3d = context.window_manager.nengo_3d
+        file = nengo_3d.code_file_path
+        save_path = os.path.splitext(file)[0] + '.blend'
+        bpy.ops.wm.save_as_mainfile(filepath=save_path)
+        return {'FINISHED'}
+
+
 classes = (
     ConnectOperator,
     DisconnectOperator,
@@ -377,6 +397,7 @@ classes = (
     NengoColorEdgesOperator,
     NengoColorNodesOperator,
     NengoColorLinesOperator,
+    NengoQuickSaveOperator,
 )
 
 register_factory, unregister_factory = bpy.utils.register_classes_factory(classes)
