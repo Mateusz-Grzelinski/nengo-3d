@@ -22,10 +22,9 @@ class ColorGeneratorProperties(bpy.types.PropertyGroup):
 
 
 def draw_color_generator_properties_template(layout: bpy.types.UILayout, color_gen: ColorGeneratorProperties):
-    row = layout.row(align=True)
-    row.prop(color_gen, 'initial_color')
-    row.prop(color_gen, 'shift', text='')
-    row.prop(color_gen, 'max_colors', text='')
+    layout.prop(color_gen, 'initial_color')
+    layout.prop(color_gen, 'shift', text='')
+    layout.prop(color_gen, 'max_colors', text='')
 
 
 # class NodeColorSourceProperties(bpy.types.PropertyGroup):
@@ -204,15 +203,17 @@ def draw_axes_properties_template(layout: bpy.types.UILayout, axes: 'AxesPropert
     row.prop(axes, 'z_max', emboss=col.enabled)
 
     from bl_nengo_3d.bl_operators import NengoColorLinesOperator
-    layout.operator(NengoColorLinesOperator.bl_idname).axes_obj = axes.object
 
-    draw_color_generator_properties_template(layout, axes.color_gen)
     row = layout.row()
     row.prop(axes, 'ui_show_lines', text='', icon='TRIA_DOWN' if axes.ui_show_lines else 'TRIA_RIGHT',
              emboss=False)
     row.label(text=f'Lines ({len(axes.lines)}):')
     row.prop(axes, 'line_offset')
     if axes.ui_show_lines:
+        row = layout.row(align=True)
+        draw_color_generator_properties_template(row, axes.color_gen)
+        op = row.operator(NengoColorLinesOperator.bl_idname, icon='FILE_REFRESH', text='')
+        op.axes_obj = axes.object
         box = layout.box()
         for line in axes.lines:
             line: LineProperties
@@ -403,8 +404,9 @@ def node_attribute_with_types_update(self: 'Nengo3dProperties', context):
             maximum = 1
         assert minimum not in {math.inf, -math.inf}
         assert maximum not in {math.inf, -math.inf}
-        nengo_3d.node_attr_min = minimum
-        nengo_3d.node_attr_max = maximum
+        if nengo_3d.node_attr_auto_range:
+            nengo_3d.node_attr_min = minimum
+            nengo_3d.node_attr_max = maximum
 
         for node, data in share_data.model_graph_view.nodes(data=True):
             data = share_data.model_graph.get_node_or_subnet_data(node)
@@ -414,9 +416,20 @@ def node_attribute_with_types_update(self: 'Nengo3dProperties', context):
                 obj.nengo_colors.weight = 0
             else:
                 # must be normalized for color ramp to work
-                obj.nengo_colors.weight = (float(value) - minimum) / (maximum - minimum)
+                obj.nengo_colors.weight = (float(value) - nengo_3d.node_attr_min) / (
+                            nengo_3d.node_attr_max - nengo_3d.node_attr_min)
                 # logging.debug((node, value, obj.nengo_colors.weight))
+                if obj.nengo_colors.weight > 1:
+                    obj.nengo_colors.weight = 1
+                elif obj.nengo_colors.weight < 0:
+                    obj.nengo_colors.weight = 0
                 assert 1 >= obj.nengo_colors.weight >= 0, (node, obj.nengo_colors.weight, minimum, maximum, value)
+
+    # force particular representation where it does not make sense to have different
+    if nengo_3d.node_attribute_with_type.endswith(':str'):
+        nengo_3d.node_color_map = 'ENUM'
+    elif nengo_3d.node_attribute_with_type.endswith(':float'):
+        nengo_3d.node_color_map = 'GRADIENT'
 
 
 def color_map_node_update(self: 'Nengo3dProperties', context):
@@ -448,6 +461,12 @@ def node_dynamic_access_path_update(self: 'Nengo3dProperties', context):
     if _last_node_dynamic_access_path != self.node_dynamic_access_path:
         self.requires_reset = True
     _last_node_dynamic_access_path = self.node_dynamic_access_path
+
+
+def node_enum_color_update(self: 'Nengo3dProperties', context):
+    if self.node_color == 'SINGLE':
+        self.node_color_map = 'ENUM'
+        node_color_single_update(self, context)
 
 
 #### end nodes functions ####
@@ -523,8 +542,9 @@ def edge_attribute_with_types_update(self: 'Nengo3dProperties', context):
             maximum = 1
         assert minimum not in {math.inf, -math.inf}
         assert maximum not in {math.inf, -math.inf}
-        nengo_3d.edge_attr_min = minimum
-        nengo_3d.edge_attr_max = maximum
+        if nengo_3d.edge_attr_auto_range:
+            nengo_3d.edge_attr_min = minimum
+            nengo_3d.edge_attr_max = maximum
 
         for e_source, e_target, e_data in share_data.model_graph_view.edges(data=True):
             obj = e_data['_blender_object']
@@ -534,10 +554,21 @@ def edge_attribute_with_types_update(self: 'Nengo3dProperties', context):
                 obj.nengo_colors.weight = 0
             else:
                 # must be normalized for color ramp to work
-                obj.nengo_colors.weight = (float(value) - minimum) / (maximum - minimum)
+                obj.nengo_colors.weight = (float(value) - nengo_3d.edge_attr_min) / (
+                        nengo_3d.edge_attr_max - nengo_3d.edge_attr_min)
                 # logging.debug((e_source, e_target, value, obj.nengo_colors.weight))
+                if obj.nengo_colors.weight > 1:
+                    obj.nengo_colors.weight = 1
+                elif obj.nengo_colors.weight < 0:
+                    obj.nengo_colors.weight = 0
                 assert 1 >= obj.nengo_colors.weight >= 0, (
                     e_source, e_target, obj.nengo_colors.weight, minimum, maximum, value)
+
+    # force particular representation where it does not make sense to have different
+    if nengo_3d.edge_attribute_with_type.endswith(':str'):
+        nengo_3d.edge_color_map = 'ENUM'
+    elif nengo_3d.edge_attribute_with_type.endswith(':float'):
+        nengo_3d.edge_color_map = 'GRADIENT'
 
 
 def edge_dynamic_access_path_update(self: 'Nengo3dProperties', context):
@@ -613,6 +644,12 @@ def color_map_edge_update(self: 'Nengo3dProperties', context):
         logging.error(f'Unknown value: {self.edge_color_map}')
 
 
+def edge_enum_color_update(self: 'Nengo3dProperties', context):
+    if self.edge_color == 'SINGLE':
+        self.edge_color_map = 'ENUM'
+        edge_color_single_update(self, context)
+
+
 #### end edges functions ####
 
 class Nengo3dProperties(bpy.types.PropertyGroup):
@@ -670,8 +707,9 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
     node_color: bpy.props.EnumProperty(items=[
         ('SINGLE', 'Single color', ''),
         ('MODEL', 'Model properties', ''),
-        ('MODEL_DYNAMIC', 'Model dynamic properties', ''),
-    ])
+        ('MODEL_DYNAMIC', 'Model dynamic properties', '')],
+        update=node_enum_color_update,
+    )
     node_color_single: bpy.props.FloatVectorProperty(name='Color', subtype='COLOR', update=node_color_single_update,
                                                      default=[0.099202, 1.000000, 0.217183])
     node_attribute_with_type: bpy.props.EnumProperty(name='Attribute', items=node_attribute_with_types_items,
@@ -679,8 +717,9 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
     node_dynamic_access_path: bpy.props.EnumProperty(name='Dynamic attributes', items=probeable_nodes_items,
                                                      update=node_dynamic_access_path_update)
     node_dynamic_get: bpy.props.StringProperty(default='sum(data)')
+    node_attr_auto_range: bpy.props.BoolProperty(name='Auto range', default=True)
     node_attr_min: bpy.props.FloatProperty(name='Min')
-    node_attr_max: bpy.props.FloatProperty(name='Max')
+    node_attr_max: bpy.props.FloatProperty(name='Max', default=1)
     node_color_map: bpy.props.EnumProperty(items=[('ENUM', 'Enum', ''),
                                                   ('GRADIENT', 'Gradient', '')
                                                   ],
@@ -691,8 +730,9 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
     edge_color: bpy.props.EnumProperty(items=[
         ('SINGLE', 'Single color', ''),
         ('MODEL', 'Model properties', ''),
-        ('MODEL_DYNAMIC', 'Model dynamic properties', ''),
-    ])
+        ('MODEL_DYNAMIC', 'Model dynamic properties', '')],
+        update=edge_enum_color_update,
+    )
     edge_color_single: bpy.props.FloatVectorProperty(name='Color', subtype='COLOR', update=edge_color_single_update,
                                                      default=[0.099202, 0.140791, 1.000000])
     edge_attribute_with_type: bpy.props.EnumProperty(name='Attribute', items=edge_attribute_with_types_items,
@@ -700,8 +740,9 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
     edge_dynamic_access_path: bpy.props.EnumProperty(name='Dynamic attributes', items=probeable_edges_items,
                                                      update=edge_dynamic_access_path_update)
     edge_dynamic_get: bpy.props.StringProperty(default='sum(data)')
+    edge_attr_auto_range: bpy.props.BoolProperty(name='Auto range', default=True)
     edge_attr_min: bpy.props.FloatProperty(name='Min')
-    edge_attr_max: bpy.props.FloatProperty(name='Max')
+    edge_attr_max: bpy.props.FloatProperty(name='Max', default=1)
     edge_color_map: bpy.props.EnumProperty(items=[('ENUM', 'Enum', ''),
                                                   ('GRADIENT', 'Gradient', '')
                                                   ],

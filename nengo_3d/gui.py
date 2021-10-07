@@ -71,8 +71,8 @@ class GuiConnection(Connection):
                 logger.error(f'Unknown schema: {incoming_message["schema"]}')
         except json.JSONDecodeError:
             logger.error(f'Invalid json message: {msg}')
-        # except Exception as e:
-        #     logger.exception(f'Failed executing: {incoming_message}', exc_info=e)
+        except Exception as e:
+            logger.exception(f'Failed executing: {msg}', exc_info=e)
 
     def handle_network(self, incoming_message):
         data_scheme = schemas.NetworkSchema(
@@ -101,6 +101,9 @@ class GuiConnection(Connection):
             # special case is probeable values
             to_probe = get_value(obj, access_path[:-2])
             attr = access_path[-1]
+            if not hasattr(to_probe, 'probeable'):
+                logger.warning(f'{to_probe} does not have field "probeable"')
+                return
             if to_probe and attr in to_probe.probeable:
                 # Ensemble, Neurons, Node, or Connection
                 if not isinstance(to_probe, (nengo.Ensemble, nengo.Node, nengo.Connection, nengo.ensemble.Neurons)):

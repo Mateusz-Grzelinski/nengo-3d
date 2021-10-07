@@ -104,8 +104,9 @@ def recolor_dynamic_node_attributes(nengo_3d: Nengo3dProperties, step: int):
         value = eval(get)
         # logging.debug((node, value, data, all_data, step))
         if isinstance(value, (float, int)):
-            nengo_3d.node_attr_min = min(nengo_3d.node_attr_min, value)
-            nengo_3d.node_attr_max = max(nengo_3d.node_attr_max, value)
+            if nengo_3d.node_attr_auto_range:
+                nengo_3d.node_attr_min = min(nengo_3d.node_attr_min, value)
+                nengo_3d.node_attr_max = max(nengo_3d.node_attr_max, value)
             obj.nengo_colors.weight = value
         # todo mapped color or gradient
         mapped_color = nengo_3d.node_mapped_colors.get(str(value))
@@ -151,9 +152,10 @@ def recolor_dynamic_edge_attributes(nengo_3d: Nengo3dProperties, step: int):
         data = all_data[step]
         value = eval(get)
         # logging.debug((e_source, e_target, value, data, all_data, step))
-        if isinstance(value, (float, int)):
-            nengo_3d.edge_attr_min = min(nengo_3d.edge_attr_min, value)
-            nengo_3d.edge_attr_max = max(nengo_3d.edge_attr_max, value)
+        if isinstance(value, (float, int)) :
+            if nengo_3d.edge_attr_auto_range:
+                nengo_3d.edge_attr_min = min(nengo_3d.edge_attr_min, value)
+                nengo_3d.edge_attr_max = max(nengo_3d.edge_attr_max, value)
             obj.nengo_colors.weight = value
         # todo mapped color not needed when using gradient
         mapped_color = nengo_3d.edge_mapped_colors.get(str(value))
