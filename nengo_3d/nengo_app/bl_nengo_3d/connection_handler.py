@@ -26,7 +26,7 @@ update_interval = 0.1
 execution_times = ExecutionTimes(max_items=10)
 
 
-def handle_data(nengo_3d: Nengo3dProperties):
+def handle_data(scene: bpy.types.Scene):
     # In non-blocking mode blocking operations error out with OS specific errors.
     # https://docs.python.org/3/library/socket.html#notes-on-socket-timeouts
     if not share_data.client:
@@ -52,19 +52,20 @@ def handle_data(nengo_3d: Nengo3dProperties):
         message = data
         logger.debug(f'Incoming: {message[:1000]}')
         start = time.time()
-        handle_single_packet(message, nengo_3d)
+        handle_single_packet(message, scene)
         end = time.time()
         execution_times.append(end - start)
 
     return update_interval
 
 
-def handle_single_packet(message: str, nengo_3d: Nengo3dProperties):
+def handle_single_packet(message: str, scene: bpy.types.Scene):
     # from bl_nengo_3d.digraph_model import DiGraphModel
+    nengo_3d: Nengo3dProperties = scene.nengo_3d
     answer_schema = schemas.Message()
     incoming_answer: dict = answer_schema.loads(message)  # json.loads(message)
     if incoming_answer['schema'] == schemas.NetworkSchema.__name__:
-        handle_network_schema(incoming_answer, nengo_3d)
+        handle_network_schema(incoming_answer, scene=scene)
     elif incoming_answer['schema'] == schemas.SimulationSteps.__name__:
         handle_simulation_steps(incoming_answer, nengo_3d)
     elif incoming_answer['schema'] == schemas.PlotLines.__name__:
@@ -101,8 +102,9 @@ def handle_plot_lines(incoming_answer, nengo_3d: Nengo3dProperties):
         ax.draw()
 
 
-def handle_network_schema(incoming_answer, nengo_3d: Nengo3dProperties):
+def handle_network_schema(incoming_answer, scene: bpy.types.Scene):
     from bl_nengo_3d.digraph_model import DiGraphModel
+    nengo_3d: Nengo3dProperties = scene.nengo_3d
     data_scheme = schemas.NetworkSchema()
     g, data = data_scheme.load(data=incoming_answer['data'])
     g: DiGraphModel
@@ -117,6 +119,7 @@ def handle_network_schema(incoming_answer, nengo_3d: Nengo3dProperties):
     nengo_3d.expand_subnetworks['model'].expand = True
     share_data.model_graph_view = g.get_graph_view(nengo_3d)
     handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d)
+    bl_operators.NengoSimulateOperator.action_reset(scene)
     bl_operators.NengoColorNodesOperator.recolor(nengo_3d, 0)
     bl_operators.NengoColorEdgesOperator.recolor(nengo_3d, 0)
     file_path = data['file']
@@ -203,7 +206,7 @@ def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
 def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
                          bounding_box: tuple[float, float, float] = None,
                          center: tuple[float, float, float] = None,
-                         select: bool = False,  force_refresh_node_placement=False):
+                         select: bool = False, force_refresh_node_placement=False):
     # logger.debug((g, nengo_3d, bounding_box))
     pos = calculate_layout(nengo_3d, g)
     dim = 2 if nengo_3d.algorithm_dim == '2D' else 3
@@ -231,23 +234,13 @@ def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
         collection = bpy.data.collections.new(nengo_3d.collection)
         bpy.context.scene.collection.children.link(collection)
 
-    # logger.debug(pos)
     regenerate_nodes(g, nengo_3d, pos, select=select, force=force_refresh_node_placement)
     regenerate_edges(g, nengo_3d, pos, select=select)
     regenerate_labels(g, nengo_3d)
-    cache_charts(nengo_3d)
-
-    # clear addon state
-    nengo_3d.requires_reset = False
-    bpy.context.scene.frame_current = 0
-    share_data.step_when_ready = 0
-    share_data.requested_steps_until = -1
-    share_data.current_step = -1
-    share_data.resume_playback_on_steps = False
-    # bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d)
+    cache_charts()
 
 
-def cache_charts(nengo_3d: Nengo3dProperties):
+def cache_charts():
     if not bpy.data.collections.get('Charts'):
         return
     from bl_nengo_3d.axes import Axes

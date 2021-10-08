@@ -93,24 +93,11 @@ class ConnectOperator(bpy.types.Operator):
         logging.debug(f'Sending: {mess}')
         share_data.sendall(mess.encode('utf-8'))
 
-        data_scheme = schemas.Observe()
-        for source_name, axes in share_data.charts.items():
-            for ax in axes:
-                ax: Axes
-                data = data_scheme.dump(
-                    obj={'source': source_name,
-                         'access_path': ax.parameter,
-                         'sample_every': context.scene.nengo_3d.sample_every,
-                         'dt': context.scene.nengo_3d.dt})
-                mess = message.dumps({'schema': schemas.Observe.__name__, 'data': data})
-                logging.debug(f'Sending: {mess}')
-                share_data.sendall(mess.encode('utf-8'))
-
         bpy.app.handlers.frame_change_pre.append(frame_change_handler)
         bpy.app.handlers.depsgraph_update_post.append(graph_edges_recalculate_handler)
         context.scene.frame_current = 0
 
-        handle_data_function = partial(handle_data, nengo_3d=context.scene.nengo_3d)
+        handle_data_function = partial(handle_data, scene=context.scene)
         share_data.handle_data = handle_data_function
         bpy.app.timers.register(function=handle_data_function, first_interval=0.01)
         self.report({'INFO'}, 'Connected to localhost:6001')
@@ -220,20 +207,7 @@ class NengoSimulateOperator(bpy.types.Operator):
         if nengo_3d.requires_reset and self.action != 'reset':
             return {'CANCELLED'}
         if self.action == 'reset':
-            nengo_3d.requires_reset = False
-            context.scene.frame_current = 0
-            share_data.step_when_ready = 0
-            share_data.requested_steps_until = -1
-            share_data.current_step = -1
-            share_data.resume_playback_on_steps = False
-            # share_data.simulation_cache_step.clear()
-            share_data.simulation_cache.clear()
-
-            observe, plot = share_data.get_all_sources(nengo_3d)
-
-            self.simulation_step(context.scene, action='reset', step_num=nengo_3d.step_n,
-                                 sample_every=nengo_3d.sample_every,
-                                 dt=nengo_3d.dt, prefetch=0, observe=observe, plot=plot)
+            self.action_reset(context.scene)
             return {'FINISHED'}
         elif self.action == 'step':
             self.simulation_step(context.scene, action='step', step_num=nengo_3d.step_n,
@@ -252,6 +226,22 @@ class NengoSimulateOperator(bpy.types.Operator):
         else:
             raise TypeError(self.action)
         return {'CANCELLED'}
+
+    @staticmethod
+    def action_reset(scene: bpy.types.Scene):
+        nengo_3d = scene.nengo_3d
+        nengo_3d.requires_reset = False
+        scene.frame_current = 0
+        share_data.step_when_ready = 0
+        share_data.requested_steps_until = -1
+        share_data.current_step = -1
+        share_data.resume_playback_on_steps = False
+        # share_data.simulation_cache_step.clear()
+        share_data.simulation_cache.clear()
+        observe, plot = share_data.get_all_sources(nengo_3d)
+        NengoSimulateOperator.simulation_step(scene, action='reset', step_num=nengo_3d.step_n,
+                                              sample_every=nengo_3d.sample_every,
+                                              dt=nengo_3d.dt, prefetch=0, observe=observe, plot=plot)
 
     @staticmethod
     def simulation_step(scene, action: str, step_num: int, sample_every: int, dt: float, prefetch: int = 0,
