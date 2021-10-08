@@ -166,7 +166,7 @@ class AxesProperties(bpy.types.PropertyGroup):
 
     ui_show_lines: bpy.props.BoolProperty(default=False)
     lines: bpy.props.CollectionProperty(type=LineProperties)
-    line_offset: bpy.props.FloatProperty(name='Line offset', update=line_offset_update)
+    line_offset: bpy.props.FloatProperty(name='Line offset', update=line_offset_update, step=1)
 
 
 def draw_axes_properties_template(layout: bpy.types.UILayout, axes: 'AxesProperties'):
