@@ -37,15 +37,17 @@ def frame_change_handler(scene: bpy.types.Scene):
     else:
         if frame_current > (share_data.simulation_cache_steps() or 0) * nengo_3d.sample_every:
             scene.frame_current = (share_data.simulation_cache_steps() or 0) * nengo_3d.sample_every
-            # return
+            frame_current = scene.frame_current
 
     # support for nengo_3d.sample_every:
     global _last_update
     if abs(_last_update - frame_current) < nengo_3d.sample_every:
+        # logging.debug(f'Aborted: {_last_update}, {frame_current}, {nengo_3d.sample_every}')
         return
     _last_update = frame_current - frame_current % nengo_3d.sample_every
 
     if not share_data.simulation_cache_steps() or frame_current > 1+share_data.simulation_cache_steps():
+        # logging.debug(f'Aborted: {frame_current}, {share_data.simulation_cache_steps()}')
         return
 
     # calculate data range:
