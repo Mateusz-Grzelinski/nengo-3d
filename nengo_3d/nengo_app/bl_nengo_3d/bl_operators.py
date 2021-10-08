@@ -239,7 +239,7 @@ class NengoSimulateOperator(bpy.types.Operator):
         # share_data.simulation_cache_step.clear()
         share_data.simulation_cache.clear()
         observe, plot = share_data.get_all_sources(nengo_3d)
-        NengoSimulateOperator.simulation_step(scene, action='reset', step_num=nengo_3d.step_n,
+        NengoSimulateOperator.simulation_step(scene, action='reset', step_num=0,
                                               sample_every=nengo_3d.sample_every,
                                               dt=nengo_3d.dt, prefetch=0, observe=observe, plot=plot)
 
@@ -263,11 +263,24 @@ class NengoSimulateOperator(bpy.types.Operator):
             })
 
         cached_steps = share_data.current_step
-        if cached_steps and scene.frame_current < cached_steps:
+        if cached_steps and scene.frame_current + step_num < cached_steps * sample_every:
+            # everything is cached, just go to required frame
+            # logging.debug(f'Everything is cached: {scene.frame_current} < {cached_steps} * {sample_every}')
             scene.frame_current += step_num
         else:
+            # scene is partly cached, go to last cached step and request next data
+            diff = scene.frame_current - cached_steps * sample_every
+            if diff > 0:
+                scene.frame_current += diff
+            num_steps_to_request = scene.frame_current + step_num + prefetch - diff
+            # logging.debug((action, scene.frame_current, cached_steps, sample_every, diff, num_steps_to_request,
+            #                share_data.requested_steps_until, share_data.step_when_ready))
+            if action in {'step'} and share_data.requested_steps_until >= num_steps_to_request:
+                # do not send request is already waiting for steps
+                # logging.debug(f'Not requesting: {share_data.requested_steps_until} >= {num_steps_to_request}')
+                return
             data = {'action': action,
-                    'until': scene.frame_current + step_num + prefetch,
+                    'until': num_steps_to_request,
                     'dt': dt,
                     'sample_every': sample_every,
                     'observe': observables,
@@ -275,8 +288,9 @@ class NengoSimulateOperator(bpy.types.Operator):
             mess = message.dumps({'schema': schemas.Simulation.__name__,
                                   'data': simulation_scheme.dump(data)
                                   })
-            share_data.step_when_ready += step_num
             share_data.sendall(mess.encode('utf-8'))
+            share_data.requested_steps_until = num_steps_to_request
+            share_data.step_when_ready = num_steps_to_request  # step_num * sample_every
 
     def modal(self, context, event):
         if not context.scene.is_simulation_playing or event.type in {'RIGHTMOUSE', 'ESC'}:

@@ -25,30 +25,33 @@ def frame_change_handler(scene: bpy.types.Scene):
     start = time.time()
     frame_current = scene.frame_current
     nengo_3d: Nengo3dProperties = bpy.context.scene.nengo_3d
+
     if nengo_3d.requires_reset:
         return  # todo allow scrubbing existing data
+
+    # support for nengo_3d.sample_every:
+    global _last_update
+    if abs(_last_update - frame_current) < nengo_3d.sample_every:
+        # logging.debug(f'Aborted: abs({_last_update}-{frame_current}) < {nengo_3d.sample_every}')
+        return
+
     if nengo_3d.allow_scrubbing:
         if not share_data.simulation_cache or frame_current > share_data.simulation_cache_steps():
             if frame_current > share_data.requested_steps_until:
                 from bl_nengo_3d.bl_operators import NengoSimulateOperator
                 NengoSimulateOperator.simulation_step(scene=scene, action='step', step_num=nengo_3d.step_n,
                                                       sample_every=nengo_3d.sample_every, dt=nengo_3d.dt, prefetch=0)
-                share_data.requested_steps_until = frame_current
+                # share_data.requested_steps_until = frame_current
     else:
         if frame_current > (share_data.simulation_cache_steps() or 0) * nengo_3d.sample_every:
             scene.frame_current = (share_data.simulation_cache_steps() or 0) * nengo_3d.sample_every
             frame_current = scene.frame_current
 
-    # support for nengo_3d.sample_every:
-    global _last_update
-    if abs(_last_update - frame_current) < nengo_3d.sample_every:
-        # logging.debug(f'Aborted: {_last_update}, {frame_current}, {nengo_3d.sample_every}')
-        return
-    _last_update = frame_current - frame_current % nengo_3d.sample_every
-
-    if not share_data.simulation_cache_steps() or frame_current > 1+share_data.simulation_cache_steps():
+    if not share_data.simulation_cache_steps() or frame_current > 1 + share_data.simulation_cache_steps() * nengo_3d.sample_every:
         # logging.debug(f'Aborted: {frame_current}, {share_data.simulation_cache_steps()}')
         return
+
+    _last_update = frame_current - frame_current % nengo_3d.sample_every
 
     # calculate data range:
     if nengo_3d.show_whole_simulation:
@@ -57,7 +60,7 @@ def frame_change_handler(scene: bpy.types.Scene):
         start_entries = max(frame_current - nengo_3d.show_n_last_steps, 0)
     start_entries = int(start_entries / nengo_3d.sample_every)
     end_entries = int(frame_current / nengo_3d.sample_every)
-    steps = list(range(start_entries, end_entries, nengo_3d.sample_every))
+    steps = list(range(start_entries, end_entries))
 
     if nengo_3d.node_color == 'MODEL_DYNAMIC':
         recolor_dynamic_node_attributes(nengo_3d, steps[-1] if steps else 0)
@@ -68,8 +71,18 @@ def frame_change_handler(scene: bpy.types.Scene):
         recolor_dynamic_edge_attributes(nengo_3d, steps[-1] if steps else 0)
 
     # update plots
+    update_plots(nengo_3d, start_entries, end_entries, steps)
+    end = time.time()
+    execution_times.append(end - start)
+
+
+def update_plots(nengo_3d: Nengo3dProperties, start_entries: int, end_entries: int, steps: list[int]):
+    debugged = False
     for (obj_name, access_path), _data in share_data.simulation_cache.items():
-        data = _data[start_entries:end_entries]
+        data = _data[start_entries:end_entries]  # ugh, copy
+        if not debugged:
+            # logging.debug((start_entries, end_entries, steps, len(data)))
+            debugged = True
         for ax in share_data.charts[obj_name]:
             ax: Axes
             for line_prop in ax.lines:
@@ -83,8 +96,6 @@ def frame_change_handler(scene: bpy.types.Scene):
             if ax.auto_range:
                 ax.relim()
             ax.draw()
-    end = time.time()
-    execution_times.append(end - start)
 
 
 def recolor_dynamic_node_attributes(nengo_3d: Nengo3dProperties, step: int):
@@ -154,7 +165,7 @@ def recolor_dynamic_edge_attributes(nengo_3d: Nengo3dProperties, step: int):
         data = all_data[step]
         value = eval(get)
         # logging.debug((e_source, e_target, value, data, all_data, step))
-        if isinstance(value, (float, int)) :
+        if isinstance(value, (float, int)):
             if nengo_3d.edge_attr_auto_range:
                 nengo_3d.edge_attr_min = min(nengo_3d.edge_attr_min, value)
                 nengo_3d.edge_attr_max = max(nengo_3d.edge_attr_max, value)
@@ -201,7 +212,7 @@ def get_xyzdata(data: Union[np.array, list[np.array]], steps: Iterable[int], lin
                 zdata.append(eval(get_z))
             return xdata, ydata, zdata
         else:
-            # logging.debug((start_entries, end_entries, frame_current, line_source.get_x, line_source.get_y, len(data)))
+            # logging.debug((line_source.get_x, line_source.get_y, len(data)))
             for step, row in zip(steps, data):
                 step: int = step * nengo_3d.sample_every
                 row: np.array

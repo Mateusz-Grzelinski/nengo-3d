@@ -149,7 +149,7 @@ def handle_simulation_steps(incoming_answer, nengo_3d: Nengo3dProperties):
         for access_path, value in parameters.items():
             share_data.simulation_cache[node_name, access_path].append(np.array(value))
     if share_data.step_when_ready != 0 and not nengo_3d.allow_scrubbing:
-        bpy.context.scene.frame_current += share_data.step_when_ready
+        bpy.context.scene.frame_current = share_data.step_when_ready
         share_data.step_when_ready = 0
     # bl_operators.NengoColorNodesOperator.recolor_nodes(nengo_3d) # todo needed?
 

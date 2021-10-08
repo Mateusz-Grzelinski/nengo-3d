@@ -17,17 +17,18 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
         name_finder: NameFinder = self.context['name_finder']
         sim: nengo.Simulator = self.context['sim']
         recorded_steps: list[int] = self.context['recorded_steps']
-        # sample_every: int = self.context['sample_every']
+        sample_every: int = self.context['sample_every']
         requested_probes = self.context['requested_probes']
         results = []
         try:
             for step in recorded_steps:
+                step = int(step / sample_every)
                 for obj, probes in requested_probes.items():
                     _result = {'step': step, 'parameters': {}, 'node_name': name_finder.name(obj)}
                     for probe, access_path, _, _ in probes:
                         probe: nengo.Probe
                         # sim.trange()
-                        # logging.debug((probe, probe.sample_every))
+                        # logging.debug((probe, recorded_steps, step, sample_every, len(sim_data[probe])))
                         _result['parameters'][access_path] = sim_data[probe][step].tolist()
                     results.append(_result)
         except KeyError as e:

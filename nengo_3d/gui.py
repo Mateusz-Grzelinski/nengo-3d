@@ -143,17 +143,19 @@ class GuiConnection(Connection):
         elif sim['action'] == 'step':
             if not self.sim:
                 self.sim = nengo.Simulator(network=self.model, dt=dt)
-            steps = list(range(self.sim.n_steps, sim['until']))
+
+            until = sim['until'] - sim['until'] % sim['sample_every']
+            steps = list(range(self.sim.n_steps, until))
             if not len(steps) >= 1:
                 logger.warning(f'Requested step: {sim["until"]}, but {self.sim.n_steps} is already computed')
                 return
             for s in steps:
                 self._handle_scheduled_plots(s)
-                self.sim.step()  # this can be done async
+                self.sim.step()  # todo this can be done async
             sample_every = sim['sample_every']
             assert sample_every > 0, sim
             if sample_every != 1:
-                recorded_steps = steps[::sample_every]
+                recorded_steps = steps[::sample_every] # todo
             else:
                 recorded_steps = steps
             data_scheme = schemas.SimulationSteps(
@@ -161,6 +163,7 @@ class GuiConnection(Connection):
                 context={'sim': self.sim,
                          'name_finder': self.name_finder,
                          'recorded_steps': recorded_steps,
+                         'sample_every': sample_every,
                          'requested_probes': self.requested_probes,
                          })
             answer = message.dumps({'schema': schemas.SimulationSteps.__name__,

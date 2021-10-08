@@ -55,7 +55,8 @@ class NengoSimulationCachePanel(bpy.types.Panel):
         layout = self.layout.column()
 
         if share_data.simulation_cache:
-            layout.label(text=f'Cached steps: {share_data.simulation_cache_steps()}')
+            layout.label(
+                text=f'Cached steps: {share_data.simulation_cache_steps()} * {context.scene.nengo_3d.sample_every} (sample every)')
         col = layout.box().column(align=True)
         row = col.row()
         row.label(text=f'Key')

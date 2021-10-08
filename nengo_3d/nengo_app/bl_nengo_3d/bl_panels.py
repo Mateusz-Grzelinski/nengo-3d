@@ -29,7 +29,8 @@ class NengoSettingsPanel(bpy.types.Panel):
     def draw_header_preset(self, context):
         layout = self.layout
         layout.emboss = 'NONE'
-        cached_frames = share_data.current_step
+        nengo_3d = context.scene.nengo_3d
+        cached_frames = share_data.current_step * nengo_3d.sample_every
         # if cached_frames > -1:
         layout.label(text=f'Cached: {cached_frames}')
 
