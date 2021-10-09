@@ -317,7 +317,7 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.ylabel = 'Firing rate (Hz)'
         op.axes.title = f'{obj_name}: Neuron response curves\n' \
                         f'(step {frame_current}, {ensemble["neuron_type"]["name"]})'
-        op.axes.line_offset = max(-1/neurons['size_in'], -0.05)
+        op.axes.line_offset = max(-1 / neurons['size_in'], -0.05)
 
         op = box.operator(bl_plot_operators.PlotBy2dColumnOperator.bl_idname,
                           text=f'Tuning curves at {frame_current} step',
@@ -329,7 +329,7 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.ylabel = 'Firing rate (Hz)'
         op.axes.title = f'{obj_name}: Neuron tuning curves\n' \
                         f'(step {frame_current}, {ensemble["neuron_type"]["name"]})'
-        op.axes.line_offset = max(-1/neurons['size_in'], -0.05)
+        op.axes.line_offset = max(-1 / neurons['size_in'], -0.05)
 
         op = box.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
                           text=f'Output (spikes)',
@@ -342,7 +342,7 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.xlocator = 'IntegerLocator'
         op.axes.xformat = '{:.0f}'
         op.axes.yformat = '{:.2f}'
-        op.axes.line_offset = max(-1/neurons['size_out'], -0.05)
+        op.axes.line_offset = max(-1 / neurons['size_out'], -0.05)
         op.axes.title = f'{obj_name}: Neurons output (spikes)'
 
         op = box.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
@@ -356,7 +356,7 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.xlocator = 'IntegerLocator'
         op.axes.xformat = '{:.0f}'
         op.axes.yformat = '{:.2f}'
-        op.axes.line_offset = max(-1/neurons['size_out'], -0.05)
+        op.axes.line_offset = max(-1 / neurons['size_out'], -0.05)
         op.axes.title = f'{obj_name}: Neurons input'
 
         op = box.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
@@ -370,7 +370,7 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.xlocator = 'IntegerLocator'
         op.axes.xformat = '{:.0f}'
         op.axes.yformat = '{:.2f}'
-        op.axes.line_offset = max(-1/neurons['size_out'], -0.05)
+        op.axes.line_offset = max(-1 / neurons['size_out'], -0.05)
         op.axes.title = f'{obj_name}: Neurons voltage'
 
         op = box.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
@@ -384,7 +384,7 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.xlocator = 'IntegerLocator'
         op.axes.xformat = '{:.0f}'
         op.axes.yformat = '{:.2f}'
-        op.axes.line_offset = max(-1/neurons['size_out'], -0.05)
+        op.axes.line_offset = max(-1 / neurons['size_out'], -0.05)
         op.axes.title = f'{obj_name}: Neurons refractory time'
 
         # 3d plots
@@ -493,31 +493,48 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.title = f'{e_data["name"]}: output'
 
         if e_data['has_weights']:
-            # todo check dimensions
             source_node = share_data.model_graph.get_node_data(e_data['pre'])  # model_graph.nodes[e_target]
+            # Weights are usually solved once. They are used to approximate function given in connection
             if source_node['type'] == 'Node':
-                # logger.warning('Not implemented')
-                # todo connection to node can also have weights?
-                return  # todo not supported
-            box.operator_context = 'EXEC_DEFAULT'
-            op = box.operator(bl_plot_operators.PlotBy2dRowOperator.bl_idname,
-                              text=f'Weights (multi dim)',
-                              icon='ORIENTATION_VIEW')
-            """Weights are solved once? They are used to approximate function given in connection"""
-            op.object = e_data['name']
-            op.access_path = 'probeable.weights'
-            # dimension 1 weight [neuron1, neuron2, ...]
-            # dimension 2 weight [neuron1, neuron2, ...], ...
-            op.dimension1 = e_data['size_out']
-            op.dimension2 = source_node['neurons']['size_out']
-            op.axes.xlabel = 'Step'
-            op.axes.ylabel = 'Neuron weight'
-            op.axes.xlocator = 'IntegerLocator'
-            op.axes.xformat = '{:.0f}'
-            op.axes.yformat = '{:.4f}'
-            op.axes.title = f'{e_data["name"]}: weights'
-            op.axes.line_offset = -0.05
-            # target_node = share_data.model_graph.get_node_data(e_data['post'])  # model_graph.nodes[e_target]
+                op = box.operator(
+                    bl_plot_operators.PlotBy2dRowOperator.bl_idname,
+                    text=f'Weights ({e_data["size_out"]} dim * {source_node["size_out"]} neurons) '
+                         f'= {e_data["size_out"] * source_node["size_out"]})',
+                    icon='ORIENTATION_VIEW')
+                op.object = e_data['name']
+                op.access_path = 'probeable.weights'
+                # dimension 1 weight [neuron1, neuron2, ...]
+                # dimension 2 weight [neuron1, neuron2, ...], ...
+                op.dimension1 = source_node['size_out']
+                op.dimension2 = e_data['size_out']
+                op.axes.xlabel = 'Step'
+                op.axes.ylabel = 'Weight'
+                op.axes.xlocator = 'IntegerLocator'
+                op.axes.xformat = '{:.0f}'
+                op.axes.yformat = '{:.4f}'
+                op.axes.title = f'{e_data["name"]}: weights'
+                op.axes.line_offset = -0.01
+            else:
+                op = box.operator(
+                    bl_plot_operators.PlotBy2dRowOperator.bl_idname,
+                    text=f'Weights ({e_data["size_out"]} dim * {source_node["neurons"]["size_out"]} neurons '
+                         f'= {e_data["size_out"] * source_node["neurons"]["size_out"]})',
+                    icon='ORIENTATION_VIEW')
+                op.object = e_data['name']
+                op.access_path = 'probeable.weights'
+                # dimension 1 weight [neuron1, neuron2, ...]
+                # dimension 2 weight [neuron1, neuron2, ...], ...
+                op.dimension1 = source_node['neurons']['size_out']
+                op.dimension2 = e_data['size_out']
+                op.axes.xlabel = 'Step'
+                op.axes.ylabel = 'Neuron weight'
+                op.axes.xlocator = 'IntegerLocator'
+                op.axes.xformat = '{:.0f}'
+                op.axes.yformat = '{:.4f}'
+                op.axes.title = f'{e_data["name"]}: weights'
+                op.axes.line_offset = -0.01
+                # target_node = share_data.model_graph.get_node_data(e_data['post'])  # model_graph.nodes[e_target]
+
 
 class NengoInfoPanel(bpy.types.Panel):
     bl_label = 'Info'

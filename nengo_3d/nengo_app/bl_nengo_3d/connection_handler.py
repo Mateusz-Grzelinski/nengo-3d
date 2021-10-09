@@ -26,7 +26,7 @@ update_interval = 0.1
 execution_times = ExecutionTimes(max_items=10)
 
 
-def handle_data(scene: bpy.types.Scene):
+def handle_data(scene: str):
     # In non-blocking mode blocking operations error out with OS specific errors.
     # https://docs.python.org/3/library/socket.html#notes-on-socket-timeouts
     if not share_data.client:
@@ -59,8 +59,9 @@ def handle_data(scene: bpy.types.Scene):
     return update_interval
 
 
-def handle_single_packet(message: str, scene: bpy.types.Scene):
+def handle_single_packet(message: str, scene: str):
     # from bl_nengo_3d.digraph_model import DiGraphModel
+    scene = bpy.data.scenes[scene]
     nengo_3d: Nengo3dProperties = scene.nengo_3d
     answer_schema = schemas.Message()
     incoming_answer: dict = answer_schema.loads(message)  # json.loads(message)

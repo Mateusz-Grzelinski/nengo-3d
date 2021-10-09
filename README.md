@@ -43,5 +43,5 @@ if __name__ == "__main__":
 - [x] ~~performance in UI panels is not great. Advanced caching is needed or conversion to dedicated operators. Close
   addon panels that you do not use to improve performance~~
 - [x] ~~re-test save model state and restoring connection~~
-- [ ] reset 
+- [ ] lines example is not working 
 - [ ] allow for scrubbing data and stepping simulation even if reset is required

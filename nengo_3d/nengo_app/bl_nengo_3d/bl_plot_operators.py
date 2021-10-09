@@ -155,6 +155,7 @@ class PlotBy2dRowOperator(PlotLineOperator):
                 line.source.get_y = f'row[{d}, {i}]'
         return self.execute(context)
 
+
 class PlotBy2dColumnOperator(PlotLineOperator):
     bl_idname = 'nengo_3d.plot_neurons'
     bl_label = 'Plot input'
@@ -166,22 +167,20 @@ class PlotBy2dColumnOperator(PlotLineOperator):
     def invoke(self, context: 'Context', event: 'Event') -> typing.Union[typing.Set[str], typing.Set[int]]:
         # ensemble = share_data.model_graph.get_node_data(self.object)
         # neurons = ensemble['neurons']
-        obj_name = self.object
         frame_current = context.scene.frame_current
-        op = self
-        # op.axes: AxesProperties
-        # op.axes.xlabel = 'Input signal'
-        # op.axes.ylabel = 'Firing rate (Hz)'
-        # op.axes.title = f'{obj_name}: Neuron response curves\n' \
+        # self.axes: AxesProperties
+        # self.axes.xlabel = 'Input signal'
+        # self.axes.ylabel = 'Firing rate (Hz)'
+        # self.axes.title = f'{obj_name}: Neuron response curves\n' \
         #                 f'(step {frame_current}, {ensemble["neuron_type"]["name"]})'
-        op.axes.line_offset = -0.05
+        self.axes.line_offset = -0.03
         for i in range(self.n_neurons):
-            line: LineProperties = op.axes.lines.add()
+            line: LineProperties = self.axes.lines.add()
             line.label = f'Neuron {i}'
             line.update = False
             line_source = line.source
             line_source: LineSourceProperties
-            line_source.source_obj = obj_name
+            line_source.source_obj = self.object
             line_source.iterate_step = False
             line_source.fixed_step = frame_current  # todo do we need to calculate nengo.sample_step here?
             line_source.access_path = self.access_path  # 'neurons.response_curves'

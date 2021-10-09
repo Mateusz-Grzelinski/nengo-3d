@@ -97,7 +97,7 @@ class ConnectOperator(bpy.types.Operator):
         bpy.app.handlers.depsgraph_update_post.append(graph_edges_recalculate_handler)
         context.scene.frame_current = 0
 
-        handle_data_function = partial(handle_data, scene=context.scene)
+        handle_data_function = partial(handle_data, scene=context.scene.name)
         share_data.handle_data = handle_data_function
         bpy.app.timers.register(function=handle_data_function, first_interval=0.01)
         self.report({'INFO'}, 'Connected to localhost:6001')
