@@ -295,7 +295,7 @@ def recalculate_edges(self: 'Nengo3dProperties', context):
     return
 
 
-def draw_edges_update(self: 'Nengo3dProperties', context):
+def draw_labels_update(self: 'Nengo3dProperties', context):
     from bl_nengo_3d.share_data import share_data
     if share_data.model_graph_view is None:
         return
@@ -655,7 +655,7 @@ def edge_enum_color_update(self: 'Nengo3dProperties', context):
 class Nengo3dProperties(bpy.types.PropertyGroup):
     code_file_path: bpy.props.StringProperty()
     show_whole_simulation: bpy.props.BoolProperty(name='Show all steps', default=False)
-    draw_labels: bpy.props.BoolProperty(name='Draw labels', default=False, update=draw_edges_update)
+    draw_labels: bpy.props.BoolProperty(name='Draw labels', default=False, update=draw_labels_update)
     select_edges: bpy.props.BoolProperty(name='Selectable edges', default=False, update=select_edges_update)
     arrow_length: bpy.props.FloatProperty(name='Arrow length', default=0.5, min=0, max=1, precision=2, step=1,
                                           update=recalculate_edges)

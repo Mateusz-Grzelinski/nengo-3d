@@ -180,6 +180,8 @@ def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
     for item in collection.objects:
         item.hide_viewport = True
         item.hide_render = True
+    collection.hide_viewport = not nengo_3d.draw_labels
+    collection.hide_render = not nengo_3d.draw_labels
     if not nengo_3d.draw_labels:
         return
     for node, node_data in g.nodes(data=True):
@@ -198,10 +200,10 @@ def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
             # obj.nengo_colors.color = self.text_color
             label_obj.data.body = obj.name
             label_obj.parent = obj
+            label_obj.location.z = -0.2 - obj.dimensions.z / 2
         label_obj.hide_viewport = False
         label_obj.hide_render = False
         # label_obj.location = obj.location
-        label_obj.location.z = obj.dimensions.z / 2
 
 
 def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
