@@ -1,4 +1,5 @@
 import itertools
+import sys
 
 import bpy
 
@@ -41,6 +42,27 @@ class NengoDebugPanel(bpy.types.Panel):
         layout.operator(DebugConnectionOperator.bl_idname)
 
 
+def get_size(obj, seen=None):
+    """Recursively finds size of objects"""
+    size = sys.getsizeof(obj)
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    # Important mark as seen *before* entering recursion to gracefully handle
+    # self-referential objects
+    seen.add(obj_id)
+    if isinstance(obj, dict):
+        size += sum([get_size(v, seen) for v in obj.values()])
+        size += sum([get_size(k, seen) for k in obj.keys()])
+    elif hasattr(obj, '__dict__'):
+        size += get_size(obj.__dict__, seen)
+    elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+        size += sum([get_size(i, seen) for i in obj])
+    return size
+
+
 class NengoSimulationCachePanel(bpy.types.Panel):
     bl_parent_id = 'NENGO_PT_debug'
     bl_label = 'Simulation Cache'
@@ -56,7 +78,9 @@ class NengoSimulationCachePanel(bpy.types.Panel):
 
         if share_data.simulation_cache:
             layout.label(
-                text=f'Cached steps: {share_data.simulation_cache_steps()} * {context.scene.nengo_3d.sample_every} (sample every)')
+                text=f'Cached steps: {share_data.simulation_cache_steps()} * {context.scene.nengo_3d.sample_every} (sample every)'
+                # f', {get_size(share_data.simulation_cache) / 1024 / 1024:.2f}Mb'
+            )
         col = layout.box().column(align=True)
         row = col.row()
         row.label(text=f'Key')
