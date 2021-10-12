@@ -31,14 +31,15 @@ class NengoSettingsPanel(bpy.types.Panel):
         layout.emboss = 'NONE'
         nengo_3d = context.scene.nengo_3d
         cached_frames = share_data.current_step * nengo_3d.sample_every
-        # if cached_frames > -1:
-        layout.label(text=f'Cached: {cached_frames}')
+        layout.label(
+            text=f'Cached: {cached_frames if cached_frames >= 0 else -1}/{share_data.requested_steps_until - 1:.0f}')
 
     def draw(self, context):
         layout = self.layout.column()
 
         layout.label(text='localhost:6001')
-        if not connected():
+        is_connected = connected()
+        if not is_connected:
             row = layout.row()
             row.scale_y = 1.5
             row.operator(bl_operators.ConnectOperator.bl_idname, text='Connect')
@@ -56,36 +57,31 @@ class NengoSettingsPanel(bpy.types.Panel):
         col.prop(nengo_3d, 'dt')
 
         row = layout.row()
-        row.active = not connected()
+        row.active = not is_connected
         col = layout.column()
         col.operator(bl_operators.NengoSimulateOperator.bl_idname,
                      text='!Reset!' if nengo_3d.requires_reset else 'Reset',
                      icon='CANCEL').action = 'reset'
 
         col = layout.column()
-        col.active = connected() and not nengo_3d.requires_reset
-        observe, plot = share_data.get_all_sources(context.scene.nengo_3d)
+        col.active = is_connected and not nengo_3d.requires_reset
         row = col.row(align=True)
         subrow = row.row(align=True)
-        subrow.enabled = (len(observe) != 0 or len(plot) != 0)
-        op = subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text=f'Step x{nengo_3d.step_n}',
-                             icon='FRAME_NEXT')
-        op.action = 'step'
+        subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text=f'Step x{nengo_3d.step_n}',
+                        icon='FRAME_NEXT').action = 'step'
         subrow = row.row(align=True)
         subrow.prop(nengo_3d, 'step_n', text='')
 
         row = col.row(align=True)
         subrow = row.row(align=True)
-        subrow.enabled = (len(observe) != 0 or len(plot) != 0)
         if context.scene.is_simulation_playing:
-            op = subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Stop',
-                                 icon='PAUSE')
+            subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Stop',
+                            icon='PAUSE').action = 'continuous'
         else:
-            op = subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Play',
-                                 icon='PLAY')
+            subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Play',
+                            icon='PLAY').action = 'continuous'
         subrow = row.row(align=True)
         subrow.prop(nengo_3d, 'speed', text='')
-        op.action = 'continuous'
 
         nengo_3d: Nengo3dProperties = context.scene.nengo_3d
         layout.prop(nengo_3d, 'allow_scrubbing')
