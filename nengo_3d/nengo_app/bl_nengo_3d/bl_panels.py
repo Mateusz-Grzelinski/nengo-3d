@@ -229,8 +229,27 @@ class NengoContextPanel(bpy.types.Panel):
 
         layout.label(text='Plot 2d lines:')
 
-        op = layout.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
-                             text=f'Output (dim {node["size_out"]})', icon='ORIENTATION_VIEW')
+        box = layout.box()
+        col = box.column(align=True)
+        if node['has_vocabulary']:
+            op = col.operator(bl_plot_operators.PlotByRowSimilarityOperator.bl_idname,
+                              text=f'Similarity (dim {node["vocabulary_size"]})',
+                              icon='ORIENTATION_VIEW')
+            op.object = obj_name
+            op.access_path = 'probeable.output.similarity'
+            op.dimensions = node['vocabulary_size']
+            op.axes: AxesProperties
+            op.axes.xlabel = 'Step'
+            op.axes.ylabel = 'Similarity'
+            op.axes.xlocator = 'IntegerLocator'
+            op.axes.xformat = '{:.0f}'
+            op.axes.yformat = '{:.2f}'
+            op.axes.line_offset = -0.01
+            op.axes.title = f'{obj_name}: output (similarity)'
+
+        col = box.column(align=True)
+        op = col.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
+                          text=f'Output (dim {node["size_out"]})', icon='ORIENTATION_VIEW')
         op.object = obj_name
         op.access_path = 'probeable.output'
         op.dimensions = node['size_out']
@@ -458,9 +477,52 @@ class NengoContextPanel(bpy.types.Panel):
         item.object = view_target
 
         layout.label(text='Plot 2d:')
-        box = layout.box().column(align=True)
+        box = layout.box()
 
-        op = box.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
+        col = box.column(align=True)
+
+        source_node = share_data.model_graph.get_node_data(e_data['pre'])  # model_graph.nodes[e_target]
+        if source_node['has_vocabulary']:
+            node = source_node
+            obj_name = source_node['name']
+            op = col.operator(bl_plot_operators.PlotByRowSimilarityOperator.bl_idname,
+                              text=f'Input node similarity (dim {node["vocabulary_size"]})',
+                              icon='ORIENTATION_VIEW')
+            op.object = obj_name
+            op.access_path = 'probeable.output.similarity'
+            op.dimensions = node['vocabulary_size']
+            op.axes: AxesProperties
+            op.axes.xlabel = 'Step'
+            op.axes.ylabel = 'Similarity'
+            op.axes.xlocator = 'IntegerLocator'
+            op.axes.xformat = '{:.0f}'
+            op.axes.yformat = '{:.2f}'
+            op.axes.line_offset = -0.01
+            op.axes.title = f'{obj_name}: output (similarity)'
+
+        target_node = share_data.model_graph.get_node_data(e_data['post'])
+        if target_node['has_vocabulary']:
+            node = target_node
+            obj_name = target_node['name']
+            op = col.operator(bl_plot_operators.PlotByRowSimilarityOperator.bl_idname,
+                              text=f'Target node similarity (dim {node["vocabulary_size"]})',
+                              icon='ORIENTATION_VIEW')
+            op.object = obj_name
+            op.access_path = 'probeable.output.similarity'
+            op.dimensions = node['vocabulary_size']
+            op.axes: AxesProperties
+            op.axes.xlabel = 'Step'
+            op.axes.ylabel = 'Similarity'
+            op.axes.xlocator = 'IntegerLocator'
+            op.axes.xformat = '{:.0f}'
+            op.axes.yformat = '{:.2f}'
+            op.axes.line_offset = -0.01
+            op.axes.title = f'{obj_name}: output (similarity)'
+
+
+        col = box.column(align=True)
+
+        op = col.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
                           text=f'Input (dim {e_data["size_in"]})',
                           icon='ORIENTATION_VIEW')
         op.object = e_data['name']
@@ -474,7 +536,7 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.yformat = '{:.2f}'
         op.axes.title = f'{e_data["name"]}: input'
 
-        op = box.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
+        op = col.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
                           text=f'Output (dim {e_data["size_out"]})',
                           icon='ORIENTATION_VIEW')
         op.object = e_data['name']
@@ -489,10 +551,9 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.title = f'{e_data["name"]}: output'
 
         if e_data['has_weights']:
-            source_node = share_data.model_graph.get_node_data(e_data['pre'])  # model_graph.nodes[e_target]
             # Weights are usually solved once. They are used to approximate function given in connection
             if source_node['type'] == 'Node':
-                op = box.operator(
+                op = col.operator(
                     bl_plot_operators.PlotBy2dRowOperator.bl_idname,
                     text=f'Weights ({e_data["size_out"]} dim * {source_node["size_out"]} neurons) '
                          f'= {e_data["size_out"] * source_node["size_out"]})',
@@ -511,7 +572,7 @@ class NengoContextPanel(bpy.types.Panel):
                 op.axes.title = f'{e_data["name"]}: weights'
                 op.axes.line_offset = -0.01
             else:
-                op = box.operator(
+                op = col.operator(
                     bl_plot_operators.PlotBy2dRowOperator.bl_idname,
                     text=f'Weights ({e_data["size_out"]} dim * {source_node["neurons"]["size_out"]} neurons '
                          f'= {e_data["size_out"] * source_node["neurons"]["size_out"]})',

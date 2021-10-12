@@ -252,8 +252,8 @@ class NengoSimulateOperator(bpy.types.Operator):
                                               dt=nengo_3d.dt, prefetch=0, observe=observe, plot=plot)
 
     @staticmethod
-    def simulation_step(scene, action: str, step_num: int, sample_every: int, dt: float, prefetch: int = 0,
-                        observe: list = None, plot: list = None):
+    def simulation_step(scene, action: str, step_num: int, sample_every: int, dt: float,
+                        prefetch: int = 0, observe: list = None, plot: list = None):
         observe = observe or []
         plot = plot or []
         observables = []

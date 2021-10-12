@@ -19,6 +19,7 @@ class PlotLines(Schema):
     access_path = fields.Str(required=True)
     step = fields.Int(required=True)
     data = fields.List(fields.Field())
+    labels = fields.List(fields.Str())
 
 
 class SimulationSteps(Schema):
@@ -76,6 +77,11 @@ class NodeSchema(Schema):
     type = fields.Str(required=True)
     class_type = fields.Str(required=True)
     network_name = fields.Str(required=True)
+    name = fields.Str(required=True)
+    module = fields.Str(required=True)
+    has_vocabulary = fields.Bool(required=True)
+    vocabulary_size = fields.Int(required=True, allow_none=True)
+    vocabulary = fields.List(fields.Str())
     probeable = fields.List(fields.Str())
     label = fields.Str(allow_none=True)
     size_in = fields.Int()
@@ -91,6 +97,7 @@ class NetworkSchema(Schema):
     type = fields.Str(required=True)
     network_name = fields.Str(required=True)
     parent_network = fields.Str(required=True)
+    module = fields.Str(required=True)
     class_type = fields.Str(required=True)
     n_neurons = fields.Int()
     nodes = fields.Dict(keys=fields.Str(), values=fields.Nested(NodeSchema()))

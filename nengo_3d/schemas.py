@@ -1,13 +1,20 @@
 import logging
 from itertools import chain
+from typing import Union, Optional
 
 import nengo
+import nengo.spa.module
 
 from marshmallow import pre_dump
 
 import nengo_3d.nengo_3d_schemas as nengo_3d_schemas
 from nengo_3d.name_finder import NameFinder
 from nengo_3d.nengo_3d_schemas import Message, Observe, Simulation, PlotLines
+
+Message = Message
+Observe = Observe
+Simulation = Simulation
+PlotLines = PlotLines
 
 
 class SimulationSteps(nengo_3d_schemas.SimulationSteps):
@@ -16,9 +23,11 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
         assert many is True, 'many=False is not supported'
         name_finder: NameFinder = self.context['name_finder']
         sim: nengo.Simulator = self.context['sim']
+        model: nengo.Network = self.context['model']
+        vocab: dict[nengo.base.NengoObject, nengo.spa.Vocabulary] = self.context['vocab']
         recorded_steps: list[int] = self.context['recorded_steps']
         sample_every: int = self.context['sample_every']
-        requested_probes = self.context['requested_probes']
+        requested_probes: dict[nengo.base.NengoObject, list['RequestedProbes']] = self.context['requested_probes']
         results = []
         try:
             for step in recorded_steps:
@@ -29,7 +38,12 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
                         probe: nengo.Probe
                         # sim.trange()
                         # logging.debug((probe, recorded_steps, step, sample_every, len(sim_data[probe])))
-                        _result['parameters'][access_path] = sim_data[probe][step].tolist()
+                        if access_path.startswith('similarity'):
+                            model: nengo.spa.SPA
+                            _result['parameters'][access_path] = nengo.spa.similarity(data=sim_data[probe],
+                                                                                      vocab=vocab[probe.obj])
+                        else:
+                            _result['parameters'][access_path] = sim_data[probe][step].tolist()
                     results.append(_result)
         except KeyError as e:
             logging.error(f'No such key: {e}: {list(sim_data.keys())}')
@@ -63,10 +77,16 @@ class ConnectionSchema(nengo_3d_schemas.ConnectionSchema):
 class NodeSchema(nengo_3d_schemas.NodeSchema):
     @pre_dump
     def process_node(self, data: nengo.Node, **kwargs):
+        vocabulary: Optional[nengo.spa.Vocabulary] = self.context['vocabulary']
         result = {'probeable': data.probeable,
                   'class_type': type(data).__name__,
+                  'name': self.context['name'],
                   'network_name': self.context['network_name'],
                   'parent_network': self.context['network_name'],  # same as above
+                  'module': self.context['module'],
+                  'has_vocabulary': bool(vocabulary),
+                  'vocabulary_size': len(vocabulary.vectors) if vocabulary else None,
+                  'vocabulary': list(vocabulary.keys) if vocabulary else [],
                   }
         for param in data.params:
             result[param] = getattr(data, param)
@@ -101,6 +121,9 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
         name_finder = self.context['name_finder']
         parent_network = self.context['parent_network']
         network_name = name_finder.name(data)
+        module: str = self.context['module']
+        vocab = self.context['vocab']
+        modules: dict = self.context.pop('modules') if self.context.get('modules') else {}
         result = {
             'nodes': {},
             'connections': {},
@@ -108,20 +131,28 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
             'file': file,
             'network_name': network_name,
             'parent_network': parent_network,
+            'module': module,
             'n_neurons': data.n_neurons,
             'type': 'Network',
             'class_type': type(data).__name__
         }
 
-        s = NodeSchema(context={'network_name': network_name})
         for obj in chain(data.ensembles, data.nodes):
-            result['nodes'][name_finder.name(obj)] = s.dump(obj)
+            _vocab: nengo.spa.Vocabulary = vocab.get(obj)
+            name = name_finder.name(obj)
+            s = NodeSchema(
+                context={'network_name': network_name, 'module': module,
+                         'vocabulary': _vocab, 'name': name,
+                         }
+            )
+            result['nodes'][name] = s.dump(obj)
 
         for obj in data.networks:
             obj: nengo.Network
             subnet_name = name_finder.name(obj)
             context = self.context.copy()
             context['parent_network'] = network_name
+            context['module'] = obj.label if obj.label in modules.keys() else module
             s = NetworkSchema(context=context)
             result['networks'][subnet_name] = s.dump(obj)
 

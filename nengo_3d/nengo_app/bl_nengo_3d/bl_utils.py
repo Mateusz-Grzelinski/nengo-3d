@@ -119,6 +119,9 @@ def probeable(self, context):
     for param in probeable_recurse_dict(prefix=None, value=item):
         yield param, param, ''
 
+    if item.get('type') == 'Node' and item.get('has_vocabulary'):
+        yield 'probeable.output.similarity', 'Similarity to vocabulary', ''
+
     if item.get('type') == 'Ensemble':
         yield 'neurons.response_curves', 'Response Curves', ''
         yield 'neurons.tuning_curves', 'Tuning Curves', ''

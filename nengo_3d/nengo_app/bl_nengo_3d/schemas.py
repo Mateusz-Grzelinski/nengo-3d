@@ -32,7 +32,8 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
         from bl_nengo_3d.digraph_model import DiGraphModel
         g = DiGraphModel(
             name=data['network_name'], network_name=data['network_name'], _networks={}, type=data['type'],
-            class_type=data['class_type'], n_neurons=data['n_neurons'], parent_network=str(data['parent_network'])
+            class_type=data['class_type'], n_neurons=data['n_neurons'], parent_network=str(data['parent_network']),
+            module=data['module']
         )
 
         nodes = data['nodes']

@@ -47,7 +47,8 @@ class PlotLineOperator(bpy.types.Operator):
         context.scene.nengo_3d.requires_reset = True
 
         node: bpy.types.Object = context.active_object  # or for all selected_objects
-        self.axes.model_source = node.name
+        if not self.axes.model_source:
+            self.axes.model_source = node.name
         ax = Axes(context, self.axes)
         ax.root.parent = node
         ax.root.location = node.dimensions / 2
@@ -101,6 +102,29 @@ class RemoveAxOperator(bpy.types.Operator):
         #     line_obj = bpy.data.objects[line.name]
         #     bpy.data.objects.remove(line_obj, do_unlink=True)
         return {'FINISHED'}
+
+
+class PlotByRowSimilarityOperator(PlotLineOperator):
+    bl_idname = 'nengo_3d.plot_byrow_similarity'
+    bl_label = 'Plot similarity'
+
+    object: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    access_path: bpy.props.StringProperty(options={'SKIP_SAVE'})
+    dimensions: bpy.props.IntProperty(options={'SKIP_SAVE'})
+
+    def invoke(self, context, event):
+        node = share_data.model_graph.get_node_data(self.object)
+        self.axes.model_source = self.object  # workaround for screating plot from edge
+        for i in range(self.dimensions):
+            line: LineProperties = self.axes.lines.add()
+            line.source: LineSourceProperties
+            line.source.source_obj = self.object
+            line.source.access_path = f'{self.access_path}'
+            line.source.iterate_step = True
+            line.source.get_x = 'step'
+            line.source.get_y = f'row[{i}]'
+            line.label = node['vocabulary'][i]
+        return self.execute(context)
 
 
 class PlotByRowOperator(PlotLineOperator):
@@ -193,6 +217,7 @@ classes = (
     PlotLineOperator,
     RemoveAxOperator,
     PlotByRowOperator,
+    PlotByRowSimilarityOperator,
     PlotBy2dRowOperator,
     PlotBy2dColumnOperator,
 )
