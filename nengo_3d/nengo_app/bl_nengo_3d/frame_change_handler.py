@@ -77,13 +77,15 @@ def frame_change_handler(scene: bpy.types.Scene):
 
 
 def update_plots(nengo_3d: Nengo3dProperties, start_entries: int, end_entries: int, steps: list[int]):
-    debugged = False
+    # debugged = False
     for (obj_name, access_path), _data in share_data.simulation_cache.items():
         data = _data[start_entries:end_entries]  # ugh, copy
-        if not debugged:
+        # if not debugged:
             # logging.debug((start_entries, end_entries, steps, len(data)))
-            debugged = True
+            # debugged = True
         for ax in share_data.charts[obj_name]:
+            # if obj_name == 'model.connections[3]':
+            #     logging.debug((ax))
             ax: Axes
             for line_prop in ax.lines:
                 line_prop: LineProperties
