@@ -228,7 +228,7 @@ class GUI(Nengo3dServer):
             command = [self.blender_exe,
                        # '--engine', 'EEVEE',
                        '--app-template', 'nengo_app',
-                       '--window-geometry', '-1920', '0', '1920', '1080',
+                       # '--window-geometry', '-1920', '0', '1920', '1080',
                        # '--no-window-focus',
                        # '--python-expr',
                        # f'import sys; sys.path.append({repr(BLENDER_PIP_MODULES_PATH)})',
