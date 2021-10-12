@@ -175,8 +175,6 @@ def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
         collection = bpy.data.collections.new(col_name)
         nengo_collection.children.link(collection)
         collection.hide_select = True
-        # collection.hide_viewport = True
-        # collection.hide_render = True
     for item in collection.objects:
         item.hide_viewport = True
         item.hide_render = True
@@ -184,6 +182,7 @@ def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
     collection.hide_render = not nengo_3d.draw_labels
     if not nengo_3d.draw_labels:
         return
+
     for node, node_data in g.nodes(data=True):
         obj = node_data['_blender_object']
         name = node + '_label'
@@ -200,7 +199,7 @@ def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
             # obj.nengo_colors.color = self.text_color
             label_obj.data.body = obj.name
             label_obj.parent = obj
-            label_obj.location.z = -0.2 - obj.dimensions.z / 2
+            label_obj.location.z = -0.4 - obj.dimensions.z / 2
         label_obj.hide_viewport = False
         label_obj.hide_render = False
         # label_obj.location = obj.location
