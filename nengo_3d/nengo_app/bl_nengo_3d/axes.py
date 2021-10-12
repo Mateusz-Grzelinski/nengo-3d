@@ -90,7 +90,9 @@ class Line:
 
         _line = bpy.data.objects.get(line.name)
         if not line.name or not _line:
-            _line = ax._create_object('Line', solidify=None, parent=ax.root)
+            lines_collection = bpy.data.collections[ax.lines_collection_name]
+            _line = ax._create_object('Line', solidify=None, selectable=True, parent=ax.root,
+                                      collection=lines_collection)
             line.name = _line.name
         self.line_name = _line.name
 
@@ -300,6 +302,14 @@ class AxesAccessors:
         return self._nengo_axes.lines
 
     @property
+    def lines_collection_name(self):
+        return self._nengo_axes.lines_collection_name
+
+    @lines_collection_name.setter
+    def lines_collection_name(self, value):
+        self._nengo_axes.lines_collection_name = value
+
+    @property
     def xticks_collection_name(self):
         return self._nengo_axes.xticks_collection_name
 
@@ -390,7 +400,7 @@ class Axes(AxesAccessors):
     color, color bar
     """
 
-    def __init__(self, context: bpy.types.Context, nengo_axes: 'AxesProperties' = None, root:str=None):
+    def __init__(self, context: bpy.types.Context, nengo_axes: 'AxesProperties' = None, root: str = None):
         self.text_color = [0.019607, 0.019607, 0.019607]  # [1.000000, 0.982973, 0.926544]
         # self.parameter = parameter
 
@@ -409,7 +419,7 @@ class Axes(AxesAccessors):
         self.collection = collection
         # self._location = context.active_object.location if context.active_object else (0, 0, 0)
 
-
+        # todo this can fail when using undo, better use object name
         if root:
             self.root = bpy.data.objects[root]
         else:
@@ -423,6 +433,12 @@ class Axes(AxesAccessors):
             self.root.nengo_axes.object = self.root.name
             self.root.nengo_axes.collection = self.collection.name
         super().__init__(self.root.nengo_axes)
+
+        if not self.lines_collection_name or not bpy.data.collections.get(self.lines_collection_name):
+            collection = bpy.data.collections.new('Lines')
+            collection.hide_select = True
+            self.collection.children.link(collection)
+            self.lines_collection_name = collection.name
 
         if not self.xticks_collection_name or not bpy.data.collections.get(self.xticks_collection_name):
             collection = bpy.data.collections.new('Ticks X')
@@ -532,8 +548,8 @@ class Axes(AxesAccessors):
         obj.parent = parent
         return obj
 
-    def _create_object(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False,
-                       collection=None) -> str:
+    def _create_object(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable: bool = False,
+                       collection: bpy.types.Collection = None) -> str:
         mesh = bpy.data.meshes.new(name)
         obj = bpy.data.objects.new(name=name, object_data=mesh)
         col = collection if collection else self.collection

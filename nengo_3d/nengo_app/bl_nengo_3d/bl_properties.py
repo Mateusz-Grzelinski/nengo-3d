@@ -165,6 +165,7 @@ class AxesProperties(bpy.types.PropertyGroup):
     color_gen: bpy.props.PointerProperty(type=ColorGeneratorProperties)
 
     ui_show_lines: bpy.props.BoolProperty(default=False)
+    lines_collection_name: bpy.props.StringProperty()
     lines: bpy.props.CollectionProperty(type=LineProperties)
     line_offset: bpy.props.FloatProperty(name='Line offset', update=line_offset_update, step=1)
 
