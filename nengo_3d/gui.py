@@ -47,6 +47,7 @@ class GuiConnection(Connection):
     def __init__(self, client_socket: socket.socket, addr, server: 'GUI', model: nengo.Network):
         super().__init__(client_socket, addr, server)
         self.vocab = {}
+        self.vocab_v2 = {}
         self.server: GUI
         self.scheduled_plots: dict[int, list[ScheduledPlot]] = defaultdict(list)
         self.requested_probes: dict[nengo.base.NengoObject, list[RequestedProbes]] = defaultdict(list)
@@ -77,8 +78,8 @@ class GuiConnection(Connection):
             logger.exception(f'Failed executing: {msg}', exc_info=e)
 
     def handle_network(self, incoming_message):
-        if isinstance(self.model, nengo.spa.SPA):
-            for name, module in self.model._modules.items():
+        if isinstance(self.model, nengo.spa.SPA):  # legacy nengo.spa
+            for dim, module in self.model._modules.items():
                 module: nengo.spa.module.Module
                 for node, _vocab in module.inputs.values():
                     assert self.vocab.get(node) is None
@@ -86,13 +87,15 @@ class GuiConnection(Connection):
                 for node, _vocab in module.outputs.values():
                     assert self.vocab.get(node) is None
                     self.vocab[node] = _vocab
-            # for name in self.model.get_module_outputs():
-            #     input_vocab[name] = self.model.get_output_vocab(name)
-            # for name in self.model.get_module_inputs():
-            #     output_vocab[name] = self.model.get_input_vocab(name)
+        elif hasattr(self.model, 'vocabs'):  # nengo_spa implementation
+            import nengo_spa
+            nengo_spa.vocabulary
+            for dim, value in self.model.vocabs.items():
+                assert self.vocab_v2.get(dim) is None
+                self.vocab_v2[dim] = value
         data_scheme = schemas.NetworkSchema(
             context={'name_finder': self.name_finder, 'file': self.server.filename, 'parent_network': '', 'module': '',
-                     'modules': getattr(self.model, '_modules', []), 'vocab': self.vocab})
+                     'modules': getattr(self.model, '_modules', []), 'vocab': self.vocab, 'vocab_v2': self.vocab_v2})
         answer = message.dumps({'schema': schemas.NetworkSchema.__name__, 'data': data_scheme.dump(self.model)})
         self.sendall(answer.encode('utf-8'))
 
@@ -118,7 +121,7 @@ class GuiConnection(Connection):
             # special case is probeable values
             if access_path[-1] == 'similarity':
                 access_path.pop()
-                use_similarity=True
+                use_similarity = True
             else:
                 use_similarity = False
 
@@ -135,13 +138,14 @@ class GuiConnection(Connection):
 
                 if use_similarity:
                     self.model: nengo.spa.SPA
-                    if self.vocab.get(obj) is None:
+                    if self.vocab.get(obj) is None and self.vocab_v2.get(obj.size_out) is None:
                         logger.error(
                             f'Can not compute similarity for {to_probe} - there is no vocabulary associated with it')
                         return
 
                 with self.model:
-                    probe = nengo.Probe(to_probe, attr=attr, sample_every=sample_every * dt)  # todo check data shape
+                    probe = nengo.Probe(to_probe, attr=attr, sample_every=sample_every * dt,
+                                        synapse=0.03)  # todo check data shape
 
                 rp = RequestedProbes(probe, observe['access_path'], to_probe, attr)
                 logger.debug(f'Added to observation: {rp}')
@@ -194,7 +198,7 @@ class GuiConnection(Connection):
                 many=True,
                 context={'sim': self.sim,
                          'model': self.model,
-                         'vocab': self.vocab,
+                         'vocab': self.vocab if self.vocab else self.vocab_v2,
                          'name_finder': self.name_finder,
                          'recorded_steps': recorded_steps,
                          'sample_every': sample_every,

@@ -212,7 +212,7 @@ class NengoSimulateOperator(bpy.types.Operator):
         elif self.action == 'step':
             observe, plot = share_data.get_all_sources(context.scene.nengo_3d)
             if len(observe) == 0 and len(plot) == 0:
-                self.report('There is nothing to observe. Make a plot first')
+                self.report({'ERROR'}, 'There is nothing to observe. Make a plot first')
                 return {'CANCELLED'}
             self.simulation_step(context.scene, action='step', step_num=nengo_3d.step_n,
                                  sample_every=nengo_3d.sample_every, dt=nengo_3d.dt, prefetch=0)
@@ -220,7 +220,7 @@ class NengoSimulateOperator(bpy.types.Operator):
         elif self.action == 'continuous':
             observe, plot = share_data.get_all_sources(context.scene.nengo_3d)
             if len(observe) == 0 and len(plot) == 0:
-                self.report('There is nothing to observe. Make a plot first')
+                self.report({'ERROR'}, 'There is nothing to observe. Make a plot first')
                 return {'CANCELLED'}
             wm = context.window_manager
             if context.scene.is_simulation_playing:

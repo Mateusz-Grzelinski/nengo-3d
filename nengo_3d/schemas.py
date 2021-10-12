@@ -38,10 +38,20 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
                         probe: nengo.Probe
                         # sim.trange()
                         # logging.debug((probe, recorded_steps, step, sample_every, len(sim_data[probe])))
-                        if access_path.startswith('similarity'):
-                            model: nengo.spa.SPA
-                            _result['parameters'][access_path] = nengo.spa.similarity(data=sim_data[probe],
-                                                                                      vocab=vocab[probe.obj])
+                        if access_path.endswith('similarity'):
+                            _vocab = vocab.get(probe.obj)
+                            _vocab2 = vocab.get(probe.obj.size_out)
+                            if _vocab:
+                                # legacy version
+                                _result['parameters'][access_path] = nengo.spa.similarity(data=sim_data[probe][step],
+                                                                                          vocab=_vocab)[0].tolist()
+                            elif _vocab2:
+                                # nengo_spa version
+                                import nengo_spa
+                                _result['parameters'][access_path] = nengo_spa.similarity(data=sim_data[probe][step],
+                                                                                          vocab=_vocab2).tolist()
+                            else:
+                                assert False
                         else:
                             _result['parameters'][access_path] = sim_data[probe][step].tolist()
                     results.append(_result)
@@ -78,6 +88,13 @@ class NodeSchema(nengo_3d_schemas.NodeSchema):
     @pre_dump
     def process_node(self, data: nengo.Node, **kwargs):
         vocabulary: Optional[nengo.spa.Vocabulary] = self.context['vocabulary']
+        vocab_keys = []
+        if vocabulary:
+            if isinstance(vocabulary.keys, list):
+                vocab_keys = vocabulary.keys
+            else:
+                vocab_keys = list(vocabulary.keys())
+
         result = {'probeable': data.probeable,
                   'class_type': type(data).__name__,
                   'name': self.context['name'],
@@ -86,7 +103,7 @@ class NodeSchema(nengo_3d_schemas.NodeSchema):
                   'module': self.context['module'],
                   'has_vocabulary': bool(vocabulary),
                   'vocabulary_size': len(vocabulary.vectors) if vocabulary else None,
-                  'vocabulary': list(vocabulary.keys) if vocabulary else [],
+                  'vocabulary': vocab_keys,
                   }
         for param in data.params:
             result[param] = getattr(data, param)
@@ -123,6 +140,7 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
         network_name = name_finder.name(data)
         module: str = self.context['module']
         vocab = self.context['vocab']
+        vocab_v2 = self.context['vocab_v2']
         modules: dict = self.context.pop('modules') if self.context.get('modules') else {}
         result = {
             'nodes': {},
@@ -138,7 +156,10 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
         }
 
         for obj in chain(data.ensembles, data.nodes):
+            obj: Union[nengo.Ensemble, nengo.Node]
             _vocab: nengo.spa.Vocabulary = vocab.get(obj)
+            if not _vocab:
+                _vocab = vocab_v2.get(obj.size_in)  # todo can be also size_out
             name = name_finder.name(obj)
             s = NodeSchema(
                 context={'network_name': network_name, 'module': module,
