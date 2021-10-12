@@ -702,7 +702,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
             ('SPRING_LAYOUT', 'Spring', 'Position nodes using Fruchterman-Reingold force-directed algorithm'),
             ('SPECTRAL_LAYOUT', 'Spectral', 'Position nodes using the eigenvectors of the graph Laplacian'),
         ], name='Layout', description='', default='SPRING_LAYOUT')
-    spacing: bpy.props.FloatProperty(name='spacing', description='', default=5, min=0)
+    spacing: bpy.props.FloatProperty(name='Spacing', description='', default=10, min=0)
 
     node_color: bpy.props.EnumProperty(items=[
         ('SINGLE', 'Single color', ''),
