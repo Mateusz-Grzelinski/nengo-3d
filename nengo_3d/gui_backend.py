@@ -81,7 +81,7 @@ class Nengo3dServer:
         self.connections.remove(connection)
         if not self.connections:
             logger.info('No connections remaining')
-            # self._running = False
+            self._running = False
 
     def run(self, connection_init_args=None) -> None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
