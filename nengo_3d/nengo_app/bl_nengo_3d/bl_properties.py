@@ -3,6 +3,7 @@ import math
 
 import bpy
 
+from bl_nengo_3d import bl_nengo_primitives, axes
 from bl_nengo_3d.axes import locators
 from bl_nengo_3d.utils import get_from_path, recurse_dict
 from bl_nengo_3d.bl_utils import probeable_nodes_items, probeable, probeable_edges_items
@@ -99,7 +100,7 @@ def draw_line_properties_template(layout: bpy.types.UILayout, line: 'LinePropert
     subrow.prop(obj.nengo_colors, 'color', text='')
     subrow = row.row(align=True)
     subrow.prop(obj, 'hide_viewport', text='', icon_only=True, emboss=False)
-    subrow.prop(obj, 'hide_select', text='', icon_only=True, emboss=False)
+    # subrow.prop(obj, 'hide_select', text='', icon_only=True, emboss=False)
     if line.ui_show_source:
         col = layout.column()
         col.active = line.update
@@ -116,6 +117,92 @@ def line_offset_update(self: 'AxesProperties', context):
         line_obj.location.z = ax_obj.nengo_axes.line_offset * i
         i += 1
         line_obj.update_tag()
+
+
+def draw_legend_enum_update(self: 'AxesProperties', context):
+    from bl_nengo_3d.share_data import share_data
+    legend_collection = bpy.data.collections.get(self.legend_collection_name)
+    if not legend_collection:
+        return
+    if self.draw_legend == 'NONE':
+        legend_collection.hide_viewport = True
+    elif self.draw_legend == 'CLASSIC':
+        legend_collection.hide_viewport = False
+        ax = share_data.get_registered_chart(self)
+
+        for i, line_prop in enumerate(self.lines):
+            line_prop: LineProperties
+            line_obj = bpy.data.objects[line_prop.name]
+            legend_prop: LegendProperties = self.legend_collection.get(line_prop.name)
+            if not legend_prop:
+                legend_prop = self.legend_collection.add()
+                legend_prop.name = line_prop.name
+
+            legend_box = legend_collection.objects.get(legend_prop.box_object)
+            if not legend_box:
+                legend_box = bl_nengo_primitives.get_primitive('Legend box')
+                legend_box.active_material = axes.get_primitive_material()
+                # obj.nengo_colors.color = next(self.color_gen)
+                legend_box.parent = ax.root
+                legend_prop.box_object = legend_box.name
+                legend_collection.objects.link(legend_box)
+                legend_box.nengo_colors.color = line_obj.nengo_colors.color
+                legend_box.location = (1.3, i * legend_box.dimensions.y + i * 0.03, 0)
+            else:
+                legend_box.hide_viewport = False
+                legend_box.hide_render = False
+
+            legend_text = legend_collection.objects.get(legend_prop.text_object)
+            if not legend_text:
+                legend_text = ax._create_text('Legend text', parent=ax.root, collection=legend_collection,
+                                              selectable=True)
+                legend_prop.text_object = legend_text.name
+                legend_text_data = legend_text.data
+                legend_text_data.body = line_prop.label
+                legend_text_data.size = 0.08
+                legend_text_data.body = line_prop.label
+            legend_text.location = (legend_box.location.x + legend_box.dimensions.x / 2 + 0.05,
+                                    legend_box.location.y,
+                                    0)
+        return
+    elif self.draw_legend == 'DYNAMIC':
+        legend_collection.hide_viewport = False
+        ax = share_data.get_registered_chart(self)
+
+        for line_prop in self.lines:
+            line_prop: LineProperties
+            line_obj = bpy.data.objects[line_prop.name]
+            legend_prop: LegendProperties = self.legend_collection.get(line_prop.name)
+            if not legend_prop:
+                legend_prop = self.legend_collection.add()
+                legend_prop.name = line_prop.name
+
+            legend_text = legend_collection.objects.get(legend_prop.text_object)
+            if not legend_text:
+                legend_text = ax._create_text('Legend text', parent=ax.root, collection=legend_collection,
+                                              selectable=True)
+                legend_text_data = legend_text.data
+                legend_text_data.body = line_prop.label
+                legend_text_data.size = 0.08
+                legend_prop.text_object = legend_text.name
+
+            legend_box = legend_collection.objects.get(legend_prop.box_object)
+            if legend_box:
+                legend_box.hide_viewport = True
+                legend_box.hide_render = True
+
+            if len(line_obj.data.vertices) != 0:
+                vert_co = line_obj.data.vertices[-1].co
+                legend_text.location = (vert_co.x + 0.1, vert_co.y, line_obj.location.z)
+            else:
+                legend_text.location = (1.1, 0, line_obj.location.z)
+    else:
+        assert False
+
+
+class LegendProperties(bpy.types.PropertyGroup):
+    text_object: bpy.props.StringProperty()
+    box_object: bpy.props.StringProperty()
 
 
 class AxesProperties(bpy.types.PropertyGroup):
@@ -169,6 +256,15 @@ class AxesProperties(bpy.types.PropertyGroup):
     lines: bpy.props.CollectionProperty(type=LineProperties)
     line_offset: bpy.props.FloatProperty(name='Line offset', update=line_offset_update, step=1)
 
+    legend_collection_name: bpy.props.StringProperty()
+    legend_collection: bpy.props.CollectionProperty(type=LegendProperties)
+    draw_legend: bpy.props.EnumProperty(name='Legend', items=[
+        ('NONE', 'No legend', ''),
+        ('CLASSIC', 'Colored box with text', ''),
+        ('DYNAMIC', 'Text at the end of the line', '')],
+                                        update=draw_legend_enum_update,
+                                        )
+
 
 def draw_axes_properties_template(layout: bpy.types.UILayout, axes: 'AxesProperties'):
     col = layout.column()
@@ -206,10 +302,17 @@ def draw_axes_properties_template(layout: bpy.types.UILayout, axes: 'AxesPropert
     from bl_nengo_3d.bl_operators import NengoColorLinesOperator
 
     row = layout.row()
+    row.prop(axes, 'draw_legend')
+    legend_collection = bpy.data.collections.get(axes.legend_collection_name)
+    row.prop(legend_collection, 'hide_select', icon_only=True, emboss=False)
+
+    row = layout.row()
     row.prop(axes, 'ui_show_lines', text='', icon='TRIA_DOWN' if axes.ui_show_lines else 'TRIA_RIGHT',
              emboss=False)
     row.label(text=f'Lines ({len(axes.lines)}):')
     row.prop(axes, 'line_offset')
+    lines_collection = bpy.data.collections.get(axes.lines_collection_name)
+    row.prop(lines_collection, 'hide_select', icon_only=True, emboss=False)
     if axes.ui_show_lines:
         row = layout.row(align=True)
         draw_color_generator_properties_template(row, axes.color_gen)
@@ -418,7 +521,7 @@ def node_attribute_with_types_update(self: 'Nengo3dProperties', context):
             else:
                 # must be normalized for color ramp to work
                 obj.nengo_colors.weight = (float(value) - nengo_3d.node_attr_min) / (
-                            nengo_3d.node_attr_max - nengo_3d.node_attr_min)
+                        nengo_3d.node_attr_max - nengo_3d.node_attr_min)
                 # logging.debug((node, value, obj.nengo_colors.weight))
                 if obj.nengo_colors.weight > 1:
                     obj.nengo_colors.weight = 1
@@ -761,6 +864,7 @@ classes = (
     ColorGeneratorProperties,
     LineSourceProperties,
     LineProperties,
+    LegendProperties,
     AxesProperties,
     NodeMappedColor,
     EdgeMappedColor,

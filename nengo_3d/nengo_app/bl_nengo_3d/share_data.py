@@ -68,6 +68,12 @@ class _ShareData:
         if ax not in axes:
             axes.append(ax)
 
+    def get_registered_chart(self, ax_prop: 'AxesProperties'):
+        axes = self.charts.get(ax_prop.model_source)
+        for ax in axes:
+            if ax.root.name == ax_prop.object:
+                return ax
+
     def get_all_sources(self, nengo_3d: 'Nengo3dProperties'):
         from bl_nengo_3d.bl_properties import LineProperties, Nengo3dProperties
         from bl_nengo_3d.bl_properties import LineSourceProperties

@@ -3,6 +3,7 @@ import math
 import typing
 
 import bpy
+from mathutils import Vector
 
 from bl_nengo_3d.bl_properties import AxesProperties, draw_axes_properties_template, LineProperties, \
     LineSourceProperties
@@ -51,7 +52,7 @@ class PlotLineOperator(bpy.types.Operator):
             self.axes.model_source = node.name
         ax = Axes(context, self.axes)
         ax.root.parent = node
-        ax.root.location = node.dimensions / 2
+        ax.root.location = node.dimensions / 2 + Vector((0, 0.0, 0.3))
         ax.root.rotation_euler.x += math.pi / 2
 
         share_data.register_chart(ax=ax)

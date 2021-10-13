@@ -310,6 +310,14 @@ class AxesAccessors:
         self._nengo_axes.lines_collection_name = value
 
     @property
+    def legend_collection_name(self):
+        return self._nengo_axes.legend_collection_name
+
+    @legend_collection_name.setter
+    def legend_collection_name(self, value):
+        self._nengo_axes.legend_collection_name = value
+
+    @property
     def xticks_collection_name(self):
         return self._nengo_axes.xticks_collection_name
 
@@ -434,12 +442,6 @@ class Axes(AxesAccessors):
             self.root.nengo_axes.collection = self.collection.name
         super().__init__(self.root.nengo_axes)
 
-        if not self.lines_collection_name or not bpy.data.collections.get(self.lines_collection_name):
-            collection = bpy.data.collections.new('Lines')
-            collection.hide_select = True
-            self.collection.children.link(collection)
-            self.lines_collection_name = collection.name
-
         if not self.xticks_collection_name or not bpy.data.collections.get(self.xticks_collection_name):
             collection = bpy.data.collections.new('Ticks X')
             collection.hide_select = True
@@ -457,6 +459,18 @@ class Axes(AxesAccessors):
             collection.hide_select = True
             self.collection.children.link(collection)
             self.zticks_collection_name = collection.name
+
+        if not self.legend_collection_name or not bpy.data.collections.get(self.legend_collection_name):
+            collection = bpy.data.collections.new('Legend')
+            collection.hide_select = True
+            self.collection.children.link(collection)
+            self.legend_collection_name = collection.name
+
+        if not self.lines_collection_name or not bpy.data.collections.get(self.lines_collection_name):
+            collection = bpy.data.collections.new('Lines')
+            collection.hide_select = True
+            self.collection.children.link(collection)
+            self.lines_collection_name = collection.name
 
         color_gen_prop = self.root.nengo_axes.color_gen
         color_gen_prop.max_colors = len(self.lines)
@@ -534,7 +548,7 @@ class Axes(AxesAccessors):
             assert self.z_max not in {math.inf, -math.inf}
 
     def _create_text(self, name, solidify: float = None, parent: bpy.types.Object = None, selectable=False,
-                     collection=None) -> str:
+                     collection: bpy.types.Collection = None) -> str:
         mesh = bpy.data.curves.new(name, type='FONT')
         obj = bpy.data.objects.new(name=name, object_data=mesh)
         col = collection if collection else self.collection

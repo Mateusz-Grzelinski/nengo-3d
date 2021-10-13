@@ -45,7 +45,7 @@ def get_primitive_material(mat_name: str) -> bpy.types.Material:
     return material
 
 
-def get_primitive(type_name: Literal['Node', 'Ensemble', 'Network']) -> Optional[bpy.types.Object]:
+def get_primitive(type_name: Literal['Node', 'Ensemble', 'Network', 'Legend box']) -> Optional[bpy.types.Object]:
     global _PRIMITIVES
 
     if not _PRIMITIVES:
@@ -67,6 +67,22 @@ def get_primitive(type_name: Literal['Node', 'Ensemble', 'Network']) -> Optional
                     primitive_mesh = bpy.data.meshes.new(name)
                     bm = bmesh.new()
                     bmesh.ops.create_cube(bm, size=0.4)
+                    bm.to_mesh(primitive_mesh)
+                    bm.free()
+                obj = bpy.data.objects.new(name=name, object_data=primitive_mesh)
+                collection.objects.link(obj)
+            _PRIMITIVES[name] = obj
+
+        name = 'Legend box primitive'
+        if not _PRIMITIVES.get(name):
+            obj = bpy.data.objects.get(name)
+            if not obj:
+                primitive_mesh = bpy.data.meshes.get(name)
+                if not primitive_mesh:
+                    primitive_mesh = bpy.data.meshes.new(name)
+                    bm = bmesh.new()
+                    bmesh.ops.create_cube(bm, size=0.05)
+                    bmesh.ops.translate(bm, verts=bm.verts, vec=(0.025, 0.025, -0.025))
                     bm.to_mesh(primitive_mesh)
                     bm.free()
                 obj = bpy.data.objects.new(name=name, object_data=primitive_mesh)

@@ -7,7 +7,7 @@ import bpy
 import numpy as np
 from bl_nengo_3d import bl_properties, schemas
 from bl_nengo_3d.bl_properties import LineProperties, LineSourceProperties, Nengo3dProperties, \
-    NodeMappedColor
+    NodeMappedColor, draw_legend_enum_update
 from bl_nengo_3d.axes import Axes
 from bl_nengo_3d.share_data import share_data
 from bl_nengo_3d.time_utils import ExecutionTimes
@@ -97,6 +97,7 @@ def update_plots(nengo_3d: Nengo3dProperties, start_entries: int, end_entries: i
                 l.set_data(X=xdata, Y=ydata, Z=zdata)
             if ax.auto_range:
                 ax.relim()
+            draw_legend_enum_update(ax._nengo_axes, None)
             ax.draw()
 
 
