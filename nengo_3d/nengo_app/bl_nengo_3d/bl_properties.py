@@ -126,7 +126,9 @@ def draw_legend_enum_update(self: 'AxesProperties', context):
         return
     if self.draw_legend == 'NONE':
         legend_collection.hide_viewport = True
+        legend_collection.hide_render = True
     elif self.draw_legend == 'CLASSIC':
+        legend_collection.hide_render = False
         legend_collection.hide_viewport = False
         ax = share_data.get_registered_chart(self)
 
@@ -166,6 +168,7 @@ def draw_legend_enum_update(self: 'AxesProperties', context):
                                     0)
         return
     elif self.draw_legend == 'DYNAMIC':
+        legend_collection.hide_render = False
         legend_collection.hide_viewport = False
         ax = share_data.get_registered_chart(self)
 
