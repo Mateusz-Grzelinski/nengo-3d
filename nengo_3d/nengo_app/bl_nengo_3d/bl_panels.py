@@ -31,8 +31,9 @@ class NengoSettingsPanel(bpy.types.Panel):
         layout.emboss = 'NONE'
         nengo_3d = context.scene.nengo_3d
         cached_frames = share_data.current_step * nengo_3d.sample_every
+        until = share_data.requested_steps_until
         layout.label(
-            text=f'Cached: {cached_frames if cached_frames >= 0 else -1}/{share_data.requested_steps_until - 1:.0f}')
+            text=f'Cached: {cached_frames if cached_frames >= 0 else -1}/{until - 1 if until >=0 else -1:.0f}')
 
     def draw(self, context):
         layout = self.layout.column()
@@ -244,7 +245,6 @@ class NengoContextPanel(bpy.types.Panel):
             op.axes.xlocator = 'IntegerLocator'
             op.axes.xformat = '{:.0f}'
             op.axes.yformat = '{:.2f}'
-            op.axes.line_offset = -0.01
             op.axes.title = f'{obj_name}: output (similarity)'
 
         col = box.column(align=True)
@@ -332,7 +332,6 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.ylabel = 'Firing rate (Hz)'
         op.axes.title = f'{obj_name}: Neuron response curves\n' \
                         f'(step {frame_current}, {ensemble["neuron_type"]["name"]})'
-        op.axes.line_offset = max(-1 / neurons['size_in'], -0.05)
 
         op = box.operator(bl_plot_operators.PlotBy2dColumnOperator.bl_idname,
                           text=f'Tuning curves at {frame_current} step',
@@ -344,7 +343,6 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.ylabel = 'Firing rate (Hz)'
         op.axes.title = f'{obj_name}: Neuron tuning curves\n' \
                         f'(step {frame_current}, {ensemble["neuron_type"]["name"]})'
-        op.axes.line_offset = max(-1 / neurons['size_in'], -0.05)
 
         op = box.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
                           text=f'Output (spikes)',
@@ -357,7 +355,6 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.xlocator = 'IntegerLocator'
         op.axes.xformat = '{:.0f}'
         op.axes.yformat = '{:.2f}'
-        op.axes.line_offset = max(-1 / neurons['size_out'], -0.05)
         op.axes.title = f'{obj_name}: Neurons output (spikes)'
 
         op = box.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
@@ -371,7 +368,6 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.xlocator = 'IntegerLocator'
         op.axes.xformat = '{:.0f}'
         op.axes.yformat = '{:.2f}'
-        op.axes.line_offset = max(-1 / neurons['size_out'], -0.05)
         op.axes.title = f'{obj_name}: Neurons input'
 
         op = box.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
@@ -385,7 +381,6 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.xlocator = 'IntegerLocator'
         op.axes.xformat = '{:.0f}'
         op.axes.yformat = '{:.2f}'
-        op.axes.line_offset = max(-1 / neurons['size_out'], -0.05)
         op.axes.title = f'{obj_name}: Neurons voltage'
 
         op = box.operator(bl_plot_operators.PlotByRowOperator.bl_idname,
@@ -399,7 +394,6 @@ class NengoContextPanel(bpy.types.Panel):
         op.axes.xlocator = 'IntegerLocator'
         op.axes.xformat = '{:.0f}'
         op.axes.yformat = '{:.2f}'
-        op.axes.line_offset = max(-1 / neurons['size_out'], -0.05)
         op.axes.title = f'{obj_name}: Neurons refractory time'
 
         # 3d plots
@@ -486,7 +480,7 @@ class NengoContextPanel(bpy.types.Panel):
             node = source_node
             obj_name = source_node['name']
             op = col.operator(bl_plot_operators.PlotByRowSimilarityOperator.bl_idname,
-                              text=f'Input node similarity (dim {node["vocabulary_size"]})',
+                              text=f'{obj_name}  similarity (dim {node["vocabulary_size"]}) - source node',
                               icon='ORIENTATION_VIEW')
             op.object = obj_name
             op.access_path = 'probeable.output.similarity'
@@ -497,7 +491,6 @@ class NengoContextPanel(bpy.types.Panel):
             op.axes.xlocator = 'IntegerLocator'
             op.axes.xformat = '{:.0f}'
             op.axes.yformat = '{:.2f}'
-            op.axes.line_offset = -0.01
             op.axes.title = f'{obj_name}: output (similarity)'
 
         target_node = share_data.model_graph.get_node_data(e_data['post'])
@@ -505,7 +498,7 @@ class NengoContextPanel(bpy.types.Panel):
             node = target_node
             obj_name = target_node['name']
             op = col.operator(bl_plot_operators.PlotByRowSimilarityOperator.bl_idname,
-                              text=f'Target node similarity (dim {node["vocabulary_size"]})',
+                              text=f'{obj_name}  similarity (dim {node["vocabulary_size"]}) - target node',
                               icon='ORIENTATION_VIEW')
             op.object = obj_name
             op.access_path = 'probeable.output.similarity'
@@ -516,7 +509,6 @@ class NengoContextPanel(bpy.types.Panel):
             op.axes.xlocator = 'IntegerLocator'
             op.axes.xformat = '{:.0f}'
             op.axes.yformat = '{:.2f}'
-            op.axes.line_offset = -0.01
             op.axes.title = f'{obj_name}: output (similarity)'
 
 
@@ -570,7 +562,6 @@ class NengoContextPanel(bpy.types.Panel):
                 op.axes.xformat = '{:.0f}'
                 op.axes.yformat = '{:.4f}'
                 op.axes.title = f'{e_data["name"]}: weights'
-                op.axes.line_offset = -0.01
             else:
                 op = col.operator(
                     bl_plot_operators.PlotBy2dRowOperator.bl_idname,
@@ -589,7 +580,6 @@ class NengoContextPanel(bpy.types.Panel):
                 op.axes.xformat = '{:.0f}'
                 op.axes.yformat = '{:.4f}'
                 op.axes.title = f'{e_data["name"]}: weights'
-                op.axes.line_offset = -0.01
                 # target_node = share_data.model_graph.get_node_data(e_data['post'])  # model_graph.nodes[e_target]
 
 

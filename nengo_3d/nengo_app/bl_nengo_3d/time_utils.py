@@ -16,3 +16,8 @@ class ExecutionTimes(collections.UserList):
         if not self.data:
             return 0.0
         return sum(self.data) / len(self.data)
+
+    def max(self) -> float:
+        if not self.data:
+            return 0.0
+        return max(self.data)

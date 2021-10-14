@@ -47,6 +47,12 @@ class PlotLineOperator(bpy.types.Operator):
             share_data.step_when_ready = 0
         context.scene.nengo_3d.requires_reset = True
 
+        if self.axes.line_offset == 0:
+            self.axes.line_offset = -0.01
+        elif abs(self.axes.line_offset) * len(self.axes.lines) > 1:
+            sign = 1 if self.axes.line_offset > 0 else -1
+            self.axes.line_offset = sign / len(self.axes.lines)
+
         node: bpy.types.Object = context.active_object  # or for all selected_objects
         if not self.axes.model_source:
             self.axes.model_source = node.name
@@ -83,13 +89,17 @@ class RemoveAxOperator(bpy.types.Operator):
                     get_child_names(child)
 
         ax: AxesProperties = ax_obj.nengo_axes
-        for source, axes in share_data.charts.items():
-            to_remove = []
-            for _ax in axes:
-                if ax.object == _ax.root.name:
-                    to_remove.append(_ax)
-            for r in to_remove:
-                axes.remove(r)
+        try:
+            for source, axes in share_data.charts.items():
+                to_remove = []
+                for _ax in axes:
+                    if ax.object == _ax.root.name:
+                        to_remove.append(_ax)
+                for r in to_remove:
+                    axes.remove(r)
+        except ReferenceError as e:
+            logging.exception(f'Known error (fix _ax.root). Please save and restart: {str(e)}')
+            return {'CANCELLED'}
 
         # axes: Axes = share_data.charts[ax]
         get_child_names(ax_obj)

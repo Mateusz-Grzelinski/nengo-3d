@@ -29,7 +29,8 @@ class NengoDebugPanel(bpy.types.Panel):
         layout = self.layout.column()
         from bl_nengo_3d.share_data import share_data
         layout.label(
-            text=f'Processing messages (last {connection_handler.execution_times.max_items} avg): {connection_handler.execution_times.average():.2f}')
+            text=f'Processing messages, last {connection_handler.execution_times.max_items} avg: {connection_handler.execution_times.average():.2f}, '
+                 f'max: {connection_handler.execution_times.max():.2f}')
         if share_data.simulation_cache:
             layout.label(text=f'Cached steps: {share_data.simulation_cache_steps()}')
         col = layout.column(align=True)

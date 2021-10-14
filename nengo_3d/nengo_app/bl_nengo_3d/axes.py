@@ -478,7 +478,7 @@ class Axes(AxesAccessors):
             self.lines_collection_name = collection.name
 
         color_gen_prop = self.root.nengo_axes.color_gen
-        color_gen_prop.max_colors = len(self.lines)
+        color_gen_prop.max_colors = len(self.lines) + 1
         color_gen = colors.cycle_color(color_gen_prop.initial_color, color_gen_prop.shift, color_gen_prop.max_colors)
 
         offset = 0
