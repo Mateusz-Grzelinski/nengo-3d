@@ -76,12 +76,12 @@ class Nengo3dServer:
         logger.info(f'Terminating server after signal: {sig}')
         cls.stop_now = False
 
-    def remove(self, connection) -> None:
+    def remove(self, connection: Connection) -> None:
         # todo probably requires a lock
         self.connections.remove(connection)
         if not self.connections:
             logger.info('No connections remaining')
-            self._running = False
+            # self._running = False
 
     def run(self, connection_init_args=None) -> None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
