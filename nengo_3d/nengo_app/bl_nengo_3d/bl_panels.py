@@ -33,7 +33,7 @@ class NengoSettingsPanel(bpy.types.Panel):
         cached_frames = share_data.current_step * nengo_3d.sample_every
         until = share_data.requested_steps_until
         layout.label(
-            text=f'Cached: {cached_frames if cached_frames >= 0 else -1}/{until - 1 if until >=0 else -1:.0f}')
+            text=f'Cached: {cached_frames if cached_frames >= 0 else -1}/{until - 1 if until >= 0 else -1:.0f}')
 
     def draw(self, context):
         layout = self.layout.column()
@@ -456,7 +456,8 @@ class NengoContextPanel(bpy.types.Panel):
         op.expand = node['name']
 
     @staticmethod
-    def draw_edge_actions(layout: bpy.types.UILayout, obj_name:str, e_source: str, e_target: str, e_data: dict[str, Any]):
+    def draw_edge_actions(layout: bpy.types.UILayout, obj_name: str, e_source: str, e_target: str,
+                          e_data: dict[str, Any]):
         layout.label(text='Select')
         row = layout.row()
         op = row.operator(bl_operators.SelectByEdgeOperator.bl_idname, text=f'Source')
@@ -506,7 +507,6 @@ class NengoContextPanel(bpy.types.Panel):
             op.axes.xformat = '{:.0f}'
             op.axes.yformat = '{:.2f}'
             op.axes.title = f'{obj_name}: output (similarity)'
-
 
         col = box.column(align=True)
 
@@ -679,7 +679,11 @@ def draw_node_enum(layout: bpy.types.UILayout, nengo_3d: Nengo3dProperties):
     row.operator(bl_operators.NengoColorNodesOperator.bl_idname, text='', icon='FILE_REFRESH')
     box = layout.box()
     col = box.column()
-    for name, data in sorted(nengo_3d.node_mapped_colors.items()):
+    if len(nengo_3d.node_mapped_colors) > 0 and str(nengo_3d.node_mapped_colors[0].name).isnumeric():
+        key = lambda key_value: float(key_value[0])
+    else:
+        key = lambda key_value: key_value[0]
+    for name, data in sorted(nengo_3d.node_mapped_colors.items(), key=key):
         row = col.row(align=True)
         # todo add filters for hiding and selecting nodes and edges
         row.prop(data, 'color', text=name)
@@ -691,7 +695,11 @@ def draw_edge_enum(layout: bpy.types.UILayout, nengo_3d: Nengo3dProperties):
     row.operator(bl_operators.NengoColorEdgesOperator.bl_idname, text='', icon='FILE_REFRESH')
     box = layout.box()
     col = box.column()
-    for name, data in sorted(nengo_3d.edge_mapped_colors.items()):
+    if len(nengo_3d.edge_mapped_colors) > 0 and str(nengo_3d.edge_mapped_colors[0].name).isnumeric():
+        key = lambda key_value: float(key_value[0])
+    else:
+        key = lambda key_value: key_value[0]
+    for name, data in sorted(nengo_3d.edge_mapped_colors.items(), key=key):
         row = col.row(align=True)
         # todo add filters for hiding and selecting nodes and edges
         row.prop(data, 'color', text=name)
