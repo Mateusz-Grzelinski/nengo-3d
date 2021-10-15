@@ -247,8 +247,9 @@ class GUI(Nengo3dServer):
     connection = GuiConnection
 
     def __init__(self, host: str = 'localhost', port: int = 6001, filename=None, model: Optional[nengo.Network] = None,
-                 local_vars: dict[str, Any] = None, blender_exe: str = 'blender.exe'):
+                 local_vars: dict[str, Any] = None, blender_exe: str = 'blender.exe', tag:str=''):
         super().__init__(host, port)
+        self.tag = tag
         self.blender_exe = blender_exe
         self.locals = local_vars or {}
         if isinstance(model, nengo.spa.SPA):
@@ -275,7 +276,7 @@ class GUI(Nengo3dServer):
                        # '--addons', 'bl_nengo_3d',
                        # blender_template,
                        ]
-            blend_file = os.path.splitext(self.filename)[0] + '.blend'
+            blend_file = os.path.splitext(self.filename)[0] + '_' + self.tag + '.blend'
             if os.path.exists(blend_file):
                 command.append(blend_file)
                 logger.info(f'Using saved file: {blend_file}')
