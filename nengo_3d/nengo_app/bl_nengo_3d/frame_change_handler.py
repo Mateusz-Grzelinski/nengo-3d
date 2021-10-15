@@ -81,8 +81,8 @@ def update_plots(nengo_3d: Nengo3dProperties, start_entries: int, end_entries: i
     for (obj_name, access_path), _data in share_data.simulation_cache.items():
         data = _data[start_entries:end_entries]  # ugh, copy
         # if not debugged:
-            # logging.debug((start_entries, end_entries, steps, len(data)))
-            # debugged = True
+        # logging.debug((start_entries, end_entries, steps, len(data)))
+        # debugged = True
         for ax in share_data.charts[obj_name]:
             # if obj_name == 'model.connections[3]':
             #     logging.debug((ax))
@@ -105,15 +105,16 @@ def recolor_dynamic_node_attributes(nengo_3d: Nengo3dProperties, step: int):
     from bl_nengo_3d import colors
     # node_color_source: NodeColorSourceProperties = nengo_3d.node_color_source
     get = compile(nengo_3d.node_dynamic_get, filename='get', mode='eval')
-    share_data.color_gen = colors.cycle_color(nengo_3d.node_color_gen.initial_color,
-                                              shift_type=nengo_3d.node_color_gen.shift,
-                                              max_colors=nengo_3d.node_color_gen.max_colors)
+    color_gen = colors.cycle_color(nengo_3d.node_color_gen.initial_color,
+                                   shift_type=nengo_3d.node_color_gen.shift,
+                                   max_colors=nengo_3d.node_color_gen.max_colors)
     nengo_3d.node_mapped_colors.clear()
     for node, node_data in share_data.model_graph_view.nodes(data=True):
+        node_data = share_data.model_graph.get_node_or_subnet_data(node)
         obj: bpy.types.Object = node_data['_blender_object']
         all_data = share_data.simulation_cache.get((node, nengo_3d.node_dynamic_access_path))
         if not all_data:
-            obj.nengo_colors.color = (0.0, 0.0, 0.0)
+            obj.nengo_attributes.color = (0.0, 0.0, 0.0)
             obj.update_tag()
             continue
         data = all_data[step]
@@ -123,14 +124,14 @@ def recolor_dynamic_node_attributes(nengo_3d: Nengo3dProperties, step: int):
             if nengo_3d.node_attr_auto_range:
                 nengo_3d.node_attr_min = min(nengo_3d.node_attr_min, value)
                 nengo_3d.node_attr_max = max(nengo_3d.node_attr_max, value)
-            obj.nengo_colors.weight = value
+            obj.nengo_attributes.weight = value
         # todo mapped color or gradient
         mapped_color = nengo_3d.node_mapped_colors.get(str(value))
         if not mapped_color:
             mapped_color: NodeMappedColor = nengo_3d.node_mapped_colors.add()
             mapped_color.name = str(value)
-            mapped_color.color = next(share_data.color_gen)
-        obj.nengo_colors.color = mapped_color.color
+            mapped_color.color = next(color_gen)
+        # obj.nengo_attributes.color = mapped_color.color
 
     if nengo_3d.node_attr_min == nengo_3d.node_attr_max:
         nengo_3d.node_attr_min = 0
@@ -140,25 +141,41 @@ def recolor_dynamic_node_attributes(nengo_3d: Nengo3dProperties, step: int):
     maximum = nengo_3d.node_attr_max
 
     for node, node_data in share_data.model_graph_view.nodes(data=True):
+        node_data = share_data.model_graph.get_node_or_subnet_data(node)
         obj: bpy.types.Object = node_data['_blender_object']
-        value = obj.nengo_colors.weight
-        obj.nengo_colors.weight = (float(value) - minimum) / (maximum - minimum)
+        value = obj.nengo_attributes.weight
+        obj.nengo_attributes.weight = (float(value) - minimum) / (maximum - minimum)
         obj.update_tag()
+
+    if nengo_3d.node_color_gen.max_colors != len(nengo_3d.node_mapped_colors) + 1:
+        nengo_3d.node_color_gen.max_colors = len(nengo_3d.node_mapped_colors) + 1
+        color_gen = colors.cycle_color(nengo_3d.node_color_gen.initial_color,
+                                       shift_type=nengo_3d.node_color_gen.shift,
+                                       max_colors=nengo_3d.node_color_gen.max_colors)
+
+        if str(nengo_3d.node_mapped_colors[0].name).isnumeric():
+            key = lambda mapped_color: float(mapped_color.name)
+        else:
+            key = lambda mapped_color: mapped_color.name
+        for mapped_color in sorted(nengo_3d.node_mapped_colors, key=key):
+            mapped_color: NodeMappedColor
+            mapped_color.color = next(color_gen)
 
 
 def recolor_dynamic_edge_attributes(nengo_3d: Nengo3dProperties, step: int):
     from bl_nengo_3d import colors
     # edge_color_source: NodeColorSourceProperties = nengo_3d.edge_color_source
     get = compile(nengo_3d.edge_dynamic_get, filename='get', mode='eval')
-    share_data.color_gen = colors.cycle_color(nengo_3d.edge_color_gen.initial_color,
-                                              shift_type=nengo_3d.edge_color_gen.shift,
-                                              max_colors=nengo_3d.edge_color_gen.max_colors)
+    color_gen = colors.cycle_color(nengo_3d.edge_color_gen.initial_color,
+                                   shift_type=nengo_3d.edge_color_gen.shift,
+                                   max_colors=nengo_3d.edge_color_gen.max_colors)
     nengo_3d.edge_mapped_colors.clear()
-    for e_source, e_target, e_data in share_data.model_graph_view.edges(data=True):
+    for e_source, e_target, key, e_data in share_data.model_graph_view.edges(data=True, keys=True):
+        e_data = share_data.model_graph.edges[e_data['pre'], e_data['post'], key]
         obj: bpy.types.Object = e_data['_blender_object']
         all_data = share_data.simulation_cache.get((e_data['name'], nengo_3d.edge_dynamic_access_path))
         if not all_data:
-            obj.nengo_colors.color = (0.0, 0.0, 0.0)
+            obj.nengo_attributes.color = (0.0, 0.0, 0.0)
             obj.update_tag()
             continue
         # logging.debug((len(all_data), step))
@@ -172,14 +189,14 @@ def recolor_dynamic_edge_attributes(nengo_3d: Nengo3dProperties, step: int):
             if nengo_3d.edge_attr_auto_range:
                 nengo_3d.edge_attr_min = min(nengo_3d.edge_attr_min, value)
                 nengo_3d.edge_attr_max = max(nengo_3d.edge_attr_max, value)
-            obj.nengo_colors.weight = value
+            obj.nengo_attributes.weight = value
         # todo mapped color not needed when using gradient
         mapped_color = nengo_3d.edge_mapped_colors.get(str(value))
         if not mapped_color:
             mapped_color: NodeMappedColor = nengo_3d.edge_mapped_colors.add()
             mapped_color.name = str(value)
-            mapped_color.color = next(share_data.color_gen)
-        obj.nengo_colors.color = mapped_color.color
+            mapped_color.color = next(color_gen)
+        obj.nengo_attributes.color = mapped_color.color
 
     if nengo_3d.edge_attr_min == nengo_3d.edge_attr_max:
         nengo_3d.edge_attr_min = 0
@@ -188,11 +205,26 @@ def recolor_dynamic_edge_attributes(nengo_3d: Nengo3dProperties, step: int):
     minimum = nengo_3d.edge_attr_min
     maximum = nengo_3d.edge_attr_max
 
-    for e_source, e_target, e_data in share_data.model_graph_view.edges(data=True):
+    for e_source, e_target, key, e_data in share_data.model_graph_view.edges(data=True, keys=True):
+        e_data = share_data.model_graph.edges[e_data['pre'], e_data['post'], key]
         obj: bpy.types.Object = e_data['_blender_object']
-        value = obj.nengo_colors.weight
-        obj.nengo_colors.weight = (float(value) - minimum) / (maximum - minimum)
+        value = obj.nengo_attributes.weight
+        obj.nengo_attributes.weight = (float(value) - minimum) / (maximum - minimum)
         obj.update_tag()
+
+    if nengo_3d.edge_color_gen.max_colors != len(nengo_3d.edge_mapped_colors) + 1:
+        nengo_3d.edge_color_gen.max_colors = len(nengo_3d.edge_mapped_colors) + 1
+        color_gen = colors.cycle_color(nengo_3d.edge_color_gen.initial_color,
+                                       shift_type=nengo_3d.edge_color_gen.shift,
+                                       max_colors=nengo_3d.edge_color_gen.max_colors)
+
+        if str(nengo_3d.edge_mapped_colors[0].name).isnumeric():
+            key = lambda mapped_color: float(mapped_color.name)
+        else:
+            key = lambda mapped_color: mapped_color.name
+        for mapped_color in sorted(nengo_3d.edge_mapped_colors, key=key):
+            mapped_color: NodeMappedColor
+            mapped_color.color = next(color_gen)
 
 
 def get_xyzdata(data: Union[np.array, list[np.array]], steps: Iterable[int], line: LineProperties,

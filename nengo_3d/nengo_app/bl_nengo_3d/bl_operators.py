@@ -14,7 +14,7 @@ from bl_nengo_3d.frame_change_handler import frame_change_handler, execution_tim
     recolor_dynamic_edge_attributes
 from bl_nengo_3d.bl_properties import Nengo3dProperties, node_color_single_update, \
     node_attribute_with_types_update, Nengo3dShowNetwork, ColorGeneratorProperties, edge_color_single_update, \
-    edge_attribute_with_types_update
+    edge_attribute_with_types_update, regenerate_network
 from bl_nengo_3d.axes import Axes
 from bl_nengo_3d.connection_handler import handle_data, handle_network_model
 from bl_nengo_3d.share_data import share_data
@@ -25,6 +25,30 @@ simulation_scheme = schemas.Simulation()
 
 class ObjectNames(bpy.types.PropertyGroup):
     object: bpy.props.StringProperty(name='Select')
+
+
+class SelectByEdgeOperator(bpy.types.Operator):
+    bl_idname = "object.select_by_edge"
+    bl_label = "Select node by edge name"
+
+    edge_name: bpy.props.StringProperty(name='Select', options={'SKIP_SAVE'})
+    select_source: bpy.props.BoolProperty(options={'SKIP_SAVE'})
+    select_target: bpy.props.BoolProperty(options={'SKIP_SAVE'})
+
+    def execute(self, context):
+        g_view = share_data.model_graph_view
+        found = False
+        for e_source, e_target, key in g_view.edges(keys=True):
+            if key == self.edge_name:
+                found = True
+                break
+        if found:
+            if self.select_source:
+                bpy.data.objects[e_source].select_set(True)
+            if self.select_target:
+                bpy.data.objects[e_target].select_set(True)
+            return {'FINISHED'}
+        return {'CANCELLED'}
 
 
 class SimpleSelectOperator(bpy.types.Operator):
@@ -138,9 +162,9 @@ class NengoGraphOperator(bpy.types.Operator):
     bl_label = 'Recalculate'
     bl_options = {'REGISTER'}
 
-    regenerate: bpy.props.BoolProperty(default=False, options={'SKIP_SAVE'})
     expand: bpy.props.StringProperty(default='', options={'SKIP_SAVE'})
     collapse: bpy.props.StringProperty(default='', options={'SKIP_SAVE'})
+    recalculate_locations: bpy.props.BoolProperty(default=True, options={'SKIP_SAVE'})
 
     @classmethod
     def poll(cls, context):
@@ -161,21 +185,7 @@ class NengoGraphOperator(bpy.types.Operator):
             # return {'FINISHED'}
         if self.collapse:
             nengo_3d.expand_subnetworks[self.collapse].expand = False
-        if self.regenerate:
-            for node, node_data in share_data.model_graph_view.nodes(data=True):
-                node_data['_blender_object'].hide_viewport = True
-                node_data['_blender_object'].hide_render = True
-            for e_s, e_v, e_data in share_data.model_graph_view.edges(data=True):
-                e_data['_blender_object'].hide_viewport = True
-                e_data['_blender_object'].hide_render = True
-            share_data.model_graph_view = share_data.model_graph.get_graph_view(nengo_3d)
-
-        # logging.debug(share_data.model_graph_view.nodes(data=False))
-        # logging.debug(share_data.model_graph_view.nodes['model.cortical'])
-        handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d, select=True,
-                             force_refresh_node_placement=True)
-        NengoColorNodesOperator.recolor(nengo_3d, context.scene.frame_current)
-        NengoColorEdgesOperator.recolor(nengo_3d, context.scene.frame_current)
+        regenerate_network(context, nengo_3d, self.recalculate_locations)
         bpy.ops.view3d.view_selected()
 
         context.area.tag_redraw()
@@ -395,7 +405,7 @@ class NengoColorLinesOperator(bpy.types.Operator):
         gen = colors.cycle_color(color_gen.initial_color, color_gen.shift, color_gen.max_colors)
         for line in ax_obj.nengo_axes.lines:
             line_obj = bpy.data.objects[line.name]
-            line_obj.nengo_colors.color = next(gen)
+            line_obj.nengo_attributes.color = next(gen)
             line_obj.update_tag()
         return {'FINISHED'}
 
@@ -425,6 +435,7 @@ classes = (
     NengoGraphOperator,
     NengoSimulateOperator,
     ObjectNames,
+    SelectByEdgeOperator,
     SimpleSelectOperator,
     GrowSelectOperator,
     NengoColorEdgesOperator,

@@ -95,6 +95,7 @@ class NengoSettingsPanel(bpy.types.Panel):
         col.prop(nengo_3d, 'show_n_last_steps', text=f'Show n last steps')
         layout.prop(nengo_3d, 'select_edges')
         layout.prop(nengo_3d, 'draw_labels')
+        layout.prop(nengo_3d, 'force_one_connection_per_edge')
 
 
 class NengoSubnetworksPanel(bpy.types.Panel):
@@ -139,7 +140,7 @@ class NengoLayoutPanel(bpy.types.Panel):
 
         nengo_3d = context.scene.nengo_3d
 
-        layout.operator(bl_operators.NengoGraphOperator.bl_idname).regenerate = True
+        layout.operator(bl_operators.NengoGraphOperator.bl_idname)
         layout.prop(nengo_3d, 'spacing')
         layout.use_property_split = False
         row = layout.row()
@@ -186,7 +187,7 @@ class NengoContextPanel(bpy.types.Panel):
 
         e_source, e_target, edge = share_data.model_graph.get_edge_by_name(obj_name)
         if edge:
-            self.draw_edge_actions(layout, e_source, e_target, edge)
+            self.draw_edge_actions(layout, obj_name, e_source, e_target, edge)
             return
 
         if obj.nengo_axes.object == obj_name:
@@ -210,13 +211,13 @@ class NengoContextPanel(bpy.types.Panel):
         layout.label(text='Select edges')
         row = layout.row()
         op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'In')
-        for e_source, e_target, e_data in share_data.model_graph_view.in_edges(obj_name, data=True):
+        for e_source, e_target, key, e_data in share_data.model_graph_view.in_edges(obj_name, data=True, keys=True):
             item = op.objects.add()
-            item.object = e_data['name']
+            item.object = key
         op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Out')
-        for e_source, e_target, e_data in share_data.model_graph_view.out_edges(obj_name, data=True):
+        for e_source, e_target, key, e_data in share_data.model_graph_view.out_edges(obj_name, data=True, keys=True):
             item = op.objects.add()
-            item.object = e_data['name']
+            item.object = key
 
     @staticmethod
     def draw_node_type_actions(layout: bpy.types.UILayout, obj_name, node: dict[str, Any]):
@@ -225,7 +226,6 @@ class NengoContextPanel(bpy.types.Panel):
             layout.label(text='Subnetworks:')
             op = col.operator(bl_operators.NengoGraphOperator.bl_idname,
                               text=f'Collapse {node["network_name"]}')
-            op.regenerate = True
             op.collapse = node['network_name']
 
         layout.label(text='Plot 2d lines:')
@@ -269,7 +269,6 @@ class NengoContextPanel(bpy.types.Panel):
             layout.label(text='Subnetworks:')
             op = layout.operator(bl_operators.NengoGraphOperator.bl_idname,
                                  text=f'Collapse {node["network_name"]}')
-            op.regenerate = True
             op.collapse = node['network_name']
 
         layout.label(text='Plot 2d lines:')
@@ -450,25 +449,22 @@ class NengoContextPanel(bpy.types.Panel):
             row = layout.row()
             op = row.operator(bl_operators.NengoGraphOperator.bl_idname,
                               text=f'Collapse {node["parent_network"]}')
-            op.regenerate = True
             op.collapse = node['parent_network']
         else:
             row = layout
         op = row.operator(bl_operators.NengoGraphOperator.bl_idname, text=f'Expand {node["name"]}')
-        op.regenerate = True
         op.expand = node['name']
 
     @staticmethod
-    def draw_edge_actions(layout: bpy.types.UILayout, e_source: str, e_target: str, e_data: dict[str, Any]):
+    def draw_edge_actions(layout: bpy.types.UILayout, obj_name:str, e_source: str, e_target: str, e_data: dict[str, Any]):
         layout.label(text='Select')
         row = layout.row()
-        view_source, view_target, _view_data = share_data.model_graph_view.get_edge_by_name(e_data['name'])
-        op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Source')
-        item = op.objects.add()
-        item.object = view_source
-        op = row.operator(bl_operators.SimpleSelectOperator.bl_idname, text=f'Target')
-        item = op.objects.add()
-        item.object = view_target
+        op = row.operator(bl_operators.SelectByEdgeOperator.bl_idname, text=f'Source')
+        op.edge_name = obj_name
+        op.select_source = True
+        op = row.operator(bl_operators.SelectByEdgeOperator.bl_idname, text=f'Target')
+        op.edge_name = obj_name
+        op.select_target = True
 
         layout.label(text='Plot 2d:')
         box = layout.box()

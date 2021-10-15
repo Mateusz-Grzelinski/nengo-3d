@@ -18,7 +18,7 @@ class _ShareData:
     """
 
     def __init__(self):
-        from bl_nengo_3d.digraph_model import DiGraphModel
+        from bl_nengo_3d.digraph_model import GraphModel
         # self.run_id = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         # self.session_id = 0  # For logging and debug
         self.client: Optional[socket.socket] = None
@@ -31,8 +31,8 @@ class _ShareData:
 
         # caching and small dependency graph
         # self.model: dict[str, bpy.types.Object] = {}
-        self.model_graph: Optional[DiGraphModel] = None
-        self.model_graph_view: Optional[DiGraphModel] = None
+        self.model_graph: Optional[GraphModel] = None
+        self.model_graph_view: Optional[nx.MultiDiGraph] = None
         self.charts: dict[str, list[Axes]] = defaultdict(list)
         # self.simulation_cache_step = list()
         self.simulation_cache = defaultdict(list)
@@ -47,7 +47,6 @@ class _ShareData:
         """buggy... sometimes we need to wait for data during playback. We need to temporarily stop and then resume"""
         self.requested_steps_until = -1
         self.current_step = -1
-        self.color_gen = colors.cycle_color((0.65, 0.65, 0.65))
 
     def sendall(self, msg: bytes):
         try:
@@ -85,7 +84,8 @@ class _ShareData:
                 # todo check if node has this path
                 observe.add((node, nengo_3d.node_dynamic_access_path))
         if self.model_graph_view and nengo_3d.edge_color == 'MODEL_DYNAMIC':
-            for e_source, e_target, e_data in self.model_graph_view.edges(data=True):
+            for e_source, e_target, key, e_data in self.model_graph_view.edges(data=True, keys=True):
+                e_data = self.model_graph.edges[e_data['pre'], e_data['post'], key]
                 observe.add((e_data['name'], nengo_3d.edge_dynamic_access_path))
         for source, axes in self.charts.items():
             for ax in axes:

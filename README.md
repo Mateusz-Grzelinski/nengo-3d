@@ -34,14 +34,15 @@ if __name__ == "__main__":
 
 `nengo_3d/nengo_app/dependencies` - scripts for installing addon and 3rt party modules
 
-`nengo_3d/nengo_app/blender_pip_modules` - blender addon dependencies (automatic installation, when starting nengo_3d.GUI)
-
+`nengo_3d/nengo_app/blender_pip_modules` - blender addon dependencies (automatic installation, when starting
+nengo_3d.GUI)
 
 ## Issues
 
-- [ ] do not store pointer directly to blender object, refer to them by name, it breaks undo system (almost done, todo _blender_object)
+- [ ] do not store pointer directly to blender object, refer to them by name, it breaks undo system (almost done, todo _
+  blender_object, and `axes.root`)
 - [x] ~~performance in UI panels is not great. Advanced caching is needed or conversion to dedicated operators. Close
   addon panels that you do not use to improve performance~~
 - [x] ~~re-test save model state and restoring connection~~
-- [ ] lines example is not working 
+- [ ] lines example is not working
 - [ ] allow for scrubbing data and stepping simulation even if reset is required

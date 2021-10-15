@@ -50,17 +50,17 @@ _probeable_edges_cache = None
 def probeable_edges_items(self, context):
     global _probeable_edges_anti_crash, _probeable_edges_cache
     from bl_nengo_3d.share_data import share_data
-    g = share_data.model_graph_view
-    if not g:
+    g_view = share_data.model_graph_view
+    if not g_view:
         return [(':', '--no data--', '')]
-    if _probeable_edges_cache == g and _probeable_edges_anti_crash:
+    if _probeable_edges_cache == g_view and _probeable_edges_anti_crash:
         return _probeable_edges_anti_crash
     else:
-        _probeable_edges_cache = g
+        _probeable_edges_cache = g_view
     _probeable_edges_anti_crash = [(':', '--Choose an attribute--', '')]
     probeables = set()
-    for e_source, e_target, e_data in g.edges(data=True):
-        e_data = share_data.model_graph.edges[e_data['pre'], e_data['post']]
+    for e_source, e_target, key, e_data in g_view.edges(data=True, keys=True):
+        e_data = share_data.model_graph.edges[e_data['pre'], e_data['post'], key]
         probeables.update(list(probeable_recurse_dict(prefix=None, value=e_data)))
     for param in sorted(probeables):
         _probeable_edges_anti_crash.append((param, param, ''))

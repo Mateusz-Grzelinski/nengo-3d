@@ -28,7 +28,7 @@ def get_primitive_material():
         attribute = material.node_tree.nodes.new('ShaderNodeAttribute')
         attribute.location = (-200, 0)
         attribute.attribute_type = 'OBJECT'
-        attribute.attribute_name = 'nengo_colors.color'
+        attribute.attribute_name = 'nengo_attributes.color'
         material.node_tree.links.new(diffuse.inputs[0], attribute.outputs[0])
     return material
 
@@ -488,7 +488,7 @@ class Axes(AxesAccessors):
             line = Line(self, line=line_prop)
             obj = bpy.data.objects[line.line_name]
             obj.location.z = offset
-            obj.nengo_colors.color = next(color_gen)
+            obj.nengo_attributes.color = next(color_gen)
             offset += self.line_offset
             self._lines[line_prop.name] = line
 
@@ -563,7 +563,7 @@ class Axes(AxesAccessors):
             mod.thickness = solidify
         obj.hide_select = not selectable
         obj.active_material = get_primitive_material()
-        obj.nengo_colors.color = self.text_color
+        obj.nengo_attributes.color = self.text_color
         obj.parent = parent
         return obj
 
@@ -578,7 +578,7 @@ class Axes(AxesAccessors):
             obj.modifiers["Solidify"].thickness = solidify  # 0.04
         obj.hide_select = not selectable
         obj.active_material = get_primitive_material()
-        # obj.nengo_colors.color = next(self.color_gen)
+        # obj.nengo_attributes.color = next(self.color_gen)
         obj.parent = parent
         return obj
 
@@ -616,7 +616,7 @@ class Axes(AxesAccessors):
         if not self.xticks_obj_name or not bpy.data.objects.get(self.xticks_obj_name):
             xticks = self._create_object('Ticks X', solidify=0.02, parent=self.root)
             self.xticks_obj_name = xticks.name
-            xticks.nengo_colors.color = self.text_color
+            xticks.nengo_attributes.color = self.text_color
         else:
             xticks = bpy.data.objects[self.xticks_obj_name]
         self._draw_xticks(ticks=self.xlocator.tick_values(self.x_min, self.x_max),
@@ -625,7 +625,7 @@ class Axes(AxesAccessors):
         if not self.yticks_obj_name or not bpy.data.objects.get(self.yticks_obj_name):
             yticks = self._create_object('Ticks Y', solidify=0.02, parent=self.root)
             self.yticks_obj_name = yticks.name
-            yticks.nengo_colors.color = self.text_color
+            yticks.nengo_attributes.color = self.text_color
         else:
             yticks = bpy.data.objects[self.yticks_obj_name]
         self._draw_yticks(ticks=self.ylocator.tick_values(self.y_min, self.y_max),
@@ -636,7 +636,7 @@ class Axes(AxesAccessors):
             if not self.zticks_obj_name or not bpy.data.objects.get(self.zticks_obj_name):
                 zticks = self._create_object('Ticks Z', solidify=0.02, parent=self.root)
                 self.zticks_obj_name = zticks.name
-                zticks.nengo_colors.color = self.text_color
+                zticks.nengo_attributes.color = self.text_color
             else:
                 zticks = bpy.data.objects[self.zticks_obj_name]
             self._draw_zticks(ticks=self.zlocator.tick_values(self.z_min, self.z_max),

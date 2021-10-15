@@ -6,11 +6,11 @@ from bl_nengo_3d.bl_properties import Nengo3dProperties, Nengo3dShowNetwork
 from networkx.classes.reportviews import NodeView, OutEdgeView
 
 
-class DiGraphModel(nx.DiGraph):
+class GraphModel(nx.MultiDiGraph):
     def __init__(self, incoming_graph_data=None, **attr):
         super().__init__(incoming_graph_data, **attr)
 
-    def get_subnetwork_path_by_node(self, node_name: str, _result=None) -> Optional[list['DiGraphModel']]:
+    def get_subnetwork_path_by_node(self, node_name: str, _result=None) -> Optional[list['GraphModel']]:
         # todo this is misleading in current flat graph
         if not _result:
             _result = [self]
@@ -30,7 +30,7 @@ class DiGraphModel(nx.DiGraph):
                     return _result
         return []
 
-    def get_subnetwork_by_node(self, node_name: str) -> Optional['DiGraphModel']:
+    def get_subnetwork_by_node(self, node_name: str) -> Optional['GraphModel']:
         value = self.nodes.get(node_name)
         if value and not value.get('dummy'):
             return self
@@ -41,7 +41,7 @@ class DiGraphModel(nx.DiGraph):
                     return sub
         return None
 
-    def list_subnetworks(self) -> Generator['DiGraphModel', None, None]:
+    def list_subnetworks(self) -> Generator['GraphModel', None, None]:
         yield self
         for net in self.networks.values():
             yield from net.list_subnetworks()
@@ -60,7 +60,7 @@ class DiGraphModel(nx.DiGraph):
             return None
         return sub.nodes[node_name]
 
-    def get_subnetwork(self, subnet_name: str) -> 'DiGraphModel':
+    def get_subnetwork(self, subnet_name: str) -> 'GraphModel':
         """Return subnetwork with name subnet_name from graph"""
         if self.network_name == subnet_name:
             return self
@@ -79,7 +79,7 @@ class DiGraphModel(nx.DiGraph):
         if sub is not None:
             return sub.graph
 
-    def get_subnetwork_path(self, subnet_name: str, _result=None) -> list['DiGraphModel']:
+    def get_subnetwork_path(self, subnet_name: str, _result=None) -> list['GraphModel']:
         """Return list of subnetworks that lead to subnet_name"""
         if _result is None:
             _result = []
@@ -107,19 +107,20 @@ class DiGraphModel(nx.DiGraph):
         return self.get_node_data(key)
 
     def get_edge_by_name(self, name):
-        for _source, _end, e_attr in self.edges.data():
-            if e_attr['name'] == name:
-                return _source, _end, e_attr
+        for source, target, e_data in self.edges.data():
+            if e_data['name'] == name:
+                return source, target, e_data
         return None, None, None
 
-    def get_graph_view(self, nengo_3d: Nengo3dProperties):
-        """Get sub graph ready for drawing"""
-        g = DiGraphModel()
+    def get_graph_view(self, nengo_3d: Nengo3dProperties) -> nx.MultiDiGraph:
+        """Get sub graph ready for drawing. The generated graph does not hold any attributes, only edges post and pre
+        is filled to match original source and destination """
+        g_view = nx.MultiDiGraph()
 
         for e_src, e_dst, e_data in self.edges(data=True):
-            node_src = self.get_node_or_subnet_data(e_src)
+            node_src_data = self.get_node_or_subnet_data(e_src)
             edge_view_src = e_src
-            for subnet in self.get_subnetwork_path(node_src['network_name']):
+            for subnet in self.get_subnetwork_path(node_src_data['network_name']):
                 if not nengo_3d.expand_subnetworks[subnet.name].expand:
                     edge_view_src = subnet.name
                     break
@@ -132,11 +133,17 @@ class DiGraphModel(nx.DiGraph):
                     break
 
             if edge_view_src == edge_view_dst:
-                # if nengo_3d.expand_subnetworks[edge_view_dst].draw_bounded
-                g.add_node(edge_view_src, **node_src)
+                g_view.add_node(edge_view_src)
             else:
-                g.add_edge(edge_view_src, edge_view_dst, **e_data, _hide=True)
-        return g
+                if nengo_3d.force_one_connection_per_edge:
+                    # can we do it without try except?
+                    try:
+                        g_view[edge_view_src][edge_view_dst]  # returns all edges if exist
+                        continue
+                    except KeyError:
+                        pass
+                g_view.add_edge(edge_view_src, edge_view_dst, key=e_data['name'], pre=e_src, post=e_dst)
+        return g_view
 
     @property
     def network_name(self):
@@ -147,7 +154,7 @@ class DiGraphModel(nx.DiGraph):
         return self.graph.get('network_name')
 
     @property
-    def networks(self) -> dict[str, 'DiGraphModel']:
+    def networks(self) -> dict[str, 'GraphModel']:
         return self.graph['_networks']
 
     @property

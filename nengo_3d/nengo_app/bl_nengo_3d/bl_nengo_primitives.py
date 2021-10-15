@@ -24,7 +24,7 @@ def get_primitive_material(mat_name: str) -> bpy.types.Material:
         attribute = material.node_tree.nodes.new('ShaderNodeAttribute')
         attribute.location = (-400 * 2, 100 * 2)
         attribute.attribute_type = 'OBJECT'
-        attribute.attribute_name = 'nengo_colors.weight'
+        attribute.attribute_name = 'nengo_attributes.weight'
 
         color_ramp = material.node_tree.nodes.new('ShaderNodeValToRGB')
         color_ramp.location = (-300 * 2, 0)
@@ -33,7 +33,7 @@ def get_primitive_material(mat_name: str) -> bpy.types.Material:
         attribute = material.node_tree.nodes.new('ShaderNodeAttribute')
         attribute.location = (-400 * 2, 0)
         attribute.attribute_type = 'OBJECT'
-        attribute.attribute_name = 'nengo_colors.color'
+        attribute.attribute_name = 'nengo_attributes.color'
 
         mix_rgb = material.node_tree.nodes.new('ShaderNodeMixRGB')
         mix_rgb.location = (-200 * 2, 0)

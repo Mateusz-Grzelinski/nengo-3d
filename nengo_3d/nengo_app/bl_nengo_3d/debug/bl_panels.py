@@ -8,7 +8,7 @@ from .addon_reload import ReloadAddonOperator
 from .charts import DebugPlotLine, DebugUpdatePlotLineOperator, DebugRasterPlotOperator
 from .connection import DebugConnectionOperator
 from .. import connection_handler
-from ..digraph_model import DiGraphModel
+from ..digraph_model import GraphModel
 
 
 def ranges(i):
@@ -136,7 +136,7 @@ class NengoSubnetsPanel(bpy.types.Panel):
             return
         self.recurse_subnets(col, share_data.model_graph)
 
-    def recurse_subnets(self, layout, g: DiGraphModel, separator: float = 0):
+    def recurse_subnets(self, layout, g: GraphModel, separator: float = 0):
         row = layout.row()
         row.separator(factor=separator)
         row.label(text=f'name: {g.name}')

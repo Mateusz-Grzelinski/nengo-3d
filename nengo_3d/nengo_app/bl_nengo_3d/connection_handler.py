@@ -75,7 +75,7 @@ def handle_single_packet(message: str, scene: str):
         logger.error(f'Unknown schema: {incoming_answer["schema"]}')
 
 
-def handle_plot_lines(incoming_answer, nengo_3d: Nengo3dProperties):
+def handle_plot_lines(incoming_answer: dict, nengo_3d: Nengo3dProperties):
     from bl_nengo_3d.bl_properties import LineSourceProperties
     from bl_nengo_3d.frame_change_handler import get_xyzdata
     data_scheme = schemas.PlotLines()
@@ -103,12 +103,12 @@ def handle_plot_lines(incoming_answer, nengo_3d: Nengo3dProperties):
         ax.draw()
 
 
-def handle_network_schema(incoming_answer, scene: bpy.types.Scene):
-    from bl_nengo_3d.digraph_model import DiGraphModel
+def handle_network_schema(incoming_answer: dict, scene: bpy.types.Scene):
+    from bl_nengo_3d.digraph_model import GraphModel
     nengo_3d: Nengo3dProperties = scene.nengo_3d
     data_scheme = schemas.NetworkSchema()
     g, data = data_scheme.load(data=incoming_answer['data'])
-    g: DiGraphModel
+    g: GraphModel
     share_data.model_graph = g
     for subnet in g.list_subnetworks():
         item = nengo_3d.expand_subnetworks.get(subnet.name)
@@ -119,7 +119,7 @@ def handle_network_schema(incoming_answer, scene: bpy.types.Scene):
         # item.expand = False  # bool(g.networks.get(subnet.name))
     nengo_3d.expand_subnetworks['model'].expand = True
     share_data.model_graph_view = g.get_graph_view(nengo_3d)
-    handle_network_model(g=share_data.model_graph_view, nengo_3d=nengo_3d)
+    handle_network_model(g=share_data.model_graph, g_view=share_data.model_graph_view, nengo_3d=nengo_3d)
     bl_operators.NengoSimulateOperator.action_reset(scene)
     bl_operators.NengoColorNodesOperator.recolor(nengo_3d, 0)
     bl_operators.NengoColorEdgesOperator.recolor(nengo_3d, 0)
@@ -166,7 +166,7 @@ def _get_text_label_material() -> bpy.types.Material:
     return material
 
 
-def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
+def regenerate_labels(g: 'DiGraphModel', g_view: nx.MultiDiGraph, nengo_3d: Nengo3dProperties):
     material = _get_text_label_material()
     col_name = 'Labels'
     nengo_collection = bpy.data.collections.get(nengo_3d.collection)
@@ -183,7 +183,8 @@ def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
     if not nengo_3d.draw_labels:
         return
 
-    for node, node_data in g.nodes(data=True):
+    for node in g_view.nodes:
+        node_data = g.get_node_or_subnet_data(node)
         obj = node_data['_blender_object']
         name = node + '_label'
         label_obj = bpy.data.objects.get(name)
@@ -196,7 +197,7 @@ def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
             label_obj.data.align_x = 'CENTER'
             label_obj.rotation_euler.x += math.pi / 2
             label_obj.data.size = 0.3
-            # obj.nengo_colors.color = self.text_color
+            # obj.nengo_attributes.color = self.text_color
             label_obj.data.body = obj.name
             label_obj.parent = obj
             label_obj.location.z = -0.4 - obj.dimensions.z / 2
@@ -205,12 +206,12 @@ def regenerate_labels(g: 'DiGraphModel', nengo_3d: Nengo3dProperties):
         # label_obj.location = obj.location
 
 
-def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
+def handle_network_model(g: 'DiGraphModel', g_view: nx.MultiDiGraph, nengo_3d: Nengo3dProperties,
                          bounding_box: tuple[float, float, float] = None,
                          center: tuple[float, float, float] = None,
                          select: bool = False, force_refresh_node_placement=False):
     # logger.debug((g, nengo_3d, bounding_box))
-    pos = calculate_layout(nengo_3d, g)
+    pos = calculate_layout(nengo_3d, g_view)
     dim = 2 if nengo_3d.algorithm_dim == '2D' else 3
     if bounding_box:
         norm_pos_x, _, _ = normalize(list(i[0] for i in pos.values()))
@@ -236,9 +237,9 @@ def handle_network_model(g: 'DiGraphModel', nengo_3d: Nengo3dProperties,
         collection = bpy.data.collections.new(nengo_3d.collection)
         bpy.context.scene.collection.children.link(collection)
 
-    regenerate_nodes(g, nengo_3d, pos, select=select, force=force_refresh_node_placement)
-    regenerate_edges(g, nengo_3d, pos, select=select)
-    regenerate_labels(g, nengo_3d)
+    regenerate_nodes(g, g_view, nengo_3d, pos, select=select, force=force_refresh_node_placement)
+    regenerate_edges(g, g_view, nengo_3d, pos, select=select, )
+    regenerate_labels(g, g_view, nengo_3d)
     cache_charts()
 
 
@@ -310,7 +311,31 @@ class Arrow:
         return _faces
 
 
-def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[str, tuple[float, float, float]],
+def frange(start: float, stop: float = None, step: float = None):
+    # if set start=0.0 and step = 1.0 if not specified
+    start = float(start)
+    if stop == None:
+        stop = start + 0.0
+        start = 0.0
+    if step == None:
+        step = 1.0
+
+    # print("start = ", start, "stop = ", stop, "step = ", step)
+
+    count = 0
+    while True:
+        temp = float(start + count * step)
+        if step > 0 and temp >= stop:
+            break
+        elif step < 0 and temp <= stop:
+            break
+        yield temp
+        count += 1
+
+
+def regenerate_edges(g: 'DiGraphModel', g_view: nx.MultiDiGraph,
+                     nengo_3d: Nengo3dProperties,
+                     pos: dict[str, tuple[float, float, float]],
                      select: bool = False):
     nengo_collection = bpy.data.collections.get(nengo_3d.collection)
     edges_collection = bpy.data.collections.get('Edges')
@@ -319,7 +344,11 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
         nengo_collection.children.link(edges_collection)
         edges_collection.hide_select = not nengo_3d.select_edges
     material = get_primitive_material('NengoEdgeMaterial')
-    for node_source, node_target, edge_data in g.edges.data():  # todo iterate pos, not edges?
+
+    offsets: dict[tuple[str, str]] = {}
+    for node_source, node_target, key, e_data in g_view.edges(data=True, keys=True):  # todo iterate pos, not edges?
+        # node_source might be subnet - calling g.edges[node_source, node_target, key] will fail
+        e_data = g.edges[e_data['pre'], e_data['post'], key]
         source_pos = pos.get(node_source)
         if not source_pos:
             continue
@@ -330,11 +359,23 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
         source_pos_vector = Vector(source_pos)
         vector_difference: Vector = target_pos_vector - source_pos_vector
 
-        src_dim = max(g.nodes[node_source]['_blender_object'].dimensions) / 2
-        target_dim = max(g.nodes[node_target]['_blender_object'].dimensions) / 2
-        # arrow_height = 1  # 0.5
+        source_node_data = g.get_node_or_subnet_data(node_source)
+        src_dim = max(source_node_data['_blender_object'].dimensions) / 2
+        target_node_data = g.get_node_or_subnet_data(node_target)
+        target_dim = max(target_node_data['_blender_object'].dimensions) / 2
 
-        connection_name = edge_data['name']
+        if offsets.get((node_source, node_target)) is None:
+            i = len(g_view[node_source][node_target])
+
+            def zero():
+                yield 0
+
+            if i == 1:
+                offsets[node_source, node_target] = zero()
+            else:
+                offsets[node_source, node_target] = frange(-target_dim, target_dim, target_dim * 2 / i)
+
+        connection_name = e_data['name']
         connection_obj = bpy.data.objects.get(connection_name)
         connection_primitive = bpy.data.meshes.get(connection_name)
         if connection_obj and connection_primitive:
@@ -358,7 +399,7 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
             connection_obj.hide_render = False
             # connection_obj.hide_select = not nengo_3d.select_edges
             # connection_obj.location = source_pos
-            # connection_obj.nengo_colors.color = [0.011030, 0.011030, 0.011030]
+            # connection_obj.nengo_attributes.color = [0.011030, 0.011030, 0.011030]
             connection_obj.active_material = material
             # connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
         elif not connection_obj and connection_primitive:
@@ -366,10 +407,18 @@ def regenerate_edges(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
         else:
             assert False, 'Should never happen'
         connection_obj.location = source_pos
+        # connection_obj.location.y += next(offsets[node_source, node_target])
         connection_obj.rotation_quaternion = vector_difference.to_track_quat('X', 'Z')
+        # rotate to move in local axis
+        rot_matrix = connection_obj.rotation_quaternion.to_matrix()
+        rot_matrix.invert()
+        move_vec = Vector((0, next(offsets[node_source, node_target]), 0))
+        # logger.debug(f'vec: {move_vec} rot: {rot_matrix}')
+        connection_obj.location = connection_obj.location + move_vec @ rot_matrix
         connection_obj.hide_viewport = False
         connection_obj.hide_render = False
-        g.edges[node_source, node_target]['_blender_object'] = connection_obj
+
+        e_data['_blender_object'] = connection_obj
 
 
 def regenerate_edge_mesh(connection_primitive: bpy.types.Mesh, offset: float, length: float):
@@ -385,7 +434,8 @@ def regenerate_edge_mesh(connection_primitive: bpy.types.Mesh, offset: float, le
     connection_primitive.from_pydata(_verts, Arrow.edges, Arrow.faces)
 
 
-def regenerate_nodes(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[str, tuple[float, float, float]],
+def regenerate_nodes(g: 'DiGraphModel', g_view: nx.MultiDiGraph, nengo_3d: Nengo3dProperties,
+                     pos: dict[str, tuple[float, float, float]],
                      select: bool = False, force=False):
     material = get_primitive_material('NengoNodeMaterial')
 
@@ -411,14 +461,14 @@ def regenerate_nodes(g: 'DiGraphModel', nengo_3d: Nengo3dProperties, pos: dict[s
             node_obj.hide_viewport = False
             node_obj.hide_render = False
             node['_blender_object'] = node_obj
-            g.nodes[node_name]['_blender_object'] = node_obj
+            # g.nodes[node_name]['_blender_object'] = node_obj
             node_obj.location = position
         else:
             # node exists, respect (most) existing placement and settings
             node_obj.hide_viewport = False
             node_obj.hide_render = False
             node['_blender_object'] = node_obj
-            g.nodes[node_name]['_blender_object'] = node_obj
+            # g.nodes[node_name]['_blender_object'] = node_obj
             if force:
                 node_obj.location = position
             else:

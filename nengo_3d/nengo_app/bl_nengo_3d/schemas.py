@@ -28,9 +28,9 @@ PlotLines = nengo_3d_schemas.PlotLines
 
 class NetworkSchema(nengo_3d_schemas.NetworkSchema):
     @post_load
-    def make_user(self, data: dict, **kwargs) -> 'bl_nengo_3d.digraph_model.DiGraphModel':
-        from bl_nengo_3d.digraph_model import DiGraphModel
-        g = DiGraphModel(
+    def make_user(self, data: dict, **kwargs) -> 'bl_nengo_3d.digraph_model.GraphModel':
+        from bl_nengo_3d.digraph_model import GraphModel
+        g = GraphModel(
             name=data['network_name'], network_name=data['network_name'], _networks={}, type=data['type'],
             class_type=data['class_type'], n_neurons=data['n_neurons'], parent_network=str(data['parent_network']),
             module=data['module']
@@ -61,9 +61,9 @@ class NetworkSchema(nengo_3d_schemas.NetworkSchema):
                 logging.warning(f'Unknown node: {attributes["post"]}')
             if g.get_node_or_subnet_data(attributes['pre']) is None:
                 logging.warning(f'Unknown node: {attributes["pre"]}')
-            g.add_edge(attributes['pre'], attributes['post'])
+            g.add_edge(attributes['pre'], attributes['post'], key=conn_name)
             for attr_name, attr in attributes.items():
-                g.edges[attributes['pre'], attributes['post']][attr_name] = attr
+                g.edges[attributes['pre'], attributes['post'], conn_name][attr_name] = attr
             # ... but they are probably nested inside subnets
             node_pre = g.nodes[attributes['pre']]
             if not node_pre:

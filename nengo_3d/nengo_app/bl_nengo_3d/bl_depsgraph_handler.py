@@ -14,14 +14,8 @@ def graph_edges_recalculate_handler(scene: bpy.types.Scene):
         return
     nodes_to_update = []
     for obj in bpy.context.selected_objects:
-        if not share_data.model_graph_view.nodes.get(obj.name):
-            continue
-        data = share_data.model_graph.get_node_or_subnet_data(obj.name)
-        # must be element of network
-        if not data:
-            continue
-        # can not be edge
-        if data['type'] not in {'Node', 'Ensemble', 'Network'}:
+        # must be node
+        if share_data.model_graph_view.nodes.get(obj.name) is None:
             continue
         # only when position changed
         if obj.before_loc == obj.location:
@@ -32,12 +26,15 @@ def graph_edges_recalculate_handler(scene: bpy.types.Scene):
         nodes_to_update.extend(g_view.predecessors(obj.name))
         obj.before_loc = obj.location
 
+    g = share_data.model_graph
     pos = {}
     for node in nodes_to_update:
-        _obj = g_view.nodes[node]['_blender_object']
+        node_data = g.get_node_or_subnet_data(node)
+        _obj = node_data['_blender_object']
         pos[_obj.name] = _obj.location
     connection_handler.regenerate_edges(
-        g=g_view,
+        g=g,
+        g_view=g_view,
         nengo_3d=bpy.context.scene.nengo_3d,
         pos=pos
     )
