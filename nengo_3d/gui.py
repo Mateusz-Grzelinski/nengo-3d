@@ -145,7 +145,7 @@ class GuiConnection(Connection):
 
                 with self.model:
                     probe = nengo.Probe(to_probe, attr=attr, sample_every=sample_every * dt,
-                                        synapse=None)  # todo check data shape
+                                        synapse=0.01)  # todo check data shape
 
                 rp = RequestedProbes(probe, observe['access_path'], to_probe, attr)
                 logger.debug(f'Added to observation: {rp}')
