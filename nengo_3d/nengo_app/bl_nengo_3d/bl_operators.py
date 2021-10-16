@@ -71,6 +71,20 @@ class SimpleSelectOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class HideAllOperator(bpy.types.Operator):
+    bl_idname = "collections.hide_all"
+    bl_label = "Hide all objects from render and viewport"
+
+    collection: bpy.props.StringProperty(name='Select', options={'SKIP_SAVE'})
+    hide: bpy.props.BoolProperty(options={'SKIP_SAVE'})
+
+    def execute(self, context):
+        for obj in bpy.data.collections[self.collection].objects:
+            obj.hide_render = self.hide
+            obj.hide_viewport = self.hide
+        return {'FINISHED'}
+
+
 class GrowSelectOperator(bpy.types.Operator):
     bl_idname = "object.grow_select"
     bl_label = "Grow selected objects"
@@ -437,6 +451,7 @@ classes = (
     ObjectNames,
     SelectByEdgeOperator,
     SimpleSelectOperator,
+    HideAllOperator,
     GrowSelectOperator,
     NengoColorEdgesOperator,
     NengoColorNodesOperator,

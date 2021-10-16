@@ -66,6 +66,23 @@ class PlotLineOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class EnableAllLinesOperator(bpy.types.Operator):
+    bl_idname = "nengo_3d.lines_update_all"
+    bl_label = "Disable/enable updating all lines"
+
+    root: bpy.props.StringProperty(name='Plot root', options={'SKIP_SAVE'})
+    enable: bpy.props.BoolProperty(options={'SKIP_SAVE'})
+
+    def execute(self, context):
+        root = bpy.data.objects[self.root]
+        axes: AxesProperties = root.nengo_axes
+        for line_prop in axes.lines:
+            line_prop: LineProperties
+            # line = bpy.data.objects[line_prop.name]
+            line_prop.update = self.enable
+        return {'FINISHED'}
+
+
 class RemoveAxOperator(bpy.types.Operator):
     bl_idname = 'nengo_3d.remove_ax'
     bl_label = 'Remove axes'
@@ -226,6 +243,7 @@ class PlotBy2dColumnOperator(PlotLineOperator):
 
 classes = (
     PlotLineOperator,
+    EnableAllLinesOperator,
     RemoveAxOperator,
     PlotByRowOperator,
     PlotByRowSimilarityOperator,

@@ -101,7 +101,7 @@ def draw_line_properties_template(layout: bpy.types.UILayout, line: 'LinePropert
     subrow.prop(obj.nengo_attributes, 'color', text='')
     subrow = row.row(align=True)
     subrow.prop(obj, 'hide_viewport', text='', icon_only=True, emboss=False)
-    # subrow.prop(obj, 'hide_select', text='', icon_only=True, emboss=False)
+    subrow.prop(obj, 'hide_render', text='', icon_only=True, emboss=False)
     if line.ui_show_source:
         col = layout.column()
         col.active = line.update
@@ -118,6 +118,7 @@ def line_offset_update(self: 'AxesProperties', context):
         line_obj.location.z = ax_obj.nengo_axes.line_offset * i
         i += 1
         line_obj.update_tag()
+    draw_legend_enum_update(self, context)
 
 
 def draw_legend_enum_update(self: 'AxesProperties', context):
@@ -152,8 +153,8 @@ def draw_legend_enum_update(self: 'AxesProperties', context):
                 legend_box.nengo_attributes.color = line_obj.nengo_attributes.color
                 legend_box.location = (1.3, i * legend_box.dimensions.y + i * 0.03, 0)
             else:
-                legend_box.hide_viewport = False
-                legend_box.hide_render = False
+                legend_box.hide_viewport = line_obj.hide_viewport
+                legend_box.hide_render = line_obj.hide_render
 
             legend_text = legend_collection.objects.get(legend_prop.text_object)
             if not legend_text:
@@ -167,6 +168,8 @@ def draw_legend_enum_update(self: 'AxesProperties', context):
             legend_text.location = (legend_box.location.x + legend_box.dimensions.x / 2 + 0.05,
                                     legend_box.location.y,
                                     0)
+            legend_text.hide_viewport = line_obj.hide_viewport
+            legend_text.hide_render = line_obj.hide_render
         return
     elif self.draw_legend == 'DYNAMIC':
         legend_collection.hide_render = False
@@ -189,11 +192,13 @@ def draw_legend_enum_update(self: 'AxesProperties', context):
                 legend_text_data.body = line_prop.label
                 legend_text_data.size = 0.08
                 legend_prop.text_object = legend_text.name
+            legend_text.hide_viewport = line_obj.hide_viewport
+            legend_text.hide_render = line_obj.hide_render
 
             legend_box = legend_collection.objects.get(legend_prop.box_object)
             if legend_box:
-                legend_box.hide_viewport = True
-                legend_box.hide_render = True
+                legend_box.hide_viewport = line_obj.hide_viewport
+                legend_box.hide_render = line_obj.hide_render
 
             if len(line_obj.data.vertices) != 0:
                 vert_co = line_obj.data.vertices[-1].co
@@ -303,7 +308,8 @@ def draw_axes_properties_template(layout: bpy.types.UILayout, axes: 'AxesPropert
     row.prop(axes, 'z_min', emboss=col.enabled)
     row.prop(axes, 'z_max', emboss=col.enabled)
 
-    from bl_nengo_3d.bl_operators import NengoColorLinesOperator
+    from bl_nengo_3d.bl_operators import NengoColorLinesOperator, HideAllOperator
+    from bl_nengo_3d.bl_plot_operators import EnableAllLinesOperator
 
     row = layout.row()
     row.prop(axes, 'draw_legend')
@@ -318,6 +324,20 @@ def draw_axes_properties_template(layout: bpy.types.UILayout, axes: 'AxesPropert
     lines_collection = bpy.data.collections.get(axes.lines_collection_name)
     row.prop(lines_collection, 'hide_select', icon_only=True, emboss=False)
     if axes.ui_show_lines:
+        row = layout.row()
+        op = row.operator(EnableAllLinesOperator.bl_idname, text='Enable update')
+        op.root = axes.object
+        op.enable = True
+        op = row.operator(EnableAllLinesOperator.bl_idname, text='Disable update')
+        op.root = axes.object
+        op.enable = False
+        row = layout.row()
+        op = row.operator(HideAllOperator.bl_idname, text='Hide all')
+        op.collection = axes.lines_collection_name
+        op.hide = True
+        op = row.operator(HideAllOperator.bl_idname, text='Show all')
+        op.collection = axes.lines_collection_name
+        op.hide = False
         row = layout.row(align=True)
         draw_color_generator_properties_template(row, axes.color_gen)
         op = row.operator(NengoColorLinesOperator.bl_idname, icon='FILE_REFRESH', text='')
