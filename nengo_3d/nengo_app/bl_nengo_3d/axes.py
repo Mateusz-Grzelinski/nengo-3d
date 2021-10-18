@@ -147,15 +147,16 @@ class Line:
         co1 = (X[0], Y[0], Z[0])
         v1 = bm.verts.new(co1)
         edges = []
-        last_y = None  # for optimizing straight lines
-        last_index = len(X) - 2
+        # last_y = None  # for optimizing straight lines
+        # last_index = len(X) - 2
         for i, (x, y, z) in enumerate(zip(X[1:], Y[1:], Z[1:])):
-            if last_y == y and i != last_index:
-                continue
+            # todo it does to work well. First value drawn after straight line causes it to be tilted.
+            # if last_y == y and i != last_index:
+            #     continue
             v2 = bm.verts.new((x, y, z))
             edges.append(bm.edges.new((v1, v2)))
             v1 = v2
-            last_y = y
+            # last_y = y
         result = bmesh.ops.extrude_edge_only(bm, edges=edges)
         for v in result['geom']:
             if isinstance(v, bmesh.types.BMVert):
