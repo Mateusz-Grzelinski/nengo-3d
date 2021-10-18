@@ -867,7 +867,7 @@ class Nengo3dProperties(bpy.types.PropertyGroup):
                                         default=1, min=1, update=sample_every_update)
     requires_reset: bpy.props.BoolProperty(update=requires_reset_update)
     dt: bpy.props.FloatProperty(default=0.001, min=0.0, precision=3, step=1, update=sample_every_update)
-    step_n: bpy.props.IntProperty(name='Step N', default=1, min=1)
+    step_n: bpy.props.IntProperty(name='Step N', default=100, min=1)
     speed: bpy.props.FloatProperty(default=1.0, min=0.01, description='Default simulation rate is 24 steps per second')
     allow_scrubbing: bpy.props.BoolProperty(name='Step by timeline scrubbing')
     collection: bpy.props.StringProperty(name='Collection', default='Nengo Model')
