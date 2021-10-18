@@ -8,14 +8,9 @@ In development
 
 ## Install and run
 
-Clone source of this repo and make sure you can `import nengo_3d`.
-
-In `blender.exe` is not in path (to check just write `bledner.exe` in command line). If not, use `blender=...` argument
-in `nengo_3d.GUI`.
-
-### Run
-
-Use snipped:
+1. Clone source of this repo and make sure you can `import nengo_3d`. Also install `requirements.txt`
+2. Make sure you have `blender.exe` in `PATH`. If not, use `blender=...` argument in `nengo_3d.GUI`.
+3. Use snippet:
 
 ```python
 if __name__ == "__main__":
@@ -23,6 +18,13 @@ if __name__ == "__main__":
 
     nengo_3d.GUI(filename=__file__, model=model, local_vars=locals()).start()
 ```
+
+On first run 3 things will be linked (no copying) to Blender (somewhere around this
+path `%appdata%\Blender Foundation\Blender\2.93\scripts\startup\bl_app_templates_user`):
+
+- Blender [app template](https://docs.blender.org/manual/en/latest/advanced/app_templates.html) named "Nengo App"
+- Blender addon called "bl_nengo_3d"
+- `pip` will install third party modules to use with app template (internet connection required)
 
 ## File structure
 
@@ -46,3 +48,8 @@ nengo_3d.GUI)
 - [x] ~~re-test save model state and restoring connection~~
 - [ ] lines example is not working
 - [ ] allow for scrubbing data and stepping simulation even if reset is required
+
+## What can be done better?
+
+- communication with server - use either full rest API (for clarity) or binary format (for speed)
+- create broadcast server, so that Blender can be kept open and only receive model changes
