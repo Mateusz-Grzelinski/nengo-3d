@@ -1,7 +1,20 @@
 import os
+import sys
+
+import nengo
 
 import numpy as np
-from cogsci17_semflu.models.wta_semflu import SemFlu
+
+try:
+    from cogsc17_semflu.models.wta_semflu import SemFlu
+except ImportError:
+    print(
+        'To run this file you must download and follow instructions from the source of paper "A Biologically '
+        'Constrained Model of Semantic Memory Search". It is a bit time consuming but overall pretty easy.\n'
+        'https://github.com/ctn-archive/kajic-cogsci2017',
+        file=sys.stderr,
+    )
+    exit(1)
 
 amat = 'ngram_mat'
 wta_th = 0.3  # args.th[0]
@@ -26,15 +39,23 @@ results_dir = os.path.join(base_dir, 'data', fname)
 # for seed in seeds:
 seed = 0
 sem_flu = SemFlu()
-model = sem_flu.make_model(d=d,
-                           seed=seed,
-                           sim_len=sim_len,
-                           wta_th=wta_th,
-                           amat=amat,
-                           data_dir=results_dir,
-                           backend='nengo')
+sem_flu.model  # actual model source
+model: nengo.spa.SPA = sem_flu.make_model(d=d,
+                                          seed=seed,
+                                          sim_len=sim_len,
+                                          wta_th=wta_th,
+                                          amat=amat,
+                                          data_dir=results_dir,
+                                          backend='nengo')
 
 if __name__ == "__main__":
     import nengo_3d
 
-    nengo_3d.GUI(filename=__file__, model=model, local_vars=locals()).start()
+    # nengo.spa.enable_spa_params(model)
+    nengo_3d.GUI(
+        filename=__file__, model=model, local_vars=locals(),
+        # tag='goals',
+        tag='wta',
+        # tag='general',
+        # tag = 'overview',
+    ).start()
