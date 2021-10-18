@@ -276,10 +276,15 @@ class GUI(Nengo3dServer):
                        # '--addons', 'bl_nengo_3d',
                        # blender_template,
                        ]
-            blend_file = os.path.splitext(self.filename)[0] + '_' + self.tag + '.blend'
+            blend_file = os.path.splitext(self.filename)[0]
+            if self.tag:
+                blend_file += '_' + self.tag
+            blend_file += '.blend'
             if os.path.exists(blend_file):
                 command.append(blend_file)
                 logger.info(f'Using saved file: {blend_file}')
+            else:
+                logger.info(f'No saved file: {blend_file}')
             # stdout=self.blender_log, stderr=self.blender_log,
             logging.info(f'Staring GUI: {" ".join(command)}')
             self._blender_subprocess = subprocess.Popen(command, env=os.environ)
