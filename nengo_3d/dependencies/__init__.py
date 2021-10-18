@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 
+# todo verify modules and its installation path (if blender can actually use them)
 def install(blender_exe: str = 'blender.exe'):
     BLENDER_EXE_PATH = blender_exe
     BLENDER_PIP_MODULES = ['marshmallow', 'graphviz', 'ogdf-python', 'networkx', 'pydot', 'scipy']
