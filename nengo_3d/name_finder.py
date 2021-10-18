@@ -7,7 +7,7 @@ import nengo
 
 
 class NameFinder:
-    def __init__(self, terms: dict[str, Any], net: nengo.Network):
+    def __init__(self, terms: dict[str, Any], model: nengo.Network):
         self.base_terms = terms
         self.known_name = {}
         for k, v in terms.items():
@@ -16,7 +16,7 @@ class NameFinder:
                     self.known_name[v] = k
                 except TypeError:
                     pass
-        self.find_names(net)
+        self.find_names(model)
 
     def find_names(self, net: nengo.Network) -> None:
         net_name = self.known_name[net]

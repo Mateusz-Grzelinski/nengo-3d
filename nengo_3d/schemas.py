@@ -4,6 +4,7 @@ from typing import Union, Optional
 
 import nengo
 import nengo.spa.module
+import nengo_spa
 
 from marshmallow import pre_dump
 
@@ -40,18 +41,14 @@ class SimulationSteps(nengo_3d_schemas.SimulationSteps):
                         # logging.debug((probe, recorded_steps, step, sample_every, len(sim_data[probe])))
                         if access_path.endswith('similarity'):
                             _vocab = vocab.get(probe.obj)
-                            _vocab2 = vocab.get(probe.obj.size_out)
-                            if _vocab:
+                            # _vocab = vocab.get(probe.obj.size_out) if _vocab is None else _vocab
+                            if isinstance(model, nengo_spa.Network):
                                 # legacy version
+                                _result['parameters'][access_path] = nengo_spa.similarity(data=sim_data[probe][step],
+                                                                                          vocab=_vocab).tolist()
+                            else:
                                 _result['parameters'][access_path] = nengo.spa.similarity(data=sim_data[probe][step],
                                                                                           vocab=_vocab)[0].tolist()
-                            elif _vocab2:
-                                # nengo_spa version
-                                import nengo_spa
-                                _result['parameters'][access_path] = nengo_spa.similarity(data=sim_data[probe][step],
-                                                                                          vocab=_vocab2).tolist()
-                            else:
-                                assert False
                         else:
                             _result['parameters'][access_path] = sim_data[probe][step].tolist()
                     results.append(_result)

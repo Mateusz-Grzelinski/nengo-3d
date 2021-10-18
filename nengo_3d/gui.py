@@ -1,3 +1,4 @@
+import itertools
 import json
 import logging
 import socket
@@ -52,7 +53,7 @@ class GuiConnection(Connection):
         self.scheduled_plots: dict[int, list[ScheduledPlot]] = defaultdict(list)
         self.requested_probes: dict[nengo.base.NengoObject, list[RequestedProbes]] = defaultdict(list)
         self.model = model
-        self.name_finder = NameFinder(terms=self.server.locals, net=model)
+        self.name_finder = NameFinder(terms=self.server.locals, model=model)
         self.sim: nengo.Simulator = None
         """Generate uuid for each model element"""
 
@@ -93,6 +94,23 @@ class GuiConnection(Connection):
             for dim, value in self.model.vocabs.items():
                 assert self.vocab_v2.get(dim) is None
                 self.vocab_v2[dim] = value
+            if isinstance(self.model, nengo_spa.Network):
+                for node in itertools.chain(self.model.all_nodes, self.model.all_ensembles):
+                    assert self.vocab.get(node) is None
+                    try:
+                        vocab_in = nengo_spa.Network.get_input_vocab(node)
+                    except KeyError:
+                        pass
+                    else:
+                        # assert vocab_out != vocab_in, 'Ops, not supported'
+                        self.vocab[node] = vocab_in
+                        continue  # todo continue or not to continue?
+                    try:
+                        vocab_out = nengo_spa.Network.get_output_vocab(node)
+                    except KeyError:
+                        pass
+                    else:
+                        self.vocab[node] = vocab_out
         data_scheme = schemas.NetworkSchema(
             context={'name_finder': self.name_finder, 'file': self.server.filename, 'parent_network': '', 'module': '',
                      'modules': getattr(self.model, '_modules', []), 'vocab': self.vocab, 'vocab_v2': self.vocab_v2})
@@ -247,11 +265,13 @@ class GUI(Nengo3dServer):
     connection = GuiConnection
 
     def __init__(self, host: str = 'localhost', port: int = 6001, filename=None, model: Optional[nengo.Network] = None,
-                 local_vars: dict[str, Any] = None, blender_exe: str = 'blender.exe', tag:str=''):
+                 local_vars: dict[str, Any] = None, blender_exe: str = 'blender.exe', tag: str = ''):
         super().__init__(host, port)
         self.tag = tag
         self.blender_exe = blender_exe
         self.locals = local_vars or {}
+        if self.locals.get('model') is None:
+            self.locals['model'] = model
         if isinstance(model, nengo.spa.SPA):
             nengo.spa.enable_spa_params(model)
         self.model = model
