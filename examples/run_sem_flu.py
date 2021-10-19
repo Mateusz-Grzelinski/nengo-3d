@@ -6,7 +6,7 @@ import nengo
 import numpy as np
 
 try:
-    from cogsc17_semflu.models.wta_semflu import SemFlu
+    from cogsci17_semflu.models.wta_semflu import SemFlu
 except ImportError:
     print(
         'To run this file you must download and follow instructions from the source of paper "A Biologically '
