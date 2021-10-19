@@ -49,7 +49,12 @@ nengo_3d.GUI)
 - [ ] lines example is not working
 - [ ] allow for scrubbing data and stepping simulation even if reset is required
 
-## What can be done better?
+## What can be done better/differently?
 
 - communication with server - use either full rest API (for clarity) or binary format (for speed)
 - create broadcast server, so that Blender can be kept open and only receive model changes
+- interaction from Blender to model? (interactive input by slider, adding new node, ...)
+- remote debugging model from Blender?
+- automatic rendering?
+- align items to camera view?
+- add progress bar
