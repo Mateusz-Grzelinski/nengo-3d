@@ -66,6 +66,7 @@ class NengoSettingsPanel(bpy.types.Panel):
 
         col = layout.column()
         col.active = is_connected and not nengo_3d.requires_reset
+        col.prop(context.scene, 'frame_current', text='Current step')
         row = col.row(align=True)
         subrow = row.row(align=True)
         subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text=f'Step x{nengo_3d.step_n}',
