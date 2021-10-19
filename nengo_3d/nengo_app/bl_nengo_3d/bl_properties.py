@@ -324,20 +324,20 @@ def draw_axes_properties_template(layout: bpy.types.UILayout, axes: 'AxesPropert
     lines_collection = bpy.data.collections.get(axes.lines_collection_name)
     row.prop(lines_collection, 'hide_select', icon_only=True, emboss=False)
     if axes.ui_show_lines:
-        row = layout.row()
+        row = layout.row(align=True)
         op = row.operator(EnableAllLinesOperator.bl_idname, text='Enable update')
         op.root = axes.object
         op.enable = True
         op = row.operator(EnableAllLinesOperator.bl_idname, text='Disable update')
         op.root = axes.object
         op.enable = False
-        row = layout.row()
-        op = row.operator(HideAllOperator.bl_idname, text='Hide all')
-        op.collection = axes.lines_collection_name
-        op.hide = True
+        row = layout.row(align=True)
         op = row.operator(HideAllOperator.bl_idname, text='Show all')
         op.collection = axes.lines_collection_name
         op.hide = False
+        op = row.operator(HideAllOperator.bl_idname, text='Hide all')
+        op.collection = axes.lines_collection_name
+        op.hide = True
         row = layout.row(align=True)
         draw_color_generator_properties_template(row, axes.color_gen)
         op = row.operator(NengoColorLinesOperator.bl_idname, icon='FILE_REFRESH', text='')
