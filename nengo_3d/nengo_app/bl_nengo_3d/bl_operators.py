@@ -94,10 +94,9 @@ class GrowSelectOperator(bpy.types.Operator):
         to_select = set()
         for obj in context.selected_objects:
             node = share_data.model_graph_view.nodes.get(obj.name)
-            if node:
+            if node is not None:
                 for n in share_data.model_graph_view.neighbors(obj.name):
                     to_select.add(n)
-        # logging.debug(to_select)
         for o in to_select:
             bpy.data.objects[o].select_set(True)
             # o.select_set(True)

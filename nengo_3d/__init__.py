@@ -1,12 +1,6 @@
-import filecmp
-import os
-import shutil
+import logging
 
 from .gui import GUI
-
-import logging
-import subprocess
-import sys
 
 logging.basicConfig(
     level=logging.DEBUG,

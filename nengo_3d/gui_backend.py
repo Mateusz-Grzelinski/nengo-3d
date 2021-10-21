@@ -1,14 +1,11 @@
-import os
-import signal
-import struct
-import subprocess
-import sys
-import logging
 import argparse
+import logging
 import select
+import signal
+import socket
+import struct
 import threading
 import time
-import socket
 from dataclasses import dataclass
 from typing import *
 
@@ -22,6 +19,12 @@ class GuiServerSettings:
 
 
 class Connection(threading.Thread):
+    _stop_now = False
+
+    @classmethod
+    def stop_now(cls):
+        cls._stop_now = True
+
     def __init__(self, client_socket: socket.socket, addr, server: 'Nengo3dServer', **kwargs):
         super().__init__()
         self.server = server
@@ -32,10 +35,14 @@ class Connection(threading.Thread):
         self.to_send: Optional[str] = None
 
     def run(self) -> None:
-        self._socket.setblocking(True)
+        self._socket.setblocking(False)  # to handle terminate signals we can not block, ugh...
+        self._socket.settimeout(1)
         try:
-            while self.running:
-                size_raw = self._socket.recv(struct.calcsize("i"))
+            while self.running and not self._stop_now:
+                try:
+                    size_raw = self._socket.recv(struct.calcsize("i"))
+                except socket.timeout:
+                    continue
                 if not size_raw:
                     break
                 size = struct.unpack("i", size_raw)[0]
@@ -53,6 +60,7 @@ class Connection(threading.Thread):
             self._socket.close()
         finally:
             self.server.remove(self)
+        pass
 
     def handle_message(self, msg: str) -> None:
         logger.debug(f'{self.addr} incoming: {msg[:1000]}')
@@ -62,8 +70,12 @@ class Connection(threading.Thread):
 
 
 class Nengo3dServer:
-    stop_now = False
     connection = Connection
+    _stop_now = False
+
+    @classmethod
+    def stop_now(cls):
+        cls._stop_now = True
 
     def __init__(self, host: str, port: int):
         self.port = port
@@ -73,8 +85,9 @@ class Nengo3dServer:
 
     @classmethod
     def exit_gracefully(cls, sig, frame) -> None:
-        logger.info(f'Terminating server after signal: {sig}')
-        cls.stop_now = False
+        logger.info(f'Terminating gracefully after signal: {sig}')
+        cls.stop_now()
+        cls.connection.stop_now()
 
     def remove(self, connection: Connection) -> None:
         # todo probably requires a lock
@@ -94,7 +107,7 @@ class Nengo3dServer:
 
         logger.info("Listening on port % s", self.port)
 
-        while self._running and not self.stop_now:
+        while self._running and not self._stop_now:
             try:
                 timeout = 0.1  # Check for a new client every 10th of a second
                 readable, _, _ = select.select([sock], [], [], timeout)

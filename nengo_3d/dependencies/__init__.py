@@ -9,7 +9,7 @@ import sys
 # todo verify modules and its installation path (if blender can actually use them)
 def install(blender_exe: str = 'blender.exe'):
     BLENDER_EXE_PATH = blender_exe
-    BLENDER_PIP_MODULES = ['marshmallow', 'graphviz', 'ogdf-python', 'networkx', 'pydot', 'scipy']
+    BLENDER_PIP_MODULES = ['marshmallow', 'graphviz', 'networkx', 'pydot', 'scipy']
 
     current_dir = os.path.dirname(os.path.realpath(__file__))
     command = [BLENDER_EXE_PATH, '--background', '--python-exit-code', '111',

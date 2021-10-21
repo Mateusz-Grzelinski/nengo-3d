@@ -310,8 +310,18 @@ class GUI(Nengo3dServer):
             self._blender_subprocess = subprocess.Popen(command, env=os.environ)
         self.run(connection_init_args={'model': self.model})
         if not skip_blender:
-            e = self._blender_subprocess.wait()
-            logger.info(f'blender finished with code: {e}')
+            if self.stop_now and self._blender_subprocess.poll() is None:
+                # todo this is not a reliable way to kill blender
+                logger.info(f'Trying to kill Blender...')
+                self._blender_subprocess.kill()
+                try:
+                    e = self._blender_subprocess.wait(timeout=1)
+                except TimeoutError:
+                    self._blender_subprocess.terminate()
+                logger.info(f'Blender was terminated')
+            else:
+                e = self._blender_subprocess.wait()
+                logger.info(f'Blender finished with code: {e}')
             # self.blender_log.close()
 
 

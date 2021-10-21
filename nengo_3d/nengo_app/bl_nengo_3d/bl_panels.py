@@ -54,20 +54,20 @@ class NengoSettingsPanel(bpy.types.Panel):
 
         nengo_3d = context.scene.nengo_3d
         col = layout.column(align=True)
+        col.active = is_connected
         col.prop(nengo_3d, 'sample_every')
         col.prop(nengo_3d, 'dt')
 
-        row = layout.row()
-        row.active = not is_connected
         col = layout.column()
+        col.active = is_connected
         col.operator(bl_operators.NengoSimulateOperator.bl_idname,
                      text='!Reset!' if nengo_3d.requires_reset else 'Reset',
                      icon='CANCEL').action = 'reset'
 
         col = layout.column()
         col.active = is_connected and not nengo_3d.requires_reset
-        col.prop(context.scene, 'frame_current', text='Current step')
         row = col.row(align=True)
+        row.active = is_connected
         subrow = row.row(align=True)
         subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text=f'Step x{nengo_3d.step_n}',
                         icon='FRAME_NEXT').action = 'step'
@@ -75,6 +75,7 @@ class NengoSettingsPanel(bpy.types.Panel):
         subrow.prop(nengo_3d, 'step_n', text='')
 
         row = col.row(align=True)
+        row.active = is_connected
         subrow = row.row(align=True)
         if context.scene.is_simulation_playing:
             subrow.operator(bl_operators.NengoSimulateOperator.bl_idname, text='Stop',
@@ -85,18 +86,23 @@ class NengoSettingsPanel(bpy.types.Panel):
         subrow = row.row(align=True)
         subrow.prop(nengo_3d, 'speed', text='')
 
+        col.prop(context.scene, 'frame_current', text='Current step')
+
         nengo_3d: Nengo3dProperties = context.scene.nengo_3d
-        layout.prop(nengo_3d, 'allow_scrubbing')
-        layout.label(text=f'Switching frame took: {frame_change_handler.execution_times.average():.2f} sec')
-        row = layout.row(align=True)
+        super_col = layout.column()
+        super_col.active = is_connected
+        super_col.prop(nengo_3d, 'allow_scrubbing')
+        super_col.label(text=f'Switching frame took: {frame_change_handler.execution_times.average():.2f} sec')
+        row = super_col.row(align=True)
+        row.active = is_connected
         col = row.column(align=True)
         col.prop(nengo_3d, 'show_whole_simulation', text='', invert_checkbox=True)
         col = row.column(align=True)
         col.active = not nengo_3d.show_whole_simulation
         col.prop(nengo_3d, 'show_n_last_steps', text=f'Show n last steps')
-        layout.prop(nengo_3d, 'select_edges')
-        layout.prop(nengo_3d, 'draw_labels')
-        layout.prop(nengo_3d, 'force_one_connection_per_edge')
+        super_col.prop(nengo_3d, 'select_edges')
+        super_col.prop(nengo_3d, 'draw_labels')
+        super_col.prop(nengo_3d, 'force_one_connection_per_edge')
 
 
 class NengoSubnetworksPanel(bpy.types.Panel):

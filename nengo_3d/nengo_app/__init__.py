@@ -2,7 +2,7 @@ import os
 import sys
 
 script_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(script_path, 'blender_pip_modules'))
+third_party_modules = os.path.join(script_path, 'blender_pip_modules')
 
 import logging
 import bpy
@@ -49,7 +49,8 @@ def load_handler_for_startup(_):
 
 
 def register():
-    # logging.info('Registering to Change Defaults')
+    if third_party_modules not in sys.path:
+        sys.path.append(third_party_modules)
 
     # print(sorted(sys.modules.keys()))
     def create_link(directory: str, link_path: str) -> None:
@@ -74,6 +75,8 @@ def register():
 
 
 def unregister():
-    # logging.info("Unregistering to Change Defaults")
+    if third_party_modules in sys.path:
+        sys.path.remove(third_party_modules)
+
     bpy.app.handlers.load_factory_preferences_post.remove(load_handler_for_preferences)
     bpy.app.handlers.load_factory_startup_post.remove(load_handler_for_startup)
