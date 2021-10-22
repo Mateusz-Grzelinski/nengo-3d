@@ -153,7 +153,7 @@ def recolor_dynamic_node_attributes(nengo_3d: Nengo3dProperties, step: int):
                                        shift_type=nengo_3d.node_color_gen.shift,
                                        max_colors=nengo_3d.node_color_gen.max_colors)
 
-        if str(nengo_3d.node_mapped_colors[0].name).isnumeric():
+        if len(nengo_3d.node_mapped_colors) > 0 and str(nengo_3d.node_mapped_colors[0].name).isnumeric():
             key = lambda mapped_color: float(mapped_color.name)
         else:
             key = lambda mapped_color: mapped_color.name
@@ -218,7 +218,7 @@ def recolor_dynamic_edge_attributes(nengo_3d: Nengo3dProperties, step: int):
                                        shift_type=nengo_3d.edge_color_gen.shift,
                                        max_colors=nengo_3d.edge_color_gen.max_colors)
 
-        if str(nengo_3d.edge_mapped_colors[0].name).isnumeric():
+        if len(nengo_3d.edge_mapped_colors) > 0 and str(nengo_3d.edge_mapped_colors[0].name).isnumeric():
             key = lambda mapped_color: float(mapped_color.name)
         else:
             key = lambda mapped_color: mapped_color.name

@@ -586,7 +586,7 @@ def node_attribute_with_types_update(self: 'Nengo3dProperties', context):
                 elif obj.nengo_attributes.weight < 0:
                     obj.nengo_attributes.weight = 0
                 assert 1 >= obj.nengo_attributes.weight >= 0, (
-                node, obj.nengo_attributes.weight, minimum, maximum, value)
+                    node, obj.nengo_attributes.weight, minimum, maximum, value)
 
     if nengo_3d.node_color_gen.max_colors != len(nengo_3d.node_mapped_colors) + 1:
         nengo_3d.node_color_gen.max_colors = len(nengo_3d.node_mapped_colors) + 1
@@ -595,7 +595,8 @@ def node_attribute_with_types_update(self: 'Nengo3dProperties', context):
                                        max_colors=nengo_3d.node_color_gen.max_colors)
 
         if is_numerical:
-            key = lambda mapped_color: float(mapped_color.name)
+            key = lambda mapped_color: float(
+                mapped_color.name) if mapped_color.name is not None and mapped_color.name not in {'None', ''} else 0
         else:
             key = lambda mapped_color: mapped_color.name
         for mapped_color in sorted(nengo_3d.node_mapped_colors, key=key):
@@ -749,7 +750,8 @@ def edge_attribute_with_types_update(self: 'Nengo3dProperties', context):
                                        max_colors=nengo_3d.edge_color_gen.max_colors)
 
         if is_numerical:
-            key = lambda mapped_color: float(mapped_color.name)
+            key = lambda mapped_color: float(
+                mapped_color.name) if mapped_color.name is not None and mapped_color.name not in {'None', ''} else 0
         else:
             key = lambda mapped_color: mapped_color.name
         for mapped_color in sorted(nengo_3d.edge_mapped_colors, key=key):

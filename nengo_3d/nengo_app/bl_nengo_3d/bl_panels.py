@@ -687,7 +687,7 @@ def draw_node_enum(layout: bpy.types.UILayout, nengo_3d: Nengo3dProperties):
     box = layout.box()
     col = box.column()
     if len(nengo_3d.node_mapped_colors) > 0 and str(nengo_3d.node_mapped_colors[0].name).isnumeric():
-        key = lambda key_value: float(key_value[0])
+        key = lambda key_value: float(key_value[0]) if key_value[0] is not None and key_value[0] != 'None' else 0
     else:
         key = lambda key_value: key_value[0]
     for name, data in sorted(nengo_3d.node_mapped_colors.items(), key=key):
@@ -703,7 +703,7 @@ def draw_edge_enum(layout: bpy.types.UILayout, nengo_3d: Nengo3dProperties):
     box = layout.box()
     col = box.column()
     if len(nengo_3d.edge_mapped_colors) > 0 and str(nengo_3d.edge_mapped_colors[0].name).isnumeric():
-        key = lambda key_value: float(key_value[0])
+        key = lambda key_value: float(key_value[0]) if key_value[0] is not None and key_value[0] != 'None' else 0
     else:
         key = lambda key_value: key_value[0]
     for name, data in sorted(nengo_3d.edge_mapped_colors.items(), key=key):
