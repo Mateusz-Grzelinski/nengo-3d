@@ -369,8 +369,7 @@ class NengoColorNodesOperator(bpy.types.Operator):
         elif nengo_3d.node_color == 'MODEL':
             node_attribute_with_types_update(nengo_3d, None)
         elif nengo_3d.node_color == 'MODEL_DYNAMIC':
-            recolor_dynamic_node_attributes(nengo_3d, int(frame_current / nengo_3d.sample_every))
-            # share_data.simulation_cache  # todo
+            recolor_dynamic_node_attributes(nengo_3d, max(int(frame_current / nengo_3d.sample_every) - 1, 0))
         else:
             assert False, nengo_3d.node_color
 
@@ -396,8 +395,7 @@ class NengoColorEdgesOperator(bpy.types.Operator):
         elif nengo_3d.edge_color == 'MODEL':
             edge_attribute_with_types_update(nengo_3d, None)
         elif nengo_3d.edge_color == 'MODEL_DYNAMIC':
-            recolor_dynamic_edge_attributes(nengo_3d, int(frame_current / nengo_3d.sample_every))
-            # share_data.simulation_cache  # todo
+            recolor_dynamic_edge_attributes(nengo_3d, max(int(frame_current / nengo_3d.sample_every) - 1, 0))
         else:
             assert False, nengo_3d.edge_color
 
