@@ -64,6 +64,34 @@ def get_size(obj, seen=None):
     return size
 
 
+class NengoAttributesPanel(bpy.types.Panel):
+    bl_parent_id = 'NENGO_PT_debug'
+    bl_label = 'Nengo attributes'
+    bl_idname = 'NENGO_PT_attributes'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Nengo 3d'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        from bl_nengo_3d.share_data import share_data
+        layout = self.layout.column()
+        obj: list[bpy.types.Object] = context.selected_objects
+        if not obj:
+            layout.label(text='No object selected')
+            return
+
+        row = layout.row(align=True)
+        row.label(text='Selected object:')
+        row.label(text='Color:')
+        row.label(text='Weight:')
+        for obj in context.selected_objects:
+            row = layout.row(align=True)
+            row.label(text=obj.name)
+            row.prop(obj.nengo_attributes, 'color', text='')
+            row.prop(obj.nengo_attributes, 'weight', text='')
+
+
 class NengoSimulationCachePanel(bpy.types.Panel):
     bl_parent_id = 'NENGO_PT_debug'
     bl_label = 'Simulation Cache'
