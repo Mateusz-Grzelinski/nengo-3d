@@ -47,10 +47,12 @@ nengo_3d.GUI)
   addon panels that you do not use to improve performance~~
 - [x] ~~re-test save model state and restoring connection~~
 - [ ] lines example is not working
-- [ ] allow for scrubbing data and stepping simulation even if reset is required
 
 ## What can be done better/differently?
 
+- allow for scrubbing data and stepping simulation even if reset is required
+- in color panel enum: gather attributes to static collection, so that bpy.rna does not spam with warnings and unknown type
+  errors when not connected. This will fix issue when color enum changes unexpectedly when expanding network
 - communication with server - use either full rest API (for clarity) or binary format (for speed)
 - create broadcast server, so that Blender can be kept open and only receive model changes
 - interaction from Blender to model? (interactive input by slider, adding new node, ...)
