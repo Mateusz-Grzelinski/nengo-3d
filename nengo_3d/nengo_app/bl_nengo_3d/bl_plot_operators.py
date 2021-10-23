@@ -16,6 +16,7 @@ class PlotLineOperator(bpy.types.Operator):
     bl_label = 'Plot'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_options = {'UNDO'}
 
     axes: bpy.props.PointerProperty(type=AxesProperties, options={'SKIP_SAVE'})
 

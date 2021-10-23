@@ -108,7 +108,7 @@ class ConnectOperator(bpy.types.Operator):
 
     bl_idname = 'nengo_3d.connect'
     bl_label = 'Connect to server'
-    bl_options = {'REGISTER'}
+    # bl_options = {'REGISTER'}
 
     @classmethod
     def poll(cls, context):
@@ -146,7 +146,7 @@ class DisconnectOperator(bpy.types.Operator):
 
     bl_idname = 'nengo_3d.disconnect'
     bl_label = 'Disconnect from server'
-    bl_options = {'REGISTER'}
+    # bl_options = {'REGISTER'}
 
     @classmethod
     def poll(cls, context):
@@ -173,7 +173,7 @@ class NengoGraphOperator(bpy.types.Operator):
     """Calculate graph drawing"""
     bl_idname = 'nengo_3d.draw_graph'
     bl_label = 'Recalculate'
-    bl_options = {'REGISTER'}
+    # bl_options = {'REGISTER'}
 
     expand: bpy.props.StringProperty(default='', options={'SKIP_SAVE'})
     collapse: bpy.props.StringProperty(default='', options={'SKIP_SAVE'})
@@ -210,7 +210,7 @@ class NengoSimulateOperator(bpy.types.Operator):
     """Calculate graph drawing"""
     bl_idname = 'nengo_3d.simulate'
     bl_label = 'Recalculate'
-    bl_options = {'REGISTER'}
+    # bl_options = {'REGISTER'}
 
     action: bpy.props.EnumProperty(
         items=[
@@ -353,7 +353,7 @@ class NengoColorNodesOperator(bpy.types.Operator):
     """Calculate graph drawing"""
     bl_idname = 'nengo_3d.color_nodes'
     bl_label = 'Recolor nodes'
-    bl_options = {'REGISTER'}
+    # bl_options = {'REGISTER'}
 
     @classmethod
     def poll(cls, context):
@@ -379,7 +379,7 @@ class NengoColorEdgesOperator(bpy.types.Operator):
     """Calculate graph drawing"""
     bl_idname = 'nengo_3d.color_edges'
     bl_label = 'Recolor edges'
-    bl_options = {'REGISTER'}
+    # bl_options = {'REGISTER'}
 
     @classmethod
     def poll(cls, context):
@@ -405,7 +405,7 @@ class NengoColorLinesOperator(bpy.types.Operator):
     """Calculate graph drawing"""
     bl_idname = 'nengo_3d.color_lines'
     bl_label = 'Recolor lines'
-    bl_options = {'REGISTER'}
+    # bl_options = {'REGISTER'}
 
     axes_obj: bpy.props.StringProperty()
 
@@ -425,7 +425,7 @@ class NengoColorLinesOperator(bpy.types.Operator):
 class NengoQuickSaveOperator(bpy.types.Operator):
     bl_idname = 'nengo_3d.quicksave'
     bl_label = 'Quick save'
-    bl_options = {'REGISTER'}
+    # bl_options = {'REGISTER'}
 
     @classmethod
     def poll(cls, context: 'Context'):
