@@ -111,7 +111,7 @@ def recolor_dynamic_node_attributes(nengo_3d: Nengo3dProperties, step: int):
     nengo_3d.node_mapped_colors.clear()
     for node, node_data in share_data.model_graph_view.nodes(data=True):
         node_data = share_data.model_graph.get_node_or_subnet_data(node)
-        obj: bpy.types.Object = node_data['_blender_object']
+        obj: bpy.types.Object = bpy.data.objects[node_data['_blender_object_name']]
         all_data = share_data.simulation_cache.get((node, nengo_3d.node_dynamic_access_path))
         if not all_data:
             obj.nengo_attributes.color = (0.0, 0.0, 0.0)
@@ -142,7 +142,7 @@ def recolor_dynamic_node_attributes(nengo_3d: Nengo3dProperties, step: int):
 
     for node, node_data in share_data.model_graph_view.nodes(data=True):
         node_data = share_data.model_graph.get_node_or_subnet_data(node)
-        obj: bpy.types.Object = node_data['_blender_object']
+        obj: bpy.types.Object = bpy.data.objects[node_data['_blender_object_name']]
         value = obj.nengo_attributes.weight
         obj.nengo_attributes.weight = (float(value) - minimum) / (maximum - minimum)
         obj.update_tag()
@@ -172,7 +172,7 @@ def recolor_dynamic_edge_attributes(nengo_3d: Nengo3dProperties, step: int):
     nengo_3d.edge_mapped_colors.clear()
     for e_source, e_target, key, e_data in share_data.model_graph_view.edges(data=True, keys=True):
         e_data = share_data.model_graph.edges[e_data['pre'], e_data['post'], key]
-        obj: bpy.types.Object = e_data['_blender_object']
+        obj: bpy.types.Object = bpy.data.objects[e_data['_blender_object_name']]
         all_data = share_data.simulation_cache.get((e_data['name'], nengo_3d.edge_dynamic_access_path))
         if not all_data:
             obj.nengo_attributes.color = (0.0, 0.0, 0.0)
@@ -207,7 +207,7 @@ def recolor_dynamic_edge_attributes(nengo_3d: Nengo3dProperties, step: int):
 
     for e_source, e_target, key, e_data in share_data.model_graph_view.edges(data=True, keys=True):
         e_data = share_data.model_graph.edges[e_data['pre'], e_data['post'], key]
-        obj: bpy.types.Object = e_data['_blender_object']
+        obj: bpy.types.Object = bpy.data.objects[e_data['_blender_object_name']]
         value = obj.nengo_attributes.weight
         obj.nengo_attributes.weight = (float(value) - minimum) / (maximum - minimum)
         obj.update_tag()

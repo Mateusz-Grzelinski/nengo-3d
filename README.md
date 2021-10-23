@@ -41,12 +41,13 @@ nengo_3d.GUI)
 
 ## Issues
 
-- [ ] do not store pointer directly to blender object, refer to them by name, it breaks undo system (almost done, todo _
-  blender_object, and `axes.root`)
+- [ ] do not store pointer directly to blender object, refer to them by name, it breaks undo system (almost done, todo
+  `axes.root`)
 - [x] ~~performance in UI panels is not great. Advanced caching is needed or conversion to dedicated operators. Close
   addon panels that you do not use to improve performance~~
 - [x] ~~re-test save model state and restoring connection~~
 - [ ] lines example is not working
+- [ ] Undo system sometimes crashes blender
 
 ## What can be done better/differently?
 

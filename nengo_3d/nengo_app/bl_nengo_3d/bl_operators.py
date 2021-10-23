@@ -187,7 +187,8 @@ class NengoGraphOperator(bpy.types.Operator):
         nengo_3d: Nengo3dProperties = context.scene.nengo_3d
         if self.expand:
             # todo select new nodes when expanding
-            # obj = share_data.model_graph_view.nodes[self.expand]['_blender_object']
+            # obj_name = share_data.model_graph_view.nodes[self.expand]['_blender_object_name']
+            # obj = bpy.data.objects[obj_name]
             # handle_network_model(
             #     g=share_data.model_graph.get_subnetwork(self.expand).get_graph_view(nengo_3d),
             #     nengo_3d=nengo_3d,

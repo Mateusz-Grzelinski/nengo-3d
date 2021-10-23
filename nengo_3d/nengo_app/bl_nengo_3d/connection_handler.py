@@ -185,7 +185,7 @@ def regenerate_labels(g: 'DiGraphModel', g_view: nx.MultiDiGraph, nengo_3d: Neng
 
     for node in g_view.nodes:
         node_data = g.get_node_or_subnet_data(node)
-        obj = node_data['_blender_object']
+        obj = bpy.data.objects[node_data['_blender_object_name']]
         name = node + '_label'
         label_obj = bpy.data.objects.get(name)
         if not label_obj:
@@ -360,9 +360,11 @@ def regenerate_edges(g: 'DiGraphModel', g_view: nx.MultiDiGraph,
         vector_difference: Vector = target_pos_vector - source_pos_vector
 
         source_node_data = g.get_node_or_subnet_data(node_source)
-        src_dim = max(source_node_data['_blender_object'].dimensions) / 2
+        source_obj = bpy.data.objects[source_node_data['_blender_object_name']]
+        src_dim = max(source_obj.dimensions) / 2
         target_node_data = g.get_node_or_subnet_data(node_target)
-        target_dim = max(target_node_data['_blender_object'].dimensions) / 2
+        target_obj = bpy.data.objects[target_node_data['_blender_object_name']]
+        target_dim = max(target_obj.dimensions) / 2
 
         if offsets.get((node_source, node_target)) is None:
             i = len(g_view[node_source][node_target])
@@ -418,7 +420,7 @@ def regenerate_edges(g: 'DiGraphModel', g_view: nx.MultiDiGraph,
         connection_obj.hide_viewport = False
         connection_obj.hide_render = False
 
-        e_data['_blender_object'] = connection_obj
+        e_data['_blender_object_name'] = connection_obj.name
 
 
 def regenerate_edge_mesh(connection_primitive: bpy.types.Mesh, offset: float, length: float):
@@ -460,15 +462,13 @@ def regenerate_nodes(g: 'DiGraphModel', g_view: nx.MultiDiGraph, nengo_3d: Nengo
             node_obj.select_set(select)
             node_obj.hide_viewport = False
             node_obj.hide_render = False
-            node['_blender_object'] = node_obj
-            # g.nodes[node_name]['_blender_object'] = node_obj
+            node['_blender_object_name'] = node_obj.name
             node_obj.location = position
         else:
             # node exists, respect (most) existing placement and settings
             node_obj.hide_viewport = False
             node_obj.hide_render = False
-            node['_blender_object'] = node_obj
-            # g.nodes[node_name]['_blender_object'] = node_obj
+            node['_blender_object_name'] = node_obj.name
             if force:
                 node_obj.location = position
             else:

@@ -30,7 +30,7 @@ def graph_edges_recalculate_handler(scene: bpy.types.Scene):
     pos = {}
     for node in nodes_to_update:
         node_data = g.get_node_or_subnet_data(node)
-        _obj = node_data['_blender_object']
+        _obj = bpy.data.objects[node_data['_blender_object_name']]
         pos[_obj.name] = _obj.location
     connection_handler.regenerate_edges(
         g=g,

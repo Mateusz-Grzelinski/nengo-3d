@@ -360,7 +360,7 @@ def node_color_update(self: 'NodeMappedColor', context):
             mapped_color = nengo_3d.node_mapped_colors.get(str(value))
             if not mapped_color:
                 continue  # update only selected nodes
-            obj = node_data['_blender_object']
+            obj = bpy.data.objects[node_data['_blender_object_name']]
             assert mapped_color, (node, str(value), list(nengo_3d.node_mapped_colors.keys()))
             obj.nengo_attributes.color = mapped_color.color
             obj.update_tag()
@@ -376,7 +376,7 @@ def node_color_update(self: 'NodeMappedColor', context):
         #     data = share_data.simulation_cache.get((node, access_path))
         #     if not data:
         #         continue
-        #     obj = node_data['_blender_object']
+        #     obj = bpy.data.objects[node_data['_blender_object_name']]
         #     value = data[int(context.scene.frame_current / nengo_3d.sample_every)]
         #     mapped_color = nengo_3d.node_mapped_colors.get(str(value))
     else:
@@ -400,12 +400,12 @@ def select_edges_update(self: 'Nengo3dProperties', context):
     # if share_data.model_graph is None:
     #     return
     # for e_s, e_dst, e_data in share_data.model_graph_view.edges(data=True):
-    #     obj = e_data.get('_blender_object')
+    #     obj = bpy.data.objects[e_data.get('_blender_object_name')]
     #     if not obj:
     #         continue
     #     obj.hide_select = not self.select_edges
     # for e_s, e_dst, e_data in share_data.model_graph.edges(data=True):
-    #     obj = e_data.get('_blender_object')
+    #     obj = bpy.data.objects[e_data.get('_blender_object_name')]
     #     if not obj:
     #         continue
     #     obj.hide_select = not self.select_edges
@@ -420,7 +420,7 @@ def recalculate_edges(self: 'Nengo3dProperties', context):
     pos = {}
     for node in share_data.model_graph_view:
         data = share_data.model_graph.get_node_or_subnet_data(node)
-        pos[node] = data['_blender_object'].location
+        pos[node] = bpy.data.objects[data['_blender_object_name']].location
 
     regenerate_edges(
         g=share_data.model_graph,
@@ -436,12 +436,14 @@ def regenerate_network(context: bpy.types.Context, nengo_3d: 'Nengo3dProperties'
     from bl_nengo_3d.bl_operators import NengoColorNodesOperator, NengoColorEdgesOperator
     for node in share_data.model_graph_view.nodes:
         node_data = share_data.model_graph.get_node_or_subnet_data(node)
-        node_data['_blender_object'].hide_viewport = True
-        node_data['_blender_object'].hide_render = True
+        obj = bpy.data.objects[node_data['_blender_object_name']]
+        obj.hide_viewport = True
+        obj.hide_render = True
     for e_s, e_v, key, e_data in share_data.model_graph_view.edges(data=True, keys=True):
         e_data = share_data.model_graph.edges[e_data['pre'], e_data['post'], key]
-        e_data['_blender_object'].hide_viewport = True
-        e_data['_blender_object'].hide_render = True
+        obj = bpy.data.objects[e_data['_blender_object_name']]
+        obj.hide_viewport = True
+        obj.hide_render = True
     share_data.model_graph_view = share_data.model_graph.get_graph_view(nengo_3d)
     # logging.debug(share_data.model_graph_view.nodes(data=False))
     # logging.debug(share_data.model_graph_view.nodes['model.cortical'])
@@ -573,7 +575,7 @@ def node_attribute_with_types_update(self: 'Nengo3dProperties', context):
         for node, data in share_data.model_graph_view.nodes(data=True):
             data = share_data.model_graph.get_node_or_subnet_data(node)
             value = get_from_path(data, access_path)
-            obj = data['_blender_object']
+            obj = bpy.data.objects[data['_blender_object_name']]
             if value is None:
                 obj.nengo_attributes.weight = 0
             else:
@@ -627,7 +629,7 @@ def node_color_single_update(self: 'Nengo3dProperties', context):
     from bl_nengo_3d.share_data import share_data
     for node in share_data.model_graph_view.nodes:
         data = share_data.model_graph.get_node_or_subnet_data(node)
-        obj = data['_blender_object']
+        obj = bpy.data.objects[data['_blender_object_name']]
         obj.nengo_attributes.color = self.node_color_single
         obj.update_tag()
 
@@ -663,7 +665,7 @@ def edge_color_update(self: 'NodeMappedColor', context):
         access_path = access_path.split('.')
         for e_source, e_target, key, e_data in share_data.model_graph_view.edges(data=True, keys=True):
             e_data = share_data.model_graph.edges[e_data['pre'], e_data['post'], key]
-            obj = e_data['_blender_object']
+            obj = bpy.data.objects[e_data['_blender_object_name']]
             value = get_from_path(e_data, access_path)
             mapped_color = nengo_3d.edge_mapped_colors.get(str(value))
             if not mapped_color:
@@ -727,7 +729,7 @@ def edge_attribute_with_types_update(self: 'Nengo3dProperties', context):
 
         for e_source, e_target, key, e_data in share_data.model_graph_view.edges(data=True, keys=True):
             e_data = share_data.model_graph.edges[e_data['pre'], e_data['post'], key]
-            obj = e_data['_blender_object']
+            obj = bpy.data.objects[e_data['_blender_object_name']]
             value = get_from_path(e_data, access_path)
             if value is None:
                 obj.nengo_attributes.weight = 0
@@ -776,7 +778,7 @@ def edge_color_single_update(self: 'Nengo3dProperties', context):
     from bl_nengo_3d.share_data import share_data
     for e_source, e_target, key, e_data in share_data.model_graph_view.edges(data=True, keys=True):
         e_data = share_data.model_graph.edges[e_data['pre'], e_data['post'], key]
-        obj = e_data['_blender_object']
+        obj = bpy.data.objects[e_data['_blender_object_name']]
         obj.nengo_attributes.color = self.edge_color_single
         obj.update_tag()
 
