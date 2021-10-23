@@ -7,9 +7,9 @@ import numpy as np
 
 try:
     from cogsci17_semflu.models.wta_semflu import SemFlu
-except ImportError:
-    print(
-        'To run this file you must download and follow instructions from the source of paper "A Biologically '
+except ImportError as e:
+    print(e.msg +
+        '\nTo run this file you must download and follow instructions from the source of paper "A Biologically '
         'Constrained Model of Semantic Memory Search". It is a bit time consuming but overall pretty easy.\n'
         'https://github.com/ctn-archive/kajic-cogsci2017',
         file=sys.stderr,
