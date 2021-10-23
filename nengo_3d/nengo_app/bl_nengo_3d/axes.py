@@ -91,7 +91,8 @@ class Line:
         _line = bpy.data.objects.get(line.name)
         if not line.name or not _line:
             lines_collection = bpy.data.collections[ax.lines_collection_name]
-            _line = ax._create_object('Line', solidify=None, selectable=True, parent=ax.root,
+            plot_obj = bpy.data.objects[ax.plot_name]
+            _line = ax._create_object('Line', solidify=None, selectable=True, parent=plot_obj,
                                       collection=lines_collection)
             line.name = _line.name
         self.line_name = _line.name
@@ -431,22 +432,22 @@ class Axes(AxesAccessors):
             nengo_axes.collection = collection.name
 
         self.collection = collection
-        # self._location = context.active_object.location if context.active_object else (0, 0, 0)
 
-        # todo this can fail when using undo, better use object name
         if root:
-            self.root = bpy.data.objects[root]
+            plot_obj = bpy.data.objects[root]
+            self.plot_name: str = root.name
         else:
-            self.root = bpy.data.objects.new('Plot', None)
-            self.collection.objects.link(self.root)
-            self.root.empty_display_size = 1.1
-            self.root.empty_display_type = 'ARROWS'  # 'PLAIN_AXES'
+            plot_obj = bpy.data.objects.new('Plot', None)
+            self.collection.objects.link(plot_obj)
+            self.plot_name: str = plot_obj.name
+            plot_obj.empty_display_size = 1.1
+            plot_obj.empty_display_type = 'ARROWS'  # 'PLAIN_AXES'
             if nengo_axes is not None:
                 from bl_nengo_3d.bl_utils import copy_property_group
-                copy_property_group(nengo_axes, self.root.nengo_axes)
-            self.root.nengo_axes.object = self.root.name
-            self.root.nengo_axes.collection = self.collection.name
-        super().__init__(self.root.nengo_axes)
+                copy_property_group(nengo_axes, plot_obj.nengo_axes)
+            plot_obj.nengo_axes.object = self.plot_name
+            plot_obj.nengo_axes.collection = self.collection.name
+        super().__init__(plot_obj.nengo_axes)
 
         if not self.xticks_collection_name or not bpy.data.collections.get(self.xticks_collection_name):
             collection = bpy.data.collections.new('Ticks X')
@@ -478,7 +479,7 @@ class Axes(AxesAccessors):
             self.collection.children.link(collection)
             self.lines_collection_name = collection.name
 
-        color_gen_prop = self.root.nengo_axes.color_gen
+        color_gen_prop = plot_obj.nengo_axes.color_gen
         color_gen_prop.max_colors = len(self.lines) + 1
         color_gen = colors.cycle_color(color_gen_prop.initial_color, color_gen_prop.shift, color_gen_prop.max_colors)
 
@@ -503,16 +504,6 @@ class Axes(AxesAccessors):
             obj = bpy.data.objects[line_prop.name]
             obj.location.z = value * i
         self._nengo_axes.line_offset = value
-
-    # @property
-    # def location(self):
-    #     return self._location
-    #
-    # @location.setter
-    # def location(self, value: Sequence[float, float, float]):
-    #     if self.root:
-    #         self.root.location = value
-    #     self._location = value
 
     def get_line(self, line_prop: 'LineProperties') -> Line:
         # logger.debug(self._lines)
@@ -614,8 +605,9 @@ class Axes(AxesAccessors):
         return line
 
     def draw(self):
+        plot_obj = bpy.data.objects[self.plot_name]
         if not self.xticks_obj_name or not bpy.data.objects.get(self.xticks_obj_name):
-            xticks = self._create_object('Ticks X', solidify=0.02, parent=self.root)
+            xticks = self._create_object('Ticks X', solidify=0.02, parent=plot_obj)
             self.xticks_obj_name = xticks.name
             xticks.nengo_attributes.color = self.text_color
         else:
@@ -624,7 +616,7 @@ class Axes(AxesAccessors):
                           xticks_mesh=xticks.data)
 
         if not self.yticks_obj_name or not bpy.data.objects.get(self.yticks_obj_name):
-            yticks = self._create_object('Ticks Y', solidify=0.02, parent=self.root)
+            yticks = self._create_object('Ticks Y', solidify=0.02, parent=plot_obj)
             self.yticks_obj_name = yticks.name
             yticks.nengo_attributes.color = self.text_color
         else:
@@ -635,7 +627,7 @@ class Axes(AxesAccessors):
         # create z ticks if in use
         if any(line.original_data_z for line in self._lines.values()):
             if not self.zticks_obj_name or not bpy.data.objects.get(self.zticks_obj_name):
-                zticks = self._create_object('Ticks Z', solidify=0.02, parent=self.root)
+                zticks = self._create_object('Ticks Z', solidify=0.02, parent=plot_obj)
                 self.zticks_obj_name = zticks.name
                 zticks.nengo_attributes.color = self.text_color
             else:
@@ -643,7 +635,7 @@ class Axes(AxesAccessors):
             self._draw_zticks(ticks=self.zlocator.tick_values(self.z_min, self.z_max),
                               zticks_mesh=zticks.data)
             if not self.zlabel_obj_name or not bpy.data.objects.get(self.zlabel_obj_name):
-                _zlabel = self._create_text('zlabel', parent=self.root)
+                _zlabel = self._create_text('zlabel', parent=plot_obj)
                 self.zlabel_obj_name = _zlabel.name
                 zlabel = _zlabel.data
                 zlabel.body = self.zlabel_text
@@ -673,7 +665,7 @@ class Axes(AxesAccessors):
         #     # bpy.ops.object.delete({'selected_objects': [self._zlabel]})
 
         if not self.xlabel_obj_name or not bpy.data.objects.get(self.xlabel_obj_name):
-            _xlabel = self._create_text('xlabel', parent=self.root)
+            _xlabel = self._create_text('xlabel', parent=plot_obj)
             self.xlabel_obj_name = _xlabel.name
             xlabel = _xlabel.data
             xlabel.body = self.xlabel
@@ -685,7 +677,7 @@ class Axes(AxesAccessors):
             _xlabel.location = (0.5, -0.10 - marigin, 0)
 
         if not self.ylabel_obj_name or not bpy.data.objects.get(self.ylabel_obj_name):
-            _ylabel = self._create_text('ylabel', parent=self.root)
+            _ylabel = self._create_text('ylabel', parent=plot_obj)
             ylabel = _ylabel.data
             self.ylabel_obj_name = _ylabel.name
             ylabel.body = self.ylabel
@@ -698,7 +690,7 @@ class Axes(AxesAccessors):
             _ylabel.rotation_euler = (0, 0, -math.pi / 2)
 
         if not self.title_obj_name or not bpy.data.objects.get(self.title_obj_name):
-            _title = self._create_text('Title', parent=self.root)
+            _title = self._create_text('Title', parent=plot_obj)
             self.title_obj_name = _title.name
             title = _title.data
             title.body = self.title
@@ -728,8 +720,9 @@ class Axes(AxesAccessors):
         bm.free()
 
         xticks_collection = bpy.data.collections[self.xticks_collection_name]
+        plot_obj = bpy.data.objects[self.plot_name]
         while len(xticks_collection.objects) < len(ticks):
-            self._create_text(f'Tick x {len(xticks_collection.objects)}', parent=self.root,
+            self._create_text(f'Tick x {len(xticks_collection.objects)}', parent=plot_obj,
                               collection=xticks_collection, selectable=True)
         while len(xticks_collection.objects) > len(ticks):
             obj = xticks_collection.objects[0]
@@ -762,8 +755,9 @@ class Axes(AxesAccessors):
         bm.free()
 
         yticks_collection = bpy.data.collections[self.yticks_collection_name]
+        plot_obj = bpy.data.objects[self.plot_name]
         while len(yticks_collection.objects) < len(ticks):
-            self._create_text(f'Tick y {len(yticks_collection.objects)}', parent=self.root,
+            self._create_text(f'Tick y {len(yticks_collection.objects)}', parent=plot_obj,
                               collection=yticks_collection, selectable=True)
         while len(yticks_collection.objects) > len(ticks):
             obj = yticks_collection.objects[0]
@@ -796,8 +790,9 @@ class Axes(AxesAccessors):
         bm.free()
 
         zticks_collection = bpy.data.collections[self.zticks_collection_name]
+        plot_obj = bpy.data.objects[self.plot_name]
         while len(zticks_collection.objects) < len(ticks):
-            self._create_text(f'Tick z {len(zticks_collection.objects)}', parent=self.root,
+            self._create_text(f'Tick z {len(zticks_collection.objects)}', parent=plot_obj,
                               collection=zticks_collection, selectable=True)
         while len(zticks_collection.objects) > len(ticks):
             obj = zticks_collection.objects[0]

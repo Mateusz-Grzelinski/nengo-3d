@@ -133,6 +133,7 @@ def draw_legend_enum_update(self: 'AxesProperties', context):
         legend_collection.hide_render = False
         legend_collection.hide_viewport = False
         ax = share_data.get_registered_chart(self)
+        plot_obj = bpy.data.objects[ax.plot_name]
 
         for i, line_prop in enumerate(self.lines):
             line_prop: LineProperties
@@ -147,7 +148,7 @@ def draw_legend_enum_update(self: 'AxesProperties', context):
                 legend_box = bl_nengo_primitives.get_primitive('Legend box')
                 legend_box.active_material = axes.get_primitive_material()
                 # obj.nengo_attributes.color = next(self.color_gen)
-                legend_box.parent = ax.root
+                legend_box.parent = plot_obj
                 legend_prop.box_object = legend_box.name
                 legend_collection.objects.link(legend_box)
                 legend_box.nengo_attributes.color = line_obj.nengo_attributes.color
@@ -158,7 +159,7 @@ def draw_legend_enum_update(self: 'AxesProperties', context):
 
             legend_text = legend_collection.objects.get(legend_prop.text_object)
             if not legend_text:
-                legend_text = ax._create_text('Legend text', parent=ax.root, collection=legend_collection,
+                legend_text = ax._create_text('Legend text', parent=plot_obj, collection=legend_collection,
                                               selectable=True)
                 legend_prop.text_object = legend_text.name
                 legend_text_data = legend_text.data
@@ -175,6 +176,7 @@ def draw_legend_enum_update(self: 'AxesProperties', context):
         legend_collection.hide_render = False
         legend_collection.hide_viewport = False
         ax = share_data.get_registered_chart(self)
+        plot_obj = bpy.data.objects[ax.plot_name]
 
         for line_prop in self.lines:
             line_prop: LineProperties
@@ -186,7 +188,7 @@ def draw_legend_enum_update(self: 'AxesProperties', context):
 
             legend_text = legend_collection.objects.get(legend_prop.text_object)
             if not legend_text:
-                legend_text = ax._create_text('Legend text', parent=ax.root, collection=legend_collection,
+                legend_text = ax._create_text('Legend text', parent=plot_obj, collection=legend_collection,
                                               selectable=True)
                 legend_text_data = legend_text.data
                 legend_text_data.body = line_prop.label

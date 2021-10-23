@@ -613,7 +613,7 @@ class NengoInfoPanel(bpy.types.Panel):
             chart = None
             for source, charts in share_data.charts.items():
                 for ax in charts:
-                    if ax.root == obj:
+                    if ax.plot_name == obj.name:
                         chart = ax
             if chart:
                 row.label(text=f'Plot')  #: {obj.name}')
@@ -635,7 +635,7 @@ class NengoInfoPanel(bpy.types.Panel):
         chart = None
         for source, charts in share_data.charts.items():
             for ax in charts:
-                if ax.root == obj:
+                if ax.plot_name == obj.name:
                     chart = ax
         if chart:
             self.draw_info_chart(chart, layout, obj)
@@ -656,7 +656,8 @@ class NengoInfoPanel(bpy.types.Panel):
         col = layout.column()
         # col.enabled = False
         # todo edition is not supported yet
-        draw_axes_properties_template(col, ax.root.nengo_axes)
+        plot_obj = bpy.data.objects[ax.plot_name]
+        draw_axes_properties_template(col, plot_obj.nengo_axes)
 
     def _draw_expand(self, col, item: dict, tab=0):
         for param, value in sorted(item.items()):

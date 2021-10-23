@@ -70,7 +70,7 @@ class _ShareData:
     def get_registered_chart(self, ax_prop: 'AxesProperties'):
         axes = self.charts.get(ax_prop.model_source)
         for ax in axes:
-            if ax.root.name == ax_prop.object:
+            if ax.plot_name == ax_prop.object:
                 return ax
 
     def get_all_sources(self, nengo_3d: 'Nengo3dProperties'):

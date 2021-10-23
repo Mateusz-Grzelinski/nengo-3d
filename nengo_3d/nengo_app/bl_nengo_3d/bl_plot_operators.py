@@ -57,9 +57,10 @@ class PlotLineOperator(bpy.types.Operator):
         if not self.axes.model_source:
             self.axes.model_source = node.name
         ax = Axes(context, self.axes)
-        ax.root.parent = node
-        ax.root.location = node.dimensions / 2 + Vector((0, 0.0, 0.3))
-        ax.root.rotation_euler.x += math.pi / 2
+        plot_obj = bpy.data.objects[ax.plot_name]
+        plot_obj.parent = node
+        plot_obj.location = node.dimensions / 2 + Vector((0, 0.0, 0.3))
+        plot_obj.rotation_euler.x += math.pi / 2
 
         share_data.register_chart(ax=ax)
         ax.draw()
@@ -110,7 +111,7 @@ class RemoveAxOperator(bpy.types.Operator):
             for source, axes in share_data.charts.items():
                 to_remove = []
                 for _ax in axes:
-                    if ax.object == _ax.root.name:
+                    if ax.object == _ax.plot_name:
                         to_remove.append(_ax)
                 for r in to_remove:
                     axes.remove(r)
