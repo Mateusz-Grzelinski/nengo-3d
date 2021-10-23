@@ -47,7 +47,7 @@ nengo_3d.GUI)
   addon panels that you do not use to improve performance~~
 - [x] ~~re-test save model state and restoring connection~~
 - [ ] lines example is not working
-- [ ] Undo system sometimes crashes blender
+- [ ] Undo system crashes blender when using custom operators
 
 ## What can be done better/differently?
 
