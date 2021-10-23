@@ -415,6 +415,10 @@ class Axes(AxesAccessors):
     color, color bar
     """
 
+    @property
+    def collection(self):
+        return bpy.data.collections[self.collection_name]
+
     def __init__(self, context: bpy.types.Context, nengo_axes: 'AxesProperties' = None, root: str = None):
         self.text_color = [0.019607, 0.019607, 0.019607]  # [1.000000, 0.982973, 0.926544]
         # self.parameter = parameter
@@ -431,14 +435,15 @@ class Axes(AxesAccessors):
             master_collection.children.link(collection)
             nengo_axes.collection = collection.name
 
-        self.collection = collection
+        self.collection_name = collection.name
+        plot_collection = self.collection
 
         if root:
             plot_obj = bpy.data.objects[root]
             self.plot_name: str = root.name
         else:
             plot_obj = bpy.data.objects.new('Plot', None)
-            self.collection.objects.link(plot_obj)
+            plot_collection.objects.link(plot_obj)
             self.plot_name: str = plot_obj.name
             plot_obj.empty_display_size = 1.1
             plot_obj.empty_display_type = 'ARROWS'  # 'PLAIN_AXES'
@@ -446,37 +451,37 @@ class Axes(AxesAccessors):
                 from bl_nengo_3d.bl_utils import copy_property_group
                 copy_property_group(nengo_axes, plot_obj.nengo_axes)
             plot_obj.nengo_axes.object = self.plot_name
-            plot_obj.nengo_axes.collection = self.collection.name
+            plot_obj.nengo_axes.collection = plot_collection.name
         super().__init__(plot_obj.nengo_axes)
 
         if not self.xticks_collection_name or not bpy.data.collections.get(self.xticks_collection_name):
             collection = bpy.data.collections.new('Ticks X')
             collection.hide_select = True
-            self.collection.children.link(collection)
+            plot_collection.children.link(collection)
             self.xticks_collection_name = collection.name
 
         if not self.yticks_collection_name or not bpy.data.collections.get(self.yticks_collection_name):
             collection = bpy.data.collections.new('Ticks Y')
             collection.hide_select = True
-            self.collection.children.link(collection)
+            plot_collection.children.link(collection)
             self.yticks_collection_name = collection.name
 
         if not self.zticks_collection_name or not bpy.data.collections.get(self.zticks_collection_name):
             collection = bpy.data.collections.new('Ticks Z')
             collection.hide_select = True
-            self.collection.children.link(collection)
+            plot_collection.children.link(collection)
             self.zticks_collection_name = collection.name
 
         if not self.legend_collection_name or not bpy.data.collections.get(self.legend_collection_name):
             collection = bpy.data.collections.new('Legend')
             collection.hide_select = True
-            self.collection.children.link(collection)
+            plot_collection.children.link(collection)
             self.legend_collection_name = collection.name
 
         if not self.lines_collection_name or not bpy.data.collections.get(self.lines_collection_name):
             collection = bpy.data.collections.new('Lines')
             collection.hide_select = True
-            self.collection.children.link(collection)
+            plot_collection.children.link(collection)
             self.lines_collection_name = collection.name
 
         color_gen_prop = plot_obj.nengo_axes.color_gen
