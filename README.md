@@ -1,11 +1,12 @@
 # Nengo 3d
 
-3d interactive neural network visualization toolkit for Nengo simulator
+3d interactive neural network visualization toolkit for Nengo simulator.
 
 python + Nengo + Blender
 
 ![imterface](images/semflu_overview_interface2.jpg)
 ![plot](images/semflu_overview.jpg)
+![plot](images/semflu_goals_v2_charts_500.jpg)
 
 ## Install and run
 
