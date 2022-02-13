@@ -440,7 +440,7 @@ class Axes(AxesAccessors):
 
         if root:
             plot_obj = bpy.data.objects[root]
-            self.plot_name: str = root.name
+            self.plot_name: str = root
         else:
             plot_obj = bpy.data.objects.new('Plot', None)
             plot_collection.objects.link(plot_obj)

@@ -4,7 +4,8 @@
 
 python + Nengo + Blender
 
-In development
+![imterface](images/semflu_overview_interface2.jpg)
+![plot](images/semflu_overview.jpg)
 
 ## Install and run
 
@@ -41,19 +42,22 @@ nengo_3d.GUI)
 
 ## Issues
 
-- [ ] do not store pointer directly to blender object, refer to them by name, it breaks undo system (almost done, todo
-  `axes.root`)
+- [x] ~~do not store pointer directly to blender object, refer to them by name~~
 - [x] ~~performance in UI panels is not great. Advanced caching is needed or conversion to dedicated operators. Close
   addon panels that you do not use to improve performance~~
 - [x] ~~re-test save model state and restoring connection~~
 - [ ] lines example is not working
-- [ ] Undo system crashes blender when using custom operators
+- [ ] Undo system sometimes crashes blender when using custom operators (partially fixed)
+- [ ] when saved blend is loaded, and the model is changed, the number of lines might not be the same. Refresh the
+  number of lines in chart?
+- [ ] when `Sampple every` is greater than 1 `Play` functionality breaks a bit
+- [ ] rendering animation sometimes while changing mesh crashes Blender (known bug)
 
 ## What can be done better/differently?
 
 - allow for scrubbing data and stepping simulation even if reset is required
-- in color panel enum: gather attributes to static collection, so that bpy.rna does not spam with warnings and unknown type
-  errors when not connected. This will fix issue when color enum changes unexpectedly when expanding network
+- in color panel enum: gather attributes to static collection, so that bpy.rna does not spam with warnings and unknown
+  type errors when not connected. This will fix issue when color enum changes unexpectedly when expanding network
 - communication with server - use either full rest API (for clarity) or binary format (for speed)
 - create broadcast server, so that Blender can be kept open and only receive model changes
 - interaction from Blender to model? (interactive input by slider, adding new node, ...)
@@ -61,3 +65,5 @@ nengo_3d.GUI)
 - automatic rendering?
 - align items to camera view?
 - add progress bar
+- views on data from multiple runs? 
+- save gathered data to external file?
